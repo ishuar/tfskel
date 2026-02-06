@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 📖 Documentation
+    url: https://github.com/ishuar/tfskel/blob/main/README.md
+    about: Check out the documentation for usage guides and examples
+  - name: 💬 Discussions
+    url: https://github.com/ishuar/tfskel/discussions
+    about: Ask questions and discuss with the community

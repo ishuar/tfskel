@@ -1,0 +1,47 @@
+name: ❓ Question
+description: Ask a question about using tfskel
+title: "[Question]: "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for your question! Please check the [documentation](https://github.com/ishuar/tfskel/blob/main/README.md) first.
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Your Question
+      description: What would you like to know?
+      placeholder: How do I...?
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Provide any additional context that might help us answer your question
+      placeholder: |
+        I'm trying to...
+        I've already tried...
+
+  - type: textarea
+    id: example
+    attributes:
+      label: Example
+      description: If applicable, provide an example of what you're trying to achieve
+      render: shell
+      placeholder: |
+        $ tfskel init ...
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      description: Please confirm you've done the following
+      options:
+        - label: I've read the [README](https://github.com/ishuar/tfskel/blob/main/README.md)
+          required: true
+        - label: I've searched existing issues for similar questions
+          required: true

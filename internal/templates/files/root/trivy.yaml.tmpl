@@ -1,0 +1,11 @@
+## ref: https://trivy.dev/v0.66/docs/references/configuration/config-file/
+misconfiguration:
+  scanners:
+    - terraform
+    - terraformplan-json
+    - terraformplan-snapshot
+  terraform:
+    # Same as '--tf-exclude-downloaded-modules'
+    exclude-downloaded-modules: true
+    # Same as '--tf-vars'
+    vars: []

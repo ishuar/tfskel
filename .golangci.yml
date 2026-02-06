@@ -1,0 +1,207 @@
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  # Start with all linters and selectively disable what doesn't fit
+  default: all
+
+  disable:
+    # Not applicable for this project
+    - arangolint      # ArangoDB specific
+    - depguard        # No import restrictions needed initially
+    - gosmopolitan    # Not internationalizing
+    - iface           # Too opinionated for interfaces
+    - ireturn         # Too restrictive for return types
+    - nlreturn        # Blank line style too strict
+    - nonamedreturns  # Named returns can be useful
+    - paralleltest    # Not all tests need parallel
+    - tagliatelle     # Struct tag style not needed
+    - testpackage     # Allow same package tests
+    - varnamelen      # Short names are fine in Go
+    - wrapcheck       # Too strict for error wrapping
+    - wsl             # Whitespace style too opinionated
+    - exhaustruct     # Too strict for struct initialization
+    - godox           # Allow TODO/FIXME comments
+    - forbidigo       # Don't restrict standard functions
+    - gochecknoglobals # Some globals are acceptable
+    - noctx           # Not all HTTP requests need context
+    - protogetter     # No protobuf in this project
+    - goheader        # No custom header enforcement
+    - interfacebloat  # Interface size is fine
+    - lll             # Line length handled by formatter
+    - wsl_v5          # Whitespace style handled by formatter
+    - godot           # Sentence ending periods not enforced
+    - testifylint     # Testify usage is acceptable
+    - revive         # Using revive but with custom rules below
+    ### TEMP
+    - nolintlint
+    - usetesting
+    - thelper
+    - modernize
+    - gochecknoinits
+    - exhaustive
+    - funcorder
+    - gocognit
+    - goconst
+    - nestif
+    - perfsprint
+    - noinlineerr     # Inline error handling is idiomatic Go
+    - prealloc
+  settings:
+    # Cyclomatic complexity
+    cyclop:
+      max-complexity: 18
+
+    gocognit:
+      min-complexity: 25
+
+    gocyclo:
+      min-complexity: 18
+
+    # Function length
+    funlen:
+      lines: 120
+      statements: 60
+      ignore-comments: true
+
+    # Code duplication
+    dupl:
+      threshold: 120
+
+    # Nesting depth
+    nestif:
+      min-complexity: 5
+
+    # Constants
+    goconst:
+      min-len: 3
+      min-occurrences: 3
+
+    # Magic numbers
+    mnd:
+      ignored-numbers:
+        - "0"
+        - "1"
+        - "2"
+        - "0o755"
+        - "0o644"
+        - "0600"
+        - "0644"
+        - "0755"
+
+    # Error checks
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+      exclude-functions:
+        - (io.Closer).Close
+
+    errorlint:
+      errorf: true
+      asserts: true
+      comparison: true
+
+    # Go vet
+    govet:
+      enable-all: true
+      disable:
+        - shadow
+        - fieldalignment
+
+    # Security
+    gosec:
+      excludes:
+        - G104  # Audit errors (covered by errcheck)
+        - G204  # Subprocess with variable (needed for CLI)
+        - G301  # Directory permissions 0755 (standard)
+        - G302  # File permissions check
+        - G304  # File path variable (needed for CLI)
+        - G306  # File permissions 0644 (standard)
+
+    # Revive configuration
+    revive:
+      confidence: 0.8
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: exported
+          arguments:
+            - checkPrivateReceivers
+            - disableStutteringCheck
+        - name: if-return
+        - name: increment-decrement
+        - name: var-naming
+        - name: var-declaration
+        - name: package-comments
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: unexported-return
+        - name: indent-error-flow
+        - name: errorf
+        - name: empty-block
+        - name: superfluous-else
+        - name: unused-parameter
+        - name: unreachable-code
+        - name: redefines-builtin-id
+
+    # Spelling
+    misspell:
+      locale: US
+
+    # Maintainability index
+    maintidx:
+      under: 20
+
+    # No linting
+    nolintlint:
+      allow-unused: false
+      require-explanation: true
+      require-specific: true
+
+  exclusions:
+    generated: strict
+    warn-unused: true
+
+    rules:
+      # Exclude complexity and duplication checks from test files
+      - path: _test\.go
+        linters:
+          - cyclop
+          - gocyclo
+          - gocognit
+          - funlen
+          - dupl
+          - maintidx
+          - err113
+          - goconst
+          - mnd
+          - errcheck
+          - gosec
+          - goerr113
+          - wrapcheck
+
+      # Exclude staticcheck SA9003 (empty branch)
+      - linters:
+          - staticcheck
+        text: "SA9003:"
+
+      # Exclude testify/require assertions from errcheck
+      - path: _test\.go
+        text: "(require|assert)\\."
+        linters:
+          - errcheck
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  new: false
+  fix: false
