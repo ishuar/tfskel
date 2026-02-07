@@ -1,11 +1,14 @@
+[![Go Version][go-version-img]][go-version]
+[![GitHub Release][release-img]][release]
+[![Test][test-img]][test]
+[![Go Report Card][go-report-img]][go-report]
+[![License: MIT][license-img]][license]
+
 # tfskel
 
 **Opinionated Terraform scaffolding for real-world teams.**
 
 tfskel is a CLI tool that scaffolds Terraform monorepos with an **opinionated**, **scalable** and **consistent** way by using environment-based directory structure across multiple regions. No wrappers, no complexity—just vanilla Terraform with consistent backend configs, version **drift detection**, and sensible defaults. Spend less time on project setup and more time writing infrastructure code.
-
-[![Go Version](https://img.shields.io/badge/Go-1.24%2B-blue.svg)](https://golang.org)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ## What It Does
 
@@ -30,12 +33,12 @@ Make sure `$HOME/go/bin` is in your PATH.
 
 ## Quick Start
 
-Help and available commands
+1. Help and available commands
 
 ```bash
 tfskel --help
 ```
-Initialize a new Terraform monorepo:
+2. Initialize a new Terraform monorepo:
 
 ```bash
 # Create project structure with default config
@@ -45,8 +48,6 @@ tfskel init
 tfskel init --dir /path/to/your/project
 
 ```
-
-
 This creates an opinionated structure with environment directories and configuration files:
 
 ```
@@ -68,13 +69,18 @@ This creates an opinionated structure with environment directories and configura
         └── eu-central-1/
 ```
 
-Generate Terraform code for a specific application:
+3. Generate Terraform code for a specific application:
 
 ```bash
 tfskel generate myapp --env dev --region us-east-1
 
 ```
 
+4. Check drift for AWS provider and Terraform versions with respect to .tfskel.yaml config
+```bash
+# default is table format from current working directory
+tfskel drift
+```
 ## Usage Examples
 
 **Deploy the same app across multiple regions:**
@@ -146,3 +152,14 @@ make install       # Install locally
 ## License
 
 MIT License - see [LICENSE](LICENSE) file for details.
+
+[go-version-img]: https://img.shields.io/badge/Go-1.24%2B-blue.svg
+[go-version]: https://golang.org
+[test]: https://github.com/ishuar/tfskel/actions/workflows/test.yaml
+[test-img]: https://github.com/ishuar/tfskel/actions/workflows/test.yaml/badge.svg
+[go-report]: https://goreportcard.com/report/github.com/ishuar/tfskel
+[go-report-img]: https://goreportcard.com/badge/github.com/ishuar/tfskel
+[release]: https://github.com/ishuar/tfskel/releases
+[release-img]: https://img.shields.io/github/release/ishuar/tfskel.svg?logo=github
+[license]: https://github.com/ishuar/tfskel/blob/main/LICENSE
+[license-img]: https://img.shields.io/badge/MIT-blue.svg
