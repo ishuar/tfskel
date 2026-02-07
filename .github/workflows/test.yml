@@ -1,18 +1,45 @@
 name: Tests
 
 on:
-  push:
-    branches: [ main ]
   pull_request:
-    branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - '.github/**'
+      - '!.github/workflows/test.yml'
+    branches:
+      - main
+  push:
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - '.github/**'
+      - '!.github/workflows/test.yml'
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  GO_VERSION: '1.25.5'
 
 jobs:
   test:
     name: Test
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        go-version: ['1.24', '1.25']
+        os: [ubuntu-latest, macos-latest]
+        go-version: ['1.24', '1.25.5']
 
     steps:
     - name: Check out code
@@ -23,14 +50,7 @@ jobs:
       with:
         go-version: ${{ matrix.go-version }}
         cache: true
-
-    - name: Cache Go modules
-      uses: actions/cache@v4
-      with:
-        path: ~/go/pkg/mod
-        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-        restore-keys: |
-          ${{ runner.os }}-go-
+        cache-dependency-path: go.sum
 
     - name: Download dependencies
       run: go mod download
@@ -38,16 +58,19 @@ jobs:
     - name: Run tests
       run: go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
 
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v4
+    - name: Upload coverage reports to Codecov
+      if: matrix.os == 'ubuntu-latest' && matrix.go-version == env.GO_VERSION
+      uses: codecov/codecov-action@v5
       with:
-        file: ./coverage.out
-        flags: unittests
-        name: codecov-umbrella
+        token: ${{ secrets.CODECOV_TOKEN }}
+        files: ./coverage.out
+        fail_ci_if_error: false
+        name: tfskel-codecov-coverage
 
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    needs: test
 
     steps:
     - name: Check out code
@@ -56,21 +79,20 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v6
       with:
-        go-version: "1.24"
+        go-version: ${{ env.GO_VERSION }}
         cache: true
 
     - name: Run golangci-lint
       uses: golangci/golangci-lint-action@v9
       with:
-        version: latest
-        args: --timeout=5m
+        version: v2.8.0  # Pin specific version
+        args: --timeout=5m --verbose
 
   build:
     name: Build
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        go-version: ['1.24', '1.25']
+    needs: test
+
     steps:
     - name: Check out code
       uses: actions/checkout@v6
@@ -78,11 +100,11 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v6
       with:
+        go-version: ${{ env.GO_VERSION }}
         cache: true
-        go-version: ${{ matrix.go-version }}
 
     - name: Build
-      run: go build -v -o tfskel .
+      run: go build -v -ldflags="-w -s" -o tfskel .
 
     - name: Test binary
       run: |
