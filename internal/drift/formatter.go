@@ -190,7 +190,7 @@ func (f *Formatter) writeSummary(writer io.Writer, report *DriftReport, styles t
 		StyleFunc(func(row, col int) lipgloss.Style {
 			if col == 0 {
 				// First column: left-aligned labels
-				return lipgloss.NewStyle().Bold(true).Foreground(styles.rowColor).Width(labelWidth).Align(lipgloss.Left)
+				return lipgloss.NewStyle().Bold(true).Foreground(styles.rowColor).Width(labelWidth).Align(lipgloss.Right)
 			}
 			// Second column: center-aligned values
 			return lipgloss.NewStyle().Foreground(styles.rowColor).Width(valueWidth).Align(lipgloss.Center)
@@ -366,12 +366,8 @@ func (f *Formatter) writeDriftDetails(writer io.Writer, report *DriftReport, sty
 				// Headers: center-aligned
 				return lipgloss.NewStyle().Bold(true).Foreground(styles.headerColor).Align(lipgloss.Center)
 			}
-			// First column (File): left-aligned
-			if col == 0 {
-				return lipgloss.NewStyle().Foreground(styles.rowColor).Align(lipgloss.Left)
-			}
 			// All other columns: center-aligned
-			return lipgloss.NewStyle().Foreground(styles.rowColor).Align(lipgloss.Center)
+			return lipgloss.NewStyle().Foreground(styles.rowColor).Align(lipgloss.Left)
 		}).
 		Width(f.tableWidth).
 		Headers("File", "Type", "Expected", "Actual", "Status").
