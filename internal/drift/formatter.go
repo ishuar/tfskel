@@ -27,12 +27,16 @@ const (
 	FormatJSON  OutputFormat = "json"
 	FormatCSV   OutputFormat = "csv"
 
-	// Table column width constants for summary table formatting
-	summaryLabelColumnWidth = 25
-	summaryValueColumnWidth = 20
-
 	// Minimum width calculation constants
 	minDriftTableWidth = 113 // File(40) + Type(16) + Expected(16) + Actual(16) + Status(15) + borders(10)
+
+	// File path width thresholds for extra space calculation
+	baseFilePathWidth     = 40 // Base file path width before adding extra space
+	maxExtraSpaceForPaths = 30 // Maximum extra space to add for long paths
+
+	// Table layout constants
+	tableBorderPadding = 4 // Approximate characters needed for borders and padding
+	pathDivisor        = 2 // Divisor for calculating extra space from path length
 )
 
 // Formatter handles different output formats for drift reports
@@ -78,11 +82,11 @@ func (f *Formatter) calculateOptimalWidth(report *DriftReport) int {
 
 	// Check if we have long file paths that need more space
 	for _, record := range report.Records {
-		if record.HasDrift && len(record.FilePath) > 40 {
+		if record.HasDrift && len(record.FilePath) > baseFilePathWidth {
 			// Add extra space for longer paths, up to a reasonable limit
-			extraSpace := (len(record.FilePath) - 40) / 2
-			if extraSpace > 30 {
-				extraSpace = 30 // Cap extra space
+			extraSpace := (len(record.FilePath) - baseFilePathWidth) / pathDivisor
+			if extraSpace > maxExtraSpaceForPaths {
+				extraSpace = maxExtraSpaceForPaths // Cap extra space
 			}
 			minRequired += extraSpace
 			break
@@ -166,20 +170,20 @@ func (f *Formatter) setupStyles() tableStyles {
 
 // writeHeader writes the report header
 func (f *Formatter) writeHeader(writer io.Writer, report *DriftReport, styles tableStyles) {
-	fmt.Fprintln(writer, styles.titleStyle.Render("━━━ Terraform Version Drift Report ━━━"))
-	fmt.Fprintf(writer, "%s %s\n", styles.mutedStyle.Render("Scanned:"), report.ScanRoot)
-	fmt.Fprintf(writer, "%s %s\n", styles.mutedStyle.Render("Time:"), report.ScannedAt.Format("2006-01-02 15:04:05"))
+	_, _ = fmt.Fprintln(writer, styles.titleStyle.Render("━━━ Terraform Version Drift Report ━━━"))
+	_, _ = fmt.Fprintf(writer, "%s %s\n", styles.mutedStyle.Render("Scanned:"), report.ScanRoot)
+	_, _ = fmt.Fprintf(writer, "%s %s\n", styles.mutedStyle.Render("Time:"), report.ScannedAt.Format("2006-01-02 15:04:05"))
 }
 
 // writeSummary writes the quick summary section
 func (f *Formatter) writeSummary(writer io.Writer, report *DriftReport, styles tableStyles) {
-	fmt.Fprintln(writer, styles.headerStyle.Render("Quick Summary"))
+	_, _ = fmt.Fprintln(writer, styles.headerStyle.Render("Quick Summary"))
 
 	summaryData := f.buildSummaryData(report)
 
 	// Calculate column widths to fill the table width evenly
-	// Subtract borders and padding (approximately 4 characters)
-	availableWidth := f.tableWidth - 4
+	// Subtract borders and padding
+	availableWidth := f.tableWidth - tableBorderPadding
 	labelWidth := availableWidth / 2
 	valueWidth := availableWidth - labelWidth
 
@@ -197,7 +201,7 @@ func (f *Formatter) writeSummary(writer io.Writer, report *DriftReport, styles t
 		}).
 		Rows(summaryData...)
 
-	fmt.Fprintln(writer, summaryTable.Render())
+	_, _ = fmt.Fprintln(writer, summaryTable.Render())
 }
 
 // buildSummaryData constructs summary table rows
@@ -232,7 +236,7 @@ func (f *Formatter) writeTerraformVersions(writer io.Writer, report *DriftReport
 		return
 	}
 
-	fmt.Fprintln(writer, styles.headerStyle.Render("Terraform Versions"))
+	_, _ = fmt.Fprintln(writer, styles.headerStyle.Render("Terraform Versions"))
 
 	expectedVersion := ""
 	if len(report.Records) > 0 {
@@ -256,7 +260,7 @@ func (f *Formatter) writeTerraformVersions(writer io.Writer, report *DriftReport
 		Headers("Status", "Version", "Count").
 		Rows(versionData...)
 
-	fmt.Fprintln(writer, versionTable.Render())
+	_, _ = fmt.Fprintln(writer, versionTable.Render())
 }
 
 // buildVersionData constructs version table rows
@@ -292,7 +296,7 @@ func (f *Formatter) writeProviderVersions(writer io.Writer, report *DriftReport,
 		return
 	}
 
-	fmt.Fprintln(writer, styles.headerStyle.Render("Provider Versions"))
+	_, _ = fmt.Fprintln(writer, styles.headerStyle.Render("Provider Versions"))
 
 	// Sort providers
 	providers := make([]string, 0, len(report.Summary.ProviderVersions))
@@ -304,7 +308,7 @@ func (f *Formatter) writeProviderVersions(writer io.Writer, report *DriftReport,
 	// Build and render tables for each provider
 	for _, provider := range providers {
 		providerTable := f.buildProviderTable(provider, report.Summary.ProviderVersions[provider], styles)
-		fmt.Fprintln(writer, providerTable)
+		_, _ = fmt.Fprintln(writer, providerTable)
 	}
 }
 
@@ -349,7 +353,7 @@ func (f *Formatter) writeDriftDetails(writer io.Writer, report *DriftReport, sty
 	}
 
 	totalDriftItems := f.countDriftItems(driftRecords)
-	fmt.Fprintln(writer, styles.headerStyle.Render(fmt.Sprintf("Files with Drift (%d files, %d issues)", len(driftRecords), totalDriftItems)))
+	_, _ = fmt.Fprintln(writer, styles.headerStyle.Render(fmt.Sprintf("Files with Drift (%d files, %d issues)", len(driftRecords), totalDriftItems)))
 
 	// Sort by file path
 	sort.Slice(driftRecords, func(i, j int) bool {
@@ -373,7 +377,7 @@ func (f *Formatter) writeDriftDetails(writer io.Writer, report *DriftReport, sty
 		Headers("File", "Type", "Expected", "Actual", "Status").
 		Rows(driftData...)
 
-	fmt.Fprintln(writer, driftTable.Render())
+	_, _ = fmt.Fprintln(writer, driftTable.Render())
 }
 
 // filterDriftRecords extracts only records with drift
