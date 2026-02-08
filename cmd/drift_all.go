@@ -1,0 +1,401 @@
+package cmd
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/ishuar/tfskel/internal/config"
+	"github.com/ishuar/tfskel/internal/drift"
+	"github.com/ishuar/tfskel/internal/logger"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+)
+
+var (
+	allPath         string
+	allPlanFile     string
+	allFormat       string
+	allNoColor      bool
+	allSkipPlan     bool
+	allSkipVersions bool
+)
+
+var (
+	ErrAllAnalysisFailed = errors.New("one or more analyses failed")
+)
+
+// CombinedAnalysis represents results from both version and plan analysis
+type CombinedAnalysis struct {
+	VersionDrift  *VersionDriftSummary `json:"version_drift,omitempty"`
+	PlanAnalysis  *drift.PlanAnalysis  `json:"plan_analysis,omitempty"`
+	OverallStatus string               `json:"overall_status"`
+	HasIssues     bool                 `json:"has_issues"`
+}
+
+// VersionDriftSummary is a simplified version drift summary
+type VersionDriftSummary struct {
+	TotalFiles     int  `json:"total_files"`
+	FilesWithDrift int  `json:"files_with_drift"`
+	MinorDrift     int  `json:"minor_drift"`
+	MajorDrift     int  `json:"major_drift"`
+	HasDrift       bool `json:"has_drift"`
+}
+
+// driftAllCmd represents the drift all command
+var driftAllCmd = &cobra.Command{
+	Use:   "all",
+	Short: "Run combined version drift and plan analysis",
+	Long: `Run a comprehensive drift analysis combining both version drift detection
+and terraform plan analysis. This provides a complete picture of your
+infrastructure state and planned changes.
+
+This command is ideal for:
+  • Pre-commit hooks - Catch both version drift and plan issues
+  • CI/CD pipelines - Comprehensive validation before deployment
+  • Code reviews - Complete analysis for reviewers
+  • Compliance checks - Ensure both versions and changes are validated
+
+The command will:
+  1. Scan for version drift across Terraform configurations
+  2. Analyze terraform plan for resource changes
+  3. Combine results and provide unified reporting
+  4. Exit with code reflecting the most severe issue
+
+Exit Codes:
+  0 - No issues found
+  1 - Version drift or plan changes detected
+  2 - Critical changes (deletions/replacements) or major version drift
+
+Examples:
+  # Run full analysis
+  tfskel drift all --plan-file tfplan.json
+
+  # Analyze specific directory with plan
+  tfskel drift all --path ./envs --plan-file tfplan.json
+
+  # Skip plan analysis (versions only)
+  tfskel drift all --skip-plan
+
+  # Skip version analysis (plan only)
+  tfskel drift all --plan-file tfplan.json --skip-versions
+
+  # Export combined results as JSON
+  tfskel drift all --plan-file tfplan.json --format json
+
+  # CI/CD usage with no colors
+  tfskel drift all --plan-file tfplan.json --no-color`,
+	RunE: runDriftAll,
+}
+
+func init() {
+	driftCmd.AddCommand(driftAllCmd)
+
+	driftAllCmd.Flags().StringVarP(&allPath, "path", "p", ".",
+		"Path to scan for Terraform files (default: current directory)")
+	driftAllCmd.Flags().StringVar(&allPlanFile, "plan-file", "",
+		"Path to terraform plan JSON file (optional)")
+	driftAllCmd.Flags().StringVarP(&allFormat, "format", "f", "table",
+		"Output format: table, json, csv")
+	driftAllCmd.Flags().BoolVar(&allNoColor, "no-color", false,
+		"Disable colored output")
+	driftAllCmd.Flags().BoolVar(&allSkipPlan, "skip-plan", false,
+		"Skip plan analysis (versions only)")
+	driftAllCmd.Flags().BoolVar(&allSkipVersions, "skip-versions", false,
+		"Skip version analysis (plan only)")
+}
+
+func runDriftAll(cmd *cobra.Command, args []string) error {
+	log := logger.New(viper.GetBool("verbose"))
+
+	// Validate flags
+	if allSkipVersions && allSkipPlan {
+		log.Error("Cannot skip both version and plan analysis. Remove one of the skip flags.")
+		cmd.SilenceUsage = true
+		return errors.New("invalid flags: cannot skip all analyses")
+	}
+
+	if !allSkipPlan && allPlanFile == "" {
+		log.Warn("No plan file provided. Use --plan-file or --skip-plan")
+		allSkipPlan = true
+	}
+
+	// Suppress logs for machine-readable formats
+	if allFormat == "json" || allFormat == "csv" {
+		log.SetOutput(os.Stderr)
+	}
+
+	log.Info("Starting comprehensive drift analysis...")
+
+	combined := &CombinedAnalysis{
+		OverallStatus: "clean",
+	}
+
+	var exitCode int
+
+	// Run version drift analysis
+	if !allSkipVersions {
+		log.Info("\n[1/2] Running version drift analysis...")
+		versionSummary, versionExitCode, err := runVersionAnalysis(allPath, log, cmd)
+		if err != nil {
+			log.Errorf("Version analysis failed: %v", err)
+			// Continue to plan analysis even if version fails
+		} else {
+			combined.VersionDrift = versionSummary
+			if versionExitCode > exitCode {
+				exitCode = versionExitCode
+			}
+			if versionSummary.HasDrift {
+				combined.HasIssues = true
+				if versionSummary.MajorDrift > 0 {
+					combined.OverallStatus = "critical"
+				} else if combined.OverallStatus == "clean" {
+					combined.OverallStatus = "warning"
+				}
+			}
+		}
+	}
+
+	// Run plan analysis
+	if !allSkipPlan {
+		log.Info("\n[2/2] Running plan analysis...")
+		planAnalysis, planExitCode, err := runPlanAnalysisInternal(allPlanFile, log)
+		if err != nil {
+			log.Errorf("Plan analysis failed: %v", err)
+			cmd.SilenceUsage = true
+			return fmt.Errorf("plan analysis failed: %w", err)
+		}
+		combined.PlanAnalysis = planAnalysis
+		if planExitCode > exitCode {
+			exitCode = planExitCode
+		}
+		if planAnalysis.HasChanges {
+			combined.HasIssues = true
+			if planAnalysis.Deletions > 0 || planAnalysis.Replacements > 0 {
+				combined.OverallStatus = "critical"
+			} else if combined.OverallStatus != "critical" {
+				combined.OverallStatus = "warning"
+			}
+		}
+	}
+
+	log.Info("\n=== Combined Analysis Complete ===")
+
+	// Format and output combined results
+	if err := formatCombinedAnalysis(combined, allFormat, !allNoColor); err != nil {
+		log.Errorf("Failed to format output: %v", err)
+		cmd.SilenceUsage = true
+		return fmt.Errorf("failed to format output: %w", err)
+	}
+
+	// Exit with appropriate code
+	if exitCode != 0 {
+		log.Warnf("Issues detected - exiting with code %d", exitCode)
+		os.Exit(exitCode)
+	}
+
+	log.Success("No issues detected - infrastructure is clean")
+	return nil
+}
+
+func runVersionAnalysis(scanPath string, log *logger.Logger, cmd *cobra.Command) (*VersionDriftSummary, int, error) {
+	// Validate path
+	fileInfo, err := os.Stat(scanPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, 0, fmt.Errorf("%w: %s", ErrPathDoesNotExist, scanPath)
+		}
+		return nil, 0, fmt.Errorf("failed to access path: %w", err)
+	}
+
+	if !fileInfo.IsDir() {
+		return nil, 0, fmt.Errorf("%w: %s", ErrPathNotDirectory, scanPath)
+	}
+
+	absPath, err := filepath.Abs(scanPath)
+	if err != nil {
+		absPath = scanPath
+	}
+
+	// Load configuration
+	cfg, err := config.Load(cmd, viper.GetViper())
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to load configuration: %w", err)
+	}
+
+	log.Infof("Scanning path: %s", absPath)
+
+	// Create detector and scan
+	detector := drift.NewDetector(scanPath)
+	versionInfos, err := detector.ScanDirectory()
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to scan directory: %w", err)
+	}
+
+	if len(versionInfos) == 0 {
+		log.Warnf("No Terraform files with version information found")
+		return &VersionDriftSummary{}, 0, nil
+	}
+
+	log.Infof("Found %d files with version information", len(versionInfos))
+
+	// Analyze drift
+	analyzer := drift.NewAnalyzer(cfg)
+	report := analyzer.Analyze(absPath, versionInfos)
+
+	// Create summary
+	summary := &VersionDriftSummary{
+		TotalFiles:     report.TotalFiles,
+		FilesWithDrift: report.FilesWithDrift,
+		MinorDrift:     report.Summary.FilesWithMinorDrift,
+		MajorDrift:     report.Summary.FilesWithMajorDrift,
+		HasDrift:       report.FilesWithDrift > 0,
+	}
+
+	return summary, report.ExitCode(), nil
+}
+
+func runPlanAnalysisInternal(planFile string, log *logger.Logger) (*drift.PlanAnalysis, int, error) {
+	// Check if file exists
+	if _, err := os.Stat(planFile); err != nil {
+		if os.IsNotExist(err) {
+			return nil, 0, fmt.Errorf("%w: %s", ErrPlanFileNotFound, planFile)
+		}
+		return nil, 0, fmt.Errorf("failed to access plan file: %w", err)
+	}
+
+	log.Infof("Analyzing plan file: %s", planFile)
+
+	// Parse plan file using internal package
+	plan, err := drift.ParsePlanFile(planFile)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to parse plan file: %w", err)
+	}
+
+	// Analyze the plan using internal package
+	analyzer := drift.NewPlanAnalyzer()
+	analysis := analyzer.Analyze(plan)
+
+	if !analysis.HasChanges {
+		log.Info("No changes detected in plan")
+	}
+
+	// Use the ExitCode method on analysis
+	return analysis, analysis.ExitCode(), nil
+}
+
+func formatCombinedAnalysis(combined *CombinedAnalysis, format string, useColor bool) error {
+	switch format {
+	case "json":
+		return formatCombinedJSON(combined)
+	case "csv":
+		return formatCombinedCSV(combined)
+	case "table":
+		return formatCombinedTable(combined, useColor)
+	default:
+		return fmt.Errorf("unsupported format: %s", format)
+	}
+}
+
+func formatCombinedJSON(combined *CombinedAnalysis) error {
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetIndent("", "  ")
+	return encoder.Encode(combined)
+}
+
+func formatCombinedCSV(combined *CombinedAnalysis) error {
+	fmt.Println("Analysis Type,Metric,Value")
+
+	if combined.VersionDrift != nil {
+		fmt.Printf("version_drift,total_files,%d\n", combined.VersionDrift.TotalFiles)
+		fmt.Printf("version_drift,files_with_drift,%d\n", combined.VersionDrift.FilesWithDrift)
+		fmt.Printf("version_drift,minor_drift,%d\n", combined.VersionDrift.MinorDrift)
+		fmt.Printf("version_drift,major_drift,%d\n", combined.VersionDrift.MajorDrift)
+	}
+
+	if combined.PlanAnalysis != nil {
+		fmt.Printf("plan_analysis,total_changes,%d\n", combined.PlanAnalysis.TotalChanges)
+		fmt.Printf("plan_analysis,additions,%d\n", combined.PlanAnalysis.Additions)
+		fmt.Printf("plan_analysis,modifications,%d\n", combined.PlanAnalysis.Modifications)
+		fmt.Printf("plan_analysis,deletions,%d\n", combined.PlanAnalysis.Deletions)
+		fmt.Printf("plan_analysis,replacements,%d\n", combined.PlanAnalysis.Replacements)
+	}
+
+	fmt.Printf("overall,status,%s\n", combined.OverallStatus)
+
+	return nil
+}
+
+func formatCombinedTable(combined *CombinedAnalysis, useColor bool) error {
+	fmt.Println("\n" + strings.Repeat("=", 70))
+	fmt.Println("                 COMBINED DRIFT ANALYSIS RESULTS")
+	fmt.Println(strings.Repeat("=", 70))
+
+	// Version Drift Section
+	if combined.VersionDrift != nil {
+		fmt.Println("\n─── Version Drift Analysis ───")
+		fmt.Printf("  Total Files Scanned:    %d\n", combined.VersionDrift.TotalFiles)
+		fmt.Printf("  Files with Drift:       %d\n", combined.VersionDrift.FilesWithDrift)
+		fmt.Printf("  Minor Drift:            %d\n", combined.VersionDrift.MinorDrift)
+		fmt.Printf("  Major Drift:            %d\n", combined.VersionDrift.MajorDrift)
+		status := "✔ Clean"
+		if combined.VersionDrift.HasDrift {
+			status = "✘ Drift Detected"
+			if useColor {
+				if combined.VersionDrift.MajorDrift > 0 {
+					status = "\033[1;31m✘ Drift Detected\033[0m"
+				} else {
+					status = "\033[33m✘ Drift Detected\033[0m"
+				}
+			}
+		} else if useColor {
+			status = "\033[32m✔ Clean\033[0m"
+		}
+		fmt.Printf("  Status:                 %s\n", status)
+	}
+
+	// Plan Analysis Section
+	if combined.PlanAnalysis != nil {
+		fmt.Println("\n─── Plan Analysis ───")
+		fmt.Printf("  Total Changes:          %d\n", combined.PlanAnalysis.TotalChanges)
+		fmt.Printf("  Additions:              %d\n", combined.PlanAnalysis.Additions)
+		fmt.Printf("  Modifications:          %d\n", combined.PlanAnalysis.Modifications)
+		fmt.Printf("  Deletions:              %d\n", combined.PlanAnalysis.Deletions)
+		fmt.Printf("  Replacements:           %d\n", combined.PlanAnalysis.Replacements)
+		status := "✔ No Changes"
+		if combined.PlanAnalysis.HasChanges {
+			status = "✘ Changes Detected"
+			if useColor {
+				if combined.PlanAnalysis.Deletions > 0 || combined.PlanAnalysis.Replacements > 0 {
+					status = "\033[1;31m✘ Changes Detected\033[0m"
+				} else {
+					status = "\033[33m✘ Changes Detected\033[0m"
+				}
+			}
+		} else if useColor {
+			status = "\033[32m✔ No Changes\033[0m"
+		}
+		fmt.Printf("  Status:                 %s\n", status)
+	}
+
+	// Overall Summary
+	fmt.Println("\n" + strings.Repeat("─", 70))
+	overallStatus := combined.OverallStatus
+	if useColor {
+		switch combined.OverallStatus {
+		case "critical":
+			overallStatus = "\033[1;31mCRITICAL\033[0m"
+		case "warning":
+			overallStatus = "\033[33mWARNING\033[0m"
+		case "clean":
+			overallStatus = "\033[32mCLEAN\033[0m"
+		}
+	}
+	fmt.Printf("  Overall Status:         %s\n", overallStatus)
+	fmt.Println(strings.Repeat("=", 70) + "\n")
+
+	return nil
+}

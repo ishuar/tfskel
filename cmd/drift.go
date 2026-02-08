@@ -1,162 +1,33 @@
 package cmd
 
 import (
-	"errors"
-	"fmt"
-	"os"
-	"path/filepath"
-
-	"github.com/ishuar/tfskel/internal/config"
-	"github.com/ishuar/tfskel/internal/drift"
-	"github.com/ishuar/tfskel/internal/logger"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
-)
-
-var (
-	driftFormat  string
-	driftNoColor bool
-	driftPath    string
-)
-
-var (
-	ErrPathDoesNotExist = errors.New("path does not exist")
-	ErrPathNotDirectory = errors.New("path is not a directory")
 )
 
 // driftCmd represents the drift command
 var driftCmd = &cobra.Command{
 	Use:   "drift",
-	Short: "Detect version drift across Terraform configurations",
-	Long: `Detect and report version inconsistencies for Terraform and providers
-across your workspace. This command recursively scans .tf files, extracts
-version information using HCL parsing, and compares against your .tfskel configuration.
+	Short: "Analyze Terraform drift and plan changes",
+	Long: `The drift command helps you detect and analyze discrepancies in your
+Terraform infrastructure. It provides multiple analysis modes:
 
-The --path flag accepts:
-  - Relative paths: ./envs, ../terraform, tfskel-function-test
-  - Absolute paths: /full/path/to/terraform
-  - Home directory: ~/terraform (~ is expanded automatically)
-  - Current directory: . or ./ (scans recursively from current location)
+  • versions - Detect version inconsistencies across configurations
+  • plan     - Analyze terraform plan output for change review
+  • all      - Combined version drift and plan analysis
 
-Note: Hidden directories (starting with .) are automatically skipped.
+Use drift subcommands for targeted analysis of your Terraform workspace.
 
 Examples:
-  # Check for drift in current directory and all subdirectories
-  tfskel drift
-  tfskel drift --path ./
+  # Check for version drift
+  tfskel drift versions
 
-  # Check specific subdirectory
-  tfskel drift --path ./envs
+  # Analyze a terraform plan file
+  tfskel drift plan --file tfplan.json
 
-  # Check with absolute path
-  tfskel drift --path /home/user/terraform
-
-  # Check home directory with JSON output
-  tfskel drift --path ~/terraform --format json
-
-  # Generate CSV report for CI/CD
-  tfskel drift --format csv --no-color > drift-report.csv`,
-	RunE: runDrift,
+  # Run both version and plan analysis
+  tfskel drift all --plan-file tfplan.json`,
 }
 
 func init() {
 	rootCmd.AddCommand(driftCmd)
-
-	driftCmd.Flags().StringVarP(&driftFormat, "format", "f", "table",
-		"Output format: table, json, csv")
-	driftCmd.Flags().BoolVar(&driftNoColor, "no-color", false,
-		"Disable colored output")
-	driftCmd.Flags().StringVarP(&driftPath, "path", "p", ".",
-		"Path to scan for Terraform files (default: current directory)")
-}
-
-func runDrift(cmd *cobra.Command, args []string) error {
-	log := logger.New(viper.GetBool("verbose"))
-
-	// Validate and normalize path
-	scanPath := driftPath
-	if scanPath == "" {
-		scanPath = "."
-	}
-
-	// Check if path exists
-	fileInfo, err := os.Stat(scanPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			log.Errorf("Path does not exist: %s", scanPath)
-			cmd.SilenceUsage = true // Don't show usage for validation errors
-			return fmt.Errorf("%w: %s", ErrPathDoesNotExist, scanPath)
-		}
-		log.Errorf("Failed to access path %s: %v", scanPath, err)
-		cmd.SilenceUsage = true
-		return fmt.Errorf("failed to access path: %w", err)
-	}
-
-	if !fileInfo.IsDir() {
-		log.Errorf("Path is not a directory: %s", scanPath)
-		cmd.SilenceUsage = true
-		return fmt.Errorf("%w: %s", ErrPathNotDirectory, scanPath)
-	}
-
-	// Get absolute path for clearer logging
-	absPath, err := filepath.Abs(scanPath)
-	if err != nil {
-		absPath = scanPath // fallback to original path if absolute path fails
-	}
-
-	// Load configuration
-	cfg, err := config.Load(cmd, viper.GetViper())
-	if err != nil {
-		log.Errorf("Failed to load configuration: %v", err)
-		cmd.SilenceUsage = true
-		return fmt.Errorf("failed to load configuration: %w", err)
-	}
-
-	// Suppress logs for machine-readable formats (JSON/CSV)
-	if driftFormat == "json" || driftFormat == "csv" {
-		log.SetOutput(os.Stderr)
-	}
-
-	log.Info("Starting tfskel version drift detection...")
-	log.Infof("Scanning path: %s", absPath)
-
-	// Create detector and scan
-	detector := drift.NewDetector(scanPath)
-	versionInfos, err := detector.ScanDirectory()
-	if err != nil {
-		log.Errorf("Failed to scan directory: %v", err)
-		cmd.SilenceUsage = true
-		return fmt.Errorf("failed to scan directory: %w", err)
-	}
-
-	if len(versionInfos) == 0 {
-		log.Warnf("No Terraform files with version information found in %s", absPath)
-		return nil
-	}
-
-	log.Infof("Found %d files with version information", len(versionInfos))
-
-	// Analyze drift
-	analyzer := drift.NewAnalyzer(cfg)
-	report := analyzer.Analyze(absPath, versionInfos)
-
-	// Format and output
-	format := drift.OutputFormat(driftFormat)
-	formatter := drift.NewFormatter(!driftNoColor)
-
-	if err := formatter.Format(report, format, os.Stdout); err != nil {
-		log.Errorf("Failed to format output: %v", err)
-		cmd.SilenceUsage = true
-		return fmt.Errorf("failed to format output: %w", err)
-	}
-
-	// Exit with appropriate code for CI/CD
-	exitCode := report.ExitCode()
-	if exitCode != 0 {
-		log.Warnf("Drift detected - exiting with code %d", exitCode)
-		os.Exit(exitCode)
-	}
-
-	log.Success("No drift detected - all files are in sync")
-	return nil
 }
