@@ -349,11 +349,11 @@ func TestFormatter_FormatTable_LongPaths(t *testing.T) {
 
 func TestFormatter_CalculateOptimalWidth(t *testing.T) {
 	tests := []struct {
-		name           string
-		terminalWidth  int
-		report         *DriftReport
-		expectedMin    int
-		expectedMax    int
+		name          string
+		terminalWidth int
+		report        *DriftReport
+		expectedMin   int
+		expectedMax   int
 	}{
 		{
 			name:          "default width with no drift",

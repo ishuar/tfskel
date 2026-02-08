@@ -109,17 +109,27 @@ func (f *Formatter) formatTable(report *DriftReport, writer io.Writer) error {
 	f.tableWidth = f.calculateOptimalWidth(report)
 
 	// Write header
-	f.writeHeader(buf, report, styles)
+	if err := f.writeHeader(buf, report, styles); err != nil {
+		return err
+	}
 
 	// Write summary section
-	f.writeSummary(buf, report, styles)
+	if err := f.writeSummary(buf, report, styles); err != nil {
+		return err
+	}
 
 	// Write version distributions
-	f.writeTerraformVersions(buf, report, styles)
-	f.writeProviderVersions(buf, report, styles)
+	if err := f.writeTerraformVersions(buf, report, styles); err != nil {
+		return err
+	}
+	if err := f.writeProviderVersions(buf, report, styles); err != nil {
+		return err
+	}
 
 	// Write drift details
-	f.writeDriftDetails(buf, report, styles)
+	if err := f.writeDriftDetails(buf, report, styles); err != nil {
+		return err
+	}
 
 	// Final summary message
 	fmt.Fprintf(buf, "\n%s\n\n", report.GetDriftSummaryText())
@@ -169,15 +179,24 @@ func (f *Formatter) setupStyles() tableStyles {
 }
 
 // writeHeader writes the report header
-func (f *Formatter) writeHeader(writer io.Writer, report *DriftReport, styles tableStyles) {
-	_, _ = fmt.Fprintln(writer, styles.titleStyle.Render("━━━ Terraform Version Drift Report ━━━"))
-	_, _ = fmt.Fprintf(writer, "%s %s\n", styles.mutedStyle.Render("Scanned:"), report.ScanRoot)
-	_, _ = fmt.Fprintf(writer, "%s %s\n", styles.mutedStyle.Render("Time:"), report.ScannedAt.Format("2006-01-02 15:04:05"))
+func (f *Formatter) writeHeader(writer io.Writer, report *DriftReport, styles tableStyles) error {
+	if _, err := fmt.Fprintln(writer, styles.titleStyle.Render("━━━ Terraform Version Drift Report ━━━")); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(writer, "%s %s\n", styles.mutedStyle.Render("Scanned:"), report.ScanRoot); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(writer, "%s %s\n", styles.mutedStyle.Render("Time:"), report.ScannedAt.Format("2006-01-02 15:04:05")); err != nil {
+		return err
+	}
+	return nil
 }
 
 // writeSummary writes the quick summary section
-func (f *Formatter) writeSummary(writer io.Writer, report *DriftReport, styles tableStyles) {
-	_, _ = fmt.Fprintln(writer, styles.headerStyle.Render("Quick Summary"))
+func (f *Formatter) writeSummary(writer io.Writer, report *DriftReport, styles tableStyles) error {
+	if _, err := fmt.Fprintln(writer, styles.headerStyle.Render("Quick Summary")); err != nil {
+		return err
+	}
 
 	summaryData := f.buildSummaryData(report)
 
@@ -201,7 +220,10 @@ func (f *Formatter) writeSummary(writer io.Writer, report *DriftReport, styles t
 		}).
 		Rows(summaryData...)
 
-	_, _ = fmt.Fprintln(writer, summaryTable.Render())
+	if _, err := fmt.Fprintln(writer, summaryTable.Render()); err != nil {
+		return err
+	}
+	return nil
 }
 
 // buildSummaryData constructs summary table rows
@@ -231,12 +253,14 @@ func (f *Formatter) buildSummaryData(report *DriftReport) [][]string {
 }
 
 // writeTerraformVersions writes the terraform versions section
-func (f *Formatter) writeTerraformVersions(writer io.Writer, report *DriftReport, styles tableStyles) {
+func (f *Formatter) writeTerraformVersions(writer io.Writer, report *DriftReport, styles tableStyles) error {
 	if len(report.Summary.TerraformVersions) == 0 {
-		return
+		return nil
 	}
 
-	_, _ = fmt.Fprintln(writer, styles.headerStyle.Render("Terraform Versions"))
+	if _, err := fmt.Fprintln(writer, styles.headerStyle.Render("Terraform Versions")); err != nil {
+		return err
+	}
 
 	expectedVersion := ""
 	if len(report.Records) > 0 {
@@ -260,7 +284,10 @@ func (f *Formatter) writeTerraformVersions(writer io.Writer, report *DriftReport
 		Headers("Status", "Version", "Count").
 		Rows(versionData...)
 
-	_, _ = fmt.Fprintln(writer, versionTable.Render())
+	if _, err := fmt.Fprintln(writer, versionTable.Render()); err != nil {
+		return err
+	}
+	return nil
 }
 
 // buildVersionData constructs version table rows
@@ -291,12 +318,14 @@ func (f *Formatter) buildVersionData(versions map[string]int, expectedVersion st
 }
 
 // writeProviderVersions writes the provider versions section
-func (f *Formatter) writeProviderVersions(writer io.Writer, report *DriftReport, styles tableStyles) {
+func (f *Formatter) writeProviderVersions(writer io.Writer, report *DriftReport, styles tableStyles) error {
 	if len(report.Summary.ProviderVersions) == 0 {
-		return
+		return nil
 	}
 
-	_, _ = fmt.Fprintln(writer, styles.headerStyle.Render("Provider Versions"))
+	if _, err := fmt.Fprintln(writer, styles.headerStyle.Render("Provider Versions")); err != nil {
+		return err
+	}
 
 	// Sort providers
 	providers := make([]string, 0, len(report.Summary.ProviderVersions))
@@ -308,8 +337,11 @@ func (f *Formatter) writeProviderVersions(writer io.Writer, report *DriftReport,
 	// Build and render tables for each provider
 	for _, provider := range providers {
 		providerTable := f.buildProviderTable(provider, report.Summary.ProviderVersions[provider], styles)
-		_, _ = fmt.Fprintln(writer, providerTable)
+		if _, err := fmt.Fprintln(writer, providerTable); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 // buildProviderTable constructs a table for a single provider's versions
@@ -346,14 +378,16 @@ func (f *Formatter) buildProviderTable(provider string, versions map[string]int,
 }
 
 // writeDriftDetails writes detailed drift information
-func (f *Formatter) writeDriftDetails(writer io.Writer, report *DriftReport, styles tableStyles) {
+func (f *Formatter) writeDriftDetails(writer io.Writer, report *DriftReport, styles tableStyles) error {
 	driftRecords := f.filterDriftRecords(report.Records)
 	if len(driftRecords) == 0 {
-		return
+		return nil
 	}
 
 	totalDriftItems := f.countDriftItems(driftRecords)
-	_, _ = fmt.Fprintln(writer, styles.headerStyle.Render(fmt.Sprintf("Files with Drift (%d files, %d issues)", len(driftRecords), totalDriftItems)))
+	if _, err := fmt.Fprintln(writer, styles.headerStyle.Render(fmt.Sprintf("Files with Drift (%d files, %d issues)", len(driftRecords), totalDriftItems))); err != nil {
+		return err
+	}
 
 	// Sort by file path
 	sort.Slice(driftRecords, func(i, j int) bool {
@@ -377,7 +411,10 @@ func (f *Formatter) writeDriftDetails(writer io.Writer, report *DriftReport, sty
 		Headers("File", "Type", "Expected", "Actual", "Status").
 		Rows(driftData...)
 
-	_, _ = fmt.Fprintln(writer, driftTable.Render())
+	if _, err := fmt.Fprintln(writer, driftTable.Render()); err != nil {
+		return err
+	}
+	return nil
 }
 
 // filterDriftRecords extracts only records with drift
