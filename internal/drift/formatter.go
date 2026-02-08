@@ -189,9 +189,11 @@ func (f *Formatter) writeSummary(writer io.Writer, report *DriftReport, styles t
 		Width(f.tableWidth).
 		StyleFunc(func(row, col int) lipgloss.Style {
 			if col == 0 {
-				return lipgloss.NewStyle().Bold(true).Foreground(styles.rowColor).Width(labelWidth).Align(lipgloss.Right)
+				// First column: left-aligned labels
+				return lipgloss.NewStyle().Bold(true).Foreground(styles.rowColor).Width(labelWidth).Align(lipgloss.Left)
 			}
-			return lipgloss.NewStyle().Foreground(styles.rowColor).Width(valueWidth)
+			// Second column: center-aligned values
+			return lipgloss.NewStyle().Foreground(styles.rowColor).Width(valueWidth).Align(lipgloss.Center)
 		}).
 		Rows(summaryData...)
 
@@ -245,9 +247,11 @@ func (f *Formatter) writeTerraformVersions(writer io.Writer, report *DriftReport
 		Width(f.tableWidth).
 		StyleFunc(func(row, col int) lipgloss.Style {
 			if row == -1 {
+				// Headers: center-aligned
 				return lipgloss.NewStyle().Bold(true).Foreground(styles.headerColor).Align(lipgloss.Center)
 			}
-			return lipgloss.NewStyle().Foreground(styles.rowColor)
+			// All data rows: center-aligned
+			return lipgloss.NewStyle().Foreground(styles.rowColor).Align(lipgloss.Center)
 		}).
 		Headers("Status", "Version", "Count").
 		Rows(versionData...)
@@ -326,9 +330,11 @@ func (f *Formatter) buildProviderTable(provider string, versions map[string]int,
 		Width(f.tableWidth).
 		StyleFunc(func(row, col int) lipgloss.Style {
 			if row == -1 {
+				// Headers: center-aligned
 				return lipgloss.NewStyle().Bold(true).Foreground(styles.headerColor).Align(lipgloss.Center)
 			}
-			return lipgloss.NewStyle().Foreground(styles.rowColor)
+			// All data rows: center-aligned
+			return lipgloss.NewStyle().Foreground(styles.rowColor).Align(lipgloss.Center)
 		}).
 		Headers(provider, "Count").
 		Rows(providerData...).
@@ -357,9 +363,15 @@ func (f *Formatter) writeDriftDetails(writer io.Writer, report *DriftReport, sty
 		BorderStyle(lipgloss.NewStyle().Foreground(styles.borderColor)).
 		StyleFunc(func(row, col int) lipgloss.Style {
 			if row == -1 {
+				// Headers: center-aligned
 				return lipgloss.NewStyle().Bold(true).Foreground(styles.headerColor).Align(lipgloss.Center)
 			}
-			return lipgloss.NewStyle().Foreground(styles.rowColor)
+			// First column (File): left-aligned
+			if col == 0 {
+				return lipgloss.NewStyle().Foreground(styles.rowColor).Align(lipgloss.Left)
+			}
+			// All other columns: center-aligned
+			return lipgloss.NewStyle().Foreground(styles.rowColor).Align(lipgloss.Center)
 		}).
 		Width(f.tableWidth).
 		Headers("File", "Type", "Expected", "Actual", "Status").
