@@ -1,6 +1,7 @@
 package drift
 
 import (
+	"bytes"
 	"encoding/csv"
 	"encoding/json"
 	"errors"
@@ -29,12 +30,16 @@ const (
 	// Table column width constants for summary table formatting
 	summaryLabelColumnWidth = 25
 	summaryValueColumnWidth = 20
+
+	// Minimum width calculation constants
+	minDriftTableWidth = 113 // File(40) + Type(16) + Expected(16) + Actual(16) + Status(15) + borders(10)
 )
 
 // Formatter handles different output formats for drift reports
 type Formatter struct {
 	useColor      bool
 	terminalWidth int
+	tableWidth    int // Consistent width for all tables
 }
 
 // NewFormatter creates a new formatter
@@ -48,6 +53,7 @@ func NewFormatter(useColor bool) *Formatter {
 	return &Formatter{
 		useColor:      useColor,
 		terminalWidth: width,
+		tableWidth:    0, // Will be calculated during formatting
 	}
 }
 
@@ -65,27 +71,58 @@ func (f *Formatter) Format(report *DriftReport, format OutputFormat, writer io.W
 	}
 }
 
+// calculateOptimalWidth determines the best width for all tables
+func (f *Formatter) calculateOptimalWidth(report *DriftReport) int {
+	// Calculate minimum width needed for drift table (the widest)
+	minRequired := minDriftTableWidth
+
+	// Check if we have long file paths that need more space
+	for _, record := range report.Records {
+		if record.HasDrift && len(record.FilePath) > 40 {
+			// Add extra space for longer paths, up to a reasonable limit
+			extraSpace := (len(record.FilePath) - 40) / 2
+			if extraSpace > 30 {
+				extraSpace = 30 // Cap extra space
+			}
+			minRequired += extraSpace
+			break
+		}
+	}
+
+	// Use the smaller of terminal width or required width
+	if minRequired < f.terminalWidth {
+		return minRequired
+	}
+	return f.terminalWidth
+}
+
 // formatTable outputs a human-readable table
 func (f *Formatter) formatTable(report *DriftReport, writer io.Writer) error {
+	buf := &bytes.Buffer{}
 	styles := f.setupStyles()
 
+	// Calculate consistent width for all tables
+	f.tableWidth = f.calculateOptimalWidth(report)
+
 	// Write header
-	f.writeHeader(writer, report, styles)
+	f.writeHeader(buf, report, styles)
 
 	// Write summary section
-	f.writeSummary(writer, report, styles)
+	f.writeSummary(buf, report, styles)
 
 	// Write version distributions
-	f.writeTerraformVersions(writer, report, styles)
-	f.writeProviderVersions(writer, report, styles)
+	f.writeTerraformVersions(buf, report, styles)
+	f.writeProviderVersions(buf, report, styles)
 
 	// Write drift details
-	f.writeDriftDetails(writer, report, styles)
+	f.writeDriftDetails(buf, report, styles)
 
 	// Final summary message
-	_, _ = fmt.Fprintf(writer, "\n%s\n\n", report.GetDriftSummaryText()) //nolint:errcheck
+	fmt.Fprintf(buf, "\n%s\n\n", report.GetDriftSummaryText())
 
-	return nil
+	// Single atomic write to output
+	_, err := writer.Write(buf.Bytes())
+	return err
 }
 
 // tableStyles holds all lipgloss styles for table formatting
@@ -129,29 +166,36 @@ func (f *Formatter) setupStyles() tableStyles {
 
 // writeHeader writes the report header
 func (f *Formatter) writeHeader(writer io.Writer, report *DriftReport, styles tableStyles) {
-	_, _ = fmt.Fprintln(writer, styles.titleStyle.Render("━━━ Terraform Version Drift Report ━━━"))                          //nolint:errcheck
-	_, _ = fmt.Fprintf(writer, "%s %s\n", styles.mutedStyle.Render("Scanned:"), report.ScanRoot)                             //nolint:errcheck
-	_, _ = fmt.Fprintf(writer, "%s %s\n", styles.mutedStyle.Render("Time:"), report.ScannedAt.Format("2006-01-02 15:04:05")) //nolint:errcheck
+	fmt.Fprintln(writer, styles.titleStyle.Render("━━━ Terraform Version Drift Report ━━━"))
+	fmt.Fprintf(writer, "%s %s\n", styles.mutedStyle.Render("Scanned:"), report.ScanRoot)
+	fmt.Fprintf(writer, "%s %s\n", styles.mutedStyle.Render("Time:"), report.ScannedAt.Format("2006-01-02 15:04:05"))
 }
 
 // writeSummary writes the quick summary section
 func (f *Formatter) writeSummary(writer io.Writer, report *DriftReport, styles tableStyles) {
-	_, _ = fmt.Fprintln(writer, styles.headerStyle.Render("Quick Summary")) //nolint:errcheck
+	fmt.Fprintln(writer, styles.headerStyle.Render("Quick Summary"))
 
 	summaryData := f.buildSummaryData(report)
+
+	// Calculate column widths to fill the table width evenly
+	// Subtract borders and padding (approximately 4 characters)
+	availableWidth := f.tableWidth - 4
+	labelWidth := availableWidth / 2
+	valueWidth := availableWidth - labelWidth
 
 	summaryTable := table.New().
 		Border(lipgloss.RoundedBorder()).
 		BorderStyle(lipgloss.NewStyle().Foreground(styles.borderColor)).
+		Width(f.tableWidth).
 		StyleFunc(func(row, col int) lipgloss.Style {
 			if col == 0 {
-				return lipgloss.NewStyle().Bold(true).Foreground(styles.rowColor).Width(summaryLabelColumnWidth).Align(lipgloss.Right)
+				return lipgloss.NewStyle().Bold(true).Foreground(styles.rowColor).Width(labelWidth).Align(lipgloss.Right)
 			}
-			return lipgloss.NewStyle().Foreground(styles.rowColor).Width(summaryValueColumnWidth)
+			return lipgloss.NewStyle().Foreground(styles.rowColor).Width(valueWidth)
 		}).
 		Rows(summaryData...)
 
-	_, _ = fmt.Fprintln(writer, summaryTable.Render()) //nolint:errcheck
+	fmt.Fprintln(writer, summaryTable.Render())
 }
 
 // buildSummaryData constructs summary table rows
@@ -186,7 +230,7 @@ func (f *Formatter) writeTerraformVersions(writer io.Writer, report *DriftReport
 		return
 	}
 
-	_, _ = fmt.Fprintln(writer, styles.headerStyle.Render("Terraform Versions")) //nolint:errcheck
+	fmt.Fprintln(writer, styles.headerStyle.Render("Terraform Versions"))
 
 	expectedVersion := ""
 	if len(report.Records) > 0 {
@@ -198,6 +242,7 @@ func (f *Formatter) writeTerraformVersions(writer io.Writer, report *DriftReport
 	versionTable := table.New().
 		Border(lipgloss.RoundedBorder()).
 		BorderStyle(lipgloss.NewStyle().Foreground(styles.borderColor)).
+		Width(f.tableWidth).
 		StyleFunc(func(row, col int) lipgloss.Style {
 			if row == -1 {
 				return lipgloss.NewStyle().Bold(true).Foreground(styles.headerColor).Align(lipgloss.Center)
@@ -207,7 +252,7 @@ func (f *Formatter) writeTerraformVersions(writer io.Writer, report *DriftReport
 		Headers("Status", "Version", "Count").
 		Rows(versionData...)
 
-	_, _ = fmt.Fprintln(writer, versionTable.Render()) //nolint:errcheck
+	fmt.Fprintln(writer, versionTable.Render())
 }
 
 // buildVersionData constructs version table rows
@@ -243,7 +288,7 @@ func (f *Formatter) writeProviderVersions(writer io.Writer, report *DriftReport,
 		return
 	}
 
-	_, _ = fmt.Fprintln(writer, styles.headerStyle.Render("Provider Versions")) //nolint:errcheck
+	fmt.Fprintln(writer, styles.headerStyle.Render("Provider Versions"))
 
 	// Sort providers
 	providers := make([]string, 0, len(report.Summary.ProviderVersions))
@@ -255,7 +300,7 @@ func (f *Formatter) writeProviderVersions(writer io.Writer, report *DriftReport,
 	// Build and render tables for each provider
 	for _, provider := range providers {
 		providerTable := f.buildProviderTable(provider, report.Summary.ProviderVersions[provider], styles)
-		_, _ = fmt.Fprintln(writer, providerTable) //nolint:errcheck
+		fmt.Fprintln(writer, providerTable)
 	}
 }
 
@@ -278,6 +323,7 @@ func (f *Formatter) buildProviderTable(provider string, versions map[string]int,
 	return table.New().
 		Border(lipgloss.RoundedBorder()).
 		BorderStyle(lipgloss.NewStyle().Foreground(styles.borderColor)).
+		Width(f.tableWidth).
 		StyleFunc(func(row, col int) lipgloss.Style {
 			if row == -1 {
 				return lipgloss.NewStyle().Bold(true).Foreground(styles.headerColor).Align(lipgloss.Center)
@@ -297,7 +343,7 @@ func (f *Formatter) writeDriftDetails(writer io.Writer, report *DriftReport, sty
 	}
 
 	totalDriftItems := f.countDriftItems(driftRecords)
-	_, _ = fmt.Fprintln(writer, styles.headerStyle.Render(fmt.Sprintf("Files with Drift (%d files, %d issues)", len(driftRecords), totalDriftItems))) //nolint:errcheck
+	fmt.Fprintln(writer, styles.headerStyle.Render(fmt.Sprintf("Files with Drift (%d files, %d issues)", len(driftRecords), totalDriftItems)))
 
 	// Sort by file path
 	sort.Slice(driftRecords, func(i, j int) bool {
@@ -315,11 +361,11 @@ func (f *Formatter) writeDriftDetails(writer io.Writer, report *DriftReport, sty
 			}
 			return lipgloss.NewStyle().Foreground(styles.rowColor)
 		}).
-		Width(f.terminalWidth).
+		Width(f.tableWidth).
 		Headers("File", "Type", "Expected", "Actual", "Status").
 		Rows(driftData...)
 
-	_, _ = fmt.Fprintln(writer, driftTable.Render()) //nolint:errcheck
+	fmt.Fprintln(writer, driftTable.Render())
 }
 
 // filterDriftRecords extracts only records with drift
@@ -371,7 +417,7 @@ func (f *Formatter) buildDriftData(records []DriftRecord, styles tableStyles) []
 				"Terraform",
 				record.TerraformExpected,
 				record.TerraformActual,
-				f.formatStatusLipgloss(record.TerraformDriftStatus),
+				f.formatStatus(record.TerraformDriftStatus),
 			})
 		}
 
@@ -393,7 +439,7 @@ func (f *Formatter) buildDriftData(records []DriftRecord, styles tableStyles) []
 					fmt.Sprintf("Provider: %s", pd.Name),
 					expected,
 					pd.Actual,
-					f.formatStatusLipgloss(pd.DriftStatus),
+					f.formatStatus(pd.DriftStatus),
 				})
 			}
 		}
@@ -481,8 +527,8 @@ func (f *Formatter) formatCSV(report *DriftReport, writer io.Writer) error {
 	return nil
 }
 
-// formatStatusLipgloss returns a plain status indicator
-func (f *Formatter) formatStatusLipgloss(status DriftStatus) string {
+// formatStatus returns a plain status indicator
+func (f *Formatter) formatStatus(status DriftStatus) string {
 	switch status {
 	case StatusInSync:
 		return "OK"
