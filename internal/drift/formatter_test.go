@@ -16,6 +16,7 @@ func TestNewFormatter(t *testing.T) {
 	formatter := NewFormatter(true)
 	assert.NotNil(t, formatter)
 	assert.True(t, formatter.useColor)
+	assert.Equal(t, 0, formatter.tableWidth) // Initially 0, calculated during formatting
 }
 
 func TestNewFormatter_NoColor(t *testing.T) {
@@ -160,7 +161,7 @@ func TestFormatter_FormatCSV(t *testing.T) {
 	assert.Equal(t, "major", records[2][6])
 }
 
-func TestFormatter_FormatStatusLipgloss(t *testing.T) {
+func TestFormatter_FormatStatus(t *testing.T) {
 	tests := []struct {
 		name   string
 		status DriftStatus
@@ -197,7 +198,7 @@ func TestFormatter_FormatStatusLipgloss(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := formatter.formatStatusLipgloss(tt.status)
+			got := formatter.formatStatus(tt.status)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -344,4 +345,54 @@ func TestFormatter_FormatTable_LongPaths(t *testing.T) {
 	require.NoError(t, err)
 	// Should not error even with long paths
 	assert.NotEmpty(t, buf.String())
+}
+
+func TestFormatter_CalculateOptimalWidth(t *testing.T) {
+	tests := []struct {
+		name          string
+		terminalWidth int
+		report        *DriftReport
+		expectedMin   int
+		expectedMax   int
+	}{
+		{
+			name:          "default width with no drift",
+			terminalWidth: 120,
+			report: &DriftReport{
+				Records: []DriftRecord{},
+			},
+			expectedMin: minDriftTableWidth,
+			expectedMax: minDriftTableWidth,
+		},
+		{
+			name:          "wide terminal with short paths",
+			terminalWidth: 200,
+			report: &DriftReport{
+				Records: []DriftRecord{
+					{FilePath: "short.tf", HasDrift: true},
+				},
+			},
+			expectedMin: minDriftTableWidth,
+			expectedMax: minDriftTableWidth,
+		},
+		{
+			name:          "narrow terminal",
+			terminalWidth: 80,
+			report: &DriftReport{
+				Records: []DriftRecord{},
+			},
+			expectedMin: 80,
+			expectedMax: 80,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			formatter := NewFormatter(false)
+			formatter.terminalWidth = tt.terminalWidth
+			width := formatter.calculateOptimalWidth(tt.report)
+			assert.GreaterOrEqual(t, width, tt.expectedMin)
+			assert.LessOrEqual(t, width, tt.expectedMax)
+		})
+	}
 }
