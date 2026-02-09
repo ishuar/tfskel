@@ -24,9 +24,9 @@ var (
 	ErrPathNotDirectory = errors.New("path is not a directory")
 )
 
-// driftVersionsCmd represents the drift versions command
-var driftVersionsCmd = &cobra.Command{
-	Use:   "versions",
+// driftVersionCmd represents the drift version command
+var driftVersionCmd = &cobra.Command{
+	Use:   "version",
 	Short: "Detect version drift across Terraform configurations",
 	Long: `Detect and report version inconsistencies for Terraform and providers
 across your workspace. This command recursively scans .tf files, extracts
@@ -42,31 +42,31 @@ Note: Hidden directories (starting with .) are automatically skipped.
 
 Examples:
   # Check for drift in current directory and all subdirectories
-  tfskel drift versions
-  tfskel drift versions --path ./
+  tfskel drift version
+  tfskel drift version --path ./
 
   # Check specific subdirectory
-  tfskel drift versions --path ./envs
+  tfskel drift version --path ./envs
 
   # Check with absolute path
-  tfskel drift versions --path /home/user/terraform
+  tfskel drift version --path /home/user/terraform
 
   # Check home directory with JSON output
-  tfskel drift versions --path ~/terraform --format json
+  tfskel drift version --path ~/terraform --format json
 
   # Generate CSV report for CI/CD
-  tfskel drift versions --format csv --no-color > drift-report.csv`,
+  tfskel drift version --format csv --no-color > drift-report.csv`,
 	RunE: runDriftVersions,
 }
 
 func init() {
-	driftCmd.AddCommand(driftVersionsCmd)
+	driftCmd.AddCommand(driftVersionCmd)
 
-	driftVersionsCmd.Flags().StringVarP(&versionsFormat, "format", "f", "table",
+	driftVersionCmd.Flags().StringVarP(&versionsFormat, "format", "f", "table",
 		"Output format: table, json, csv")
-	driftVersionsCmd.Flags().BoolVar(&versionsNoColor, "no-color", false,
+	driftVersionCmd.Flags().BoolVar(&versionsNoColor, "no-color", false,
 		"Disable colored output")
-	driftVersionsCmd.Flags().StringVarP(&versionsPath, "path", "p", ".",
+	driftVersionCmd.Flags().StringVarP(&versionsPath, "path", "p", ".",
 		"Path to scan for Terraform files (default: current directory)")
 }
 
