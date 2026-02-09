@@ -12,12 +12,12 @@ tfskel is a CLI tool that scaffolds Terraform monorepos with an **opinionated**,
 
 ## What It Does
 
-- Scaffolds complete Terraform monorepo structures organized by environment (dev/stg/prd) and region
-- Generates AWS provider & backend configuration and custom terraform configs using re-usable go templates.
-- Drift Detection on Terraform and AWS provider versions across your entire repository
-- Safe to run multiple times—only creates new files, never overwrites existing ones
-- Uses simple YAML configuration with smart defaults
-- Works with vanilla Terraform—no custom wrappers or proprietary tooling
+- **Scaffolds production-ready Terraform monorepos** organized by environment (dev/stg/prd) and region
+- **Generates AWS backend & provider configs** using reusable Go templates with smart defaults
+- **Detects version drift** across Terraform and provider versions in entire repositories—catch inconsistencies before they cause production issues
+- **Analyzes Terraform plans** to surface resource changes, impact severity, and compliance risks at a glance
+- **Safe and idempotent**—only creates new files, never overwrites existing infrastructure code
+- **Works with vanilla Terraform**—no custom wrappers, no vendor lock-in, just better project structure
 
 ## Installation
 
@@ -76,11 +76,56 @@ tfskel generate myapp --env dev --region us-east-1
 
 ```
 
-4. Check drift for AWS provider and Terraform versions with respect to .tfskel.yaml config
+4. Detect version drift and analyze Terraform plans:
+
 ```bash
-# default is table format from current working directory
-tfskel drift
+# Check version drift across all Terraform files
+tfskel drift version
+
+# Analyze a Terraform plan for change impact
+tfskel drift plan --plan-file plan.json
+
+# Run both analyses together
+tfskel drift all --plan-file plan.json
 ```
+## Drift Detection
+
+**Why it matters:** In large repos and monorepos, version inconsistencies can cause failed deployments, security vulnerabilities, and hours of debugging. Plan analysis helps you assess change impact before applying.
+
+**Version Drift Detection**
+```bash
+# Scan repository for version inconsistencies
+tfskel drift version --path ./envs
+
+# Output as JSON for CI/CD pipelines
+tfskel drift version --format json > drift-report.json
+
+# Compare against custom config
+tfskel drift version --config ./custom-config.yaml
+```
+
+**Terraform Plan Analysis**
+```bash
+# Analyze plan after terraform plan -out=plan.bin
+terraform show -json plan.bin > plan.json
+tfskel drift plan --plan-file plan.json
+
+# Focus on high-severity changes only
+tfskel drift plan --plan-file plan.json --top-n 5
+
+# Export as CSV for reporting
+tfskel drift plan --plan-file plan.json --format csv
+```
+
+**Combined Analysis**
+```bash
+# Run both version drift and plan analysis
+tfskel drift all --plan-file plan.json
+
+# Skip version check if not needed
+tfskel drift all --plan-file plan.json --skip-version
+```
+
 ## Usage Examples
 
 **Deploy the same app across multiple regions:**
@@ -148,6 +193,9 @@ make test          # Run tests
 make check         # Run all quality checks
 make install       # Install locally
 ```
+
+> [!Important]
+> Please keep your pull requests small and focused. This will make it easier to review and merge.
 
 ## License
 
