@@ -15,6 +15,11 @@ import (
 	"github.com/spf13/viper"
 )
 
+const (
+	// separatorWidth defines the width of separator lines in table output
+	separatorWidth = 70
+)
+
 var (
 	allPath         string
 	allPlanFile     string
@@ -26,6 +31,8 @@ var (
 
 var (
 	ErrAllAnalysisFailed = errors.New("one or more analyses failed")
+	// ErrInvalidSkipFlags indicates both analyses were skipped
+	ErrInvalidSkipFlags = errors.New("invalid flags: cannot skip all analyses")
 )
 
 // CombinedAnalysis represents results from both version and plan analysis
@@ -112,15 +119,8 @@ func runDriftAll(cmd *cobra.Command, args []string) error {
 	log := logger.New(viper.GetBool("verbose"))
 
 	// Validate flags
-	if allSkipVersions && allSkipPlan {
-		log.Error("Cannot skip both version and plan analysis. Remove one of the skip flags.")
-		cmd.SilenceUsage = true
-		return errors.New("invalid flags: cannot skip all analyses")
-	}
-
-	if !allSkipPlan && allPlanFile == "" {
-		log.Warn("No plan file provided. Use --plan-file or --skip-plan")
-		allSkipPlan = true
+	if err := validateAllFlags(log, cmd); err != nil {
+		return err
 	}
 
 	// Suppress logs for machine-readable formats
@@ -134,53 +134,7 @@ func runDriftAll(cmd *cobra.Command, args []string) error {
 		OverallStatus: "clean",
 	}
 
-	var exitCode int
-
-	// Run version drift analysis
-	if !allSkipVersions {
-		log.Info("\n[1/2] Running version drift analysis...")
-		versionSummary, versionExitCode, err := runVersionAnalysis(allPath, log, cmd)
-		if err != nil {
-			log.Errorf("Version analysis failed: %v", err)
-			// Continue to plan analysis even if version fails
-		} else {
-			combined.VersionDrift = versionSummary
-			if versionExitCode > exitCode {
-				exitCode = versionExitCode
-			}
-			if versionSummary.HasDrift {
-				combined.HasIssues = true
-				if versionSummary.MajorDrift > 0 {
-					combined.OverallStatus = "critical"
-				} else if combined.OverallStatus == "clean" {
-					combined.OverallStatus = "warning"
-				}
-			}
-		}
-	}
-
-	// Run plan analysis
-	if !allSkipPlan {
-		log.Info("\n[2/2] Running plan analysis...")
-		planAnalysis, planExitCode, err := runPlanAnalysisInternal(allPlanFile, log)
-		if err != nil {
-			log.Errorf("Plan analysis failed: %v", err)
-			cmd.SilenceUsage = true
-			return fmt.Errorf("plan analysis failed: %w", err)
-		}
-		combined.PlanAnalysis = planAnalysis
-		if planExitCode > exitCode {
-			exitCode = planExitCode
-		}
-		if planAnalysis.HasChanges {
-			combined.HasIssues = true
-			if planAnalysis.Deletions > 0 || planAnalysis.Replacements > 0 {
-				combined.OverallStatus = "critical"
-			} else if combined.OverallStatus != "critical" {
-				combined.OverallStatus = "warning"
-			}
-		}
-	}
+	exitCode := executeAnalyses(log, cmd, combined)
 
 	log.Info("\n=== Combined Analysis Complete ===")
 
@@ -199,6 +153,90 @@ func runDriftAll(cmd *cobra.Command, args []string) error {
 
 	log.Success("No issues detected - infrastructure is clean")
 	return nil
+}
+
+// validateAllFlags validates the command flags for drift all
+func validateAllFlags(log *logger.Logger, cmd *cobra.Command) error {
+	if allSkipVersions && allSkipPlan {
+		log.Error("Cannot skip both version and plan analysis. Remove one of the skip flags.")
+		cmd.SilenceUsage = true
+		return ErrInvalidSkipFlags
+	}
+
+	if !allSkipPlan && allPlanFile == "" {
+		log.Warn("No plan file provided. Use --plan-file or --skip-plan")
+		allSkipPlan = true
+	}
+
+	return nil
+}
+
+// executeAnalyses runs both version and plan analyses and returns the highest exit code
+func executeAnalyses(log *logger.Logger, cmd *cobra.Command, combined *CombinedAnalysis) int {
+	var exitCode int
+
+	// Run version drift analysis
+	if !allSkipVersions {
+		versionExitCode := executeVersionAnalysis(log, cmd, combined)
+		if versionExitCode > exitCode {
+			exitCode = versionExitCode
+		}
+	}
+
+	// Run plan analysis
+	if !allSkipPlan {
+		planExitCode := executePlanAnalysis(log, cmd, combined)
+		if planExitCode > exitCode {
+			exitCode = planExitCode
+		}
+	}
+
+	return exitCode
+}
+
+// executeVersionAnalysis runs version drift analysis and updates combined results
+func executeVersionAnalysis(log *logger.Logger, cmd *cobra.Command, combined *CombinedAnalysis) int {
+	log.Info("\n[1/2] Running version drift analysis...")
+	versionSummary, versionExitCode, err := runVersionAnalysis(allPath, log, cmd)
+	if err != nil {
+		log.Errorf("Version analysis failed: %v", err)
+		return 0 // Continue to plan analysis even if version fails
+	}
+
+	combined.VersionDrift = versionSummary
+	if versionSummary.HasDrift {
+		combined.HasIssues = true
+		if versionSummary.MajorDrift > 0 {
+			combined.OverallStatus = "critical"
+		} else if combined.OverallStatus == "clean" {
+			combined.OverallStatus = "warning"
+		}
+	}
+
+	return versionExitCode
+}
+
+// executePlanAnalysis runs plan analysis and updates combined results
+func executePlanAnalysis(log *logger.Logger, cmd *cobra.Command, combined *CombinedAnalysis) int {
+	log.Info("\n[2/2] Running plan analysis...")
+	planAnalysis, planExitCode, err := runPlanAnalysisInternal(allPlanFile, log)
+	if err != nil {
+		log.Errorf("Plan analysis failed: %v", err)
+		cmd.SilenceUsage = true
+		return planExitCode
+	}
+
+	combined.PlanAnalysis = planAnalysis
+	if planAnalysis.HasChanges {
+		combined.HasIssues = true
+		if planAnalysis.Deletions > 0 || planAnalysis.Replacements > 0 {
+			combined.OverallStatus = "critical"
+		} else if combined.OverallStatus != "critical" {
+			combined.OverallStatus = "warning"
+		}
+	}
+
+	return planExitCode
 }
 
 func runVersionAnalysis(scanPath string, log *logger.Logger, cmd *cobra.Command) (*VersionDriftSummary, int, error) {
@@ -287,6 +325,9 @@ func runPlanAnalysisInternal(planFile string, log *logger.Logger) (*drift.PlanAn
 	return analysis, analysis.ExitCode(), nil
 }
 
+// ErrUnsupportedCombinedFormat indicates an unsupported output format for combined analysis
+var ErrUnsupportedCombinedFormat = errors.New("unsupported format")
+
 func formatCombinedAnalysis(combined *CombinedAnalysis, format string, useColor bool) error {
 	switch format {
 	case "json":
@@ -296,7 +337,7 @@ func formatCombinedAnalysis(combined *CombinedAnalysis, format string, useColor 
 	case "table":
 		return formatCombinedTable(combined, useColor)
 	default:
-		return fmt.Errorf("unsupported format: %s", format)
+		return fmt.Errorf("%w: %s", ErrUnsupportedCombinedFormat, format)
 	}
 }
 
@@ -330,9 +371,9 @@ func formatCombinedCSV(combined *CombinedAnalysis) error {
 }
 
 func formatCombinedTable(combined *CombinedAnalysis, useColor bool) error {
-	fmt.Println("\n" + strings.Repeat("=", 70))
+	fmt.Println("\n" + strings.Repeat("=", separatorWidth))
 	fmt.Println("                 COMBINED DRIFT ANALYSIS RESULTS")
-	fmt.Println(strings.Repeat("=", 70))
+	fmt.Println(strings.Repeat("=", separatorWidth))
 
 	// Version Drift Section
 	if combined.VersionDrift != nil {
@@ -382,7 +423,7 @@ func formatCombinedTable(combined *CombinedAnalysis, useColor bool) error {
 	}
 
 	// Overall Summary
-	fmt.Println("\n" + strings.Repeat("─", 70))
+	fmt.Println("\n" + strings.Repeat("─", separatorWidth))
 	overallStatus := combined.OverallStatus
 	if useColor {
 		switch combined.OverallStatus {
@@ -395,7 +436,7 @@ func formatCombinedTable(combined *CombinedAnalysis, useColor bool) error {
 		}
 	}
 	fmt.Printf("  Overall Status:         %s\n", overallStatus)
-	fmt.Println(strings.Repeat("=", 70) + "\n")
+	fmt.Println(strings.Repeat("=", separatorWidth) + "\n")
 
 	return nil
 }
