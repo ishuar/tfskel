@@ -35,7 +35,6 @@ version information using HCL parsing, and compares against your .tfskel configu
 The --path flag accepts:
   • Relative paths: ./envs, ../terraform, tfskel-function-test
   • Absolute paths: /full/path/to/terraform
-  • Home directory: ~/terraform (~ is expanded automatically)
   • Current directory: . or ./ (scans recursively from current location)
 
 Note: Hidden directories (starting with .) are automatically skipped.

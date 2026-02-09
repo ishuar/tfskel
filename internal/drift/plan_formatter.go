@@ -1,11 +1,13 @@
 package drift
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"sort"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
@@ -60,39 +62,46 @@ func (f *PlanFormatter) formatJSON(analysis *PlanAnalysis, w io.Writer) error {
 	return encoder.Encode(analysis)
 }
 
-// formatCSV outputs analysis as CSV with metadata and resource details
+// formatCSV outputs analysis as CSV with metadata and resource details using proper CSV escaping
 func (f *PlanFormatter) formatCSV(analysis *PlanAnalysis, w io.Writer) error {
-	// Write metadata header
-	if _, err := fmt.Fprintf(w, "# Terraform Plan Analysis\n"); err != nil {
-		return fmt.Errorf("failed to write CSV header: %w", err)
-	}
-	if _, err := fmt.Fprintf(w, "# Terraform Version: %s\n", analysis.TerraformVersion); err != nil {
-		return fmt.Errorf("failed to write version: %w", err)
-	}
-	if _, err := fmt.Fprintf(w, "# Total Changes: %d\n", analysis.TotalChanges); err != nil {
-		return fmt.Errorf("failed to write total changes: %w", err)
-	}
-	if _, err := fmt.Fprintf(w, "# Additions: %d, Modifications: %d, Deletions: %d, Replacements: %d\n",
-		analysis.Additions, analysis.Modifications, analysis.Deletions, analysis.Replacements); err != nil {
-		return fmt.Errorf("failed to write summary: %w", err)
-	}
-	if _, err := fmt.Fprintln(w, "#"); err != nil {
-		return fmt.Errorf("failed to write separator: %w", err)
-	}
+	csvWriter := csv.NewWriter(w)
+	defer csvWriter.Flush()
 
-	// Write resource changes header
-	if _, err := fmt.Fprintln(w, "Address,Type,Name,Provider,Action,Severity"); err != nil {
-		return fmt.Errorf("failed to write column headers: %w", err)
+	// Write metadata as comments (not CSV escaped)
+	comments := []string{
+		"# Terraform Plan Analysis",
+		fmt.Sprintf("# Terraform Version: %s", analysis.TerraformVersion),
+		fmt.Sprintf("# Total Changes: %d", analysis.TotalChanges),
+		fmt.Sprintf("# Additions: %d, Modifications: %d, Deletions: %d, Replacements: %d",
+			analysis.Additions, analysis.Modifications, analysis.Deletions, analysis.Replacements),
+		"#",
 	}
-
-	// Write resource data
-	for _, rc := range analysis.ResourceChanges {
-		if _, err := fmt.Fprintf(w, "%s,%s,%s,%s,%s,%s\n",
-			rc.Address, rc.Type, rc.Name, rc.Provider, rc.ActionString, rc.Severity); err != nil {
-			return fmt.Errorf("failed to write resource data: %w", err)
+	for _, comment := range comments {
+		if _, err := fmt.Fprintln(w, comment); err != nil {
+			return fmt.Errorf("failed to write comment: %w", err)
 		}
 	}
-	return nil
+
+	// Write header using CSV writer for consistency
+	if err := csvWriter.Write([]string{"Address", "Type", "Name", "Provider", "Action", "Severity"}); err != nil {
+		return fmt.Errorf("failed to write CSV header: %w", err)
+	}
+
+	// Write resource data with proper CSV escaping
+	for _, rc := range analysis.ResourceChanges {
+		if err := csvWriter.Write([]string{
+			rc.Address,
+			rc.Type,
+			rc.Name,
+			rc.Provider,
+			rc.ActionString,
+			string(rc.Severity), // Convert Severity type to string
+		}); err != nil {
+			return fmt.Errorf("failed to write CSV record: %w", err)
+		}
+	}
+
+	return csvWriter.Error()
 }
 
 // formatTable outputs analysis as a formatted table with color styling
@@ -354,14 +363,10 @@ func (f *PlanFormatter) printGroupSummary(w io.Writer, styles CommonStyles, titl
 		sorted = append(sorted, groupCount{name, count})
 	}
 
-	// Simple bubble sort for small datasets
-	for i := 0; i < len(sorted); i++ {
-		for j := i + 1; j < len(sorted); j++ {
-			if sorted[j].count > sorted[i].count {
-				sorted[i], sorted[j] = sorted[j], sorted[i]
-			}
-		}
-	}
+	// Sort by count descending using standard library
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].count > sorted[j].count
+	})
 
 	// Limit to topN if specified
 	if topN > 0 && len(sorted) > topN {

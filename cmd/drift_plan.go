@@ -136,11 +136,12 @@ func runDriftPlan(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to format output: %w", err)
 	}
 
-	// Exit with code based on severity
+	// Return ExitError if changes detected for proper exit code handling
 	exitCode := analysis.ExitCode()
 	if exitCode != 0 {
 		log.Warnf("Changes detected - exiting with code %d", exitCode)
-		os.Exit(exitCode)
+		cmd.SilenceUsage = true
+		return NewExitError(exitCode, "")
 	}
 
 	return nil

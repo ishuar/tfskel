@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -118,8 +119,9 @@ func init() {
 func runDriftAll(cmd *cobra.Command, args []string) error {
 	log := logger.New(viper.GetBool("verbose"))
 
-	// Validate flags
-	if err := validateAllFlags(log, cmd); err != nil {
+	// Validate flags and get effective skip values
+	skipVersion, skipPlan, err := validateAllFlags(log, cmd)
+	if err != nil {
 		return err
 	}
 
@@ -134,7 +136,7 @@ func runDriftAll(cmd *cobra.Command, args []string) error {
 		OverallStatus: "clean",
 	}
 
-	exitCode := executeAnalyses(log, cmd, combined)
+	exitCode := executeAnalyses(log, cmd, combined, skipVersion, skipPlan)
 
 	log.Info("\n=== Combined Analysis Complete ===")
 
@@ -145,38 +147,42 @@ func runDriftAll(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to format output: %w", err)
 	}
 
-	// Exit with appropriate code
+	// Return ExitError if issues detected for proper exit code handling
 	if exitCode != 0 {
 		log.Warnf("Issues detected - exiting with code %d", exitCode)
-		os.Exit(exitCode)
+		cmd.SilenceUsage = true
+		return NewExitError(exitCode, "")
 	}
 
 	log.Success("No issues detected - infrastructure is clean")
 	return nil
 }
 
-// validateAllFlags validates the command flags for drift all
-func validateAllFlags(log *logger.Logger, cmd *cobra.Command) error {
-	if allSkipVersions && allSkipPlan {
+// validateAllFlags validates the command flags for drift all and returns effective skip values
+func validateAllFlags(log *logger.Logger, cmd *cobra.Command) (skipVersion bool, skipPlan bool, err error) {
+	skipVersion = allSkipVersions
+	skipPlan = allSkipPlan
+
+	if skipVersion && skipPlan {
 		log.Error("Cannot skip both version and plan analysis. Remove one of the skip flags.")
 		cmd.SilenceUsage = true
-		return ErrInvalidSkipFlags
+		return false, false, ErrInvalidSkipFlags
 	}
 
-	if !allSkipPlan && allPlanFile == "" {
+	if !skipPlan && allPlanFile == "" {
 		log.Warn("No plan file provided. Use --plan-file or --skip-plan")
-		allSkipPlan = true
+		skipPlan = true // Use local variable instead of mutating package-level flag
 	}
 
-	return nil
+	return skipVersion, skipPlan, nil
 }
 
 // executeAnalyses runs both version and plan analyses and returns the highest exit code
-func executeAnalyses(log *logger.Logger, cmd *cobra.Command, combined *CombinedAnalysis) int {
+func executeAnalyses(log *logger.Logger, cmd *cobra.Command, combined *CombinedAnalysis, skipVersion bool, skipPlan bool) int {
 	var exitCode int
 
 	// Run version drift analysis
-	if !allSkipVersions {
+	if !skipVersion {
 		versionExitCode := executeVersionAnalysis(log, cmd, combined)
 		if versionExitCode > exitCode {
 			exitCode = versionExitCode
@@ -184,7 +190,7 @@ func executeAnalyses(log *logger.Logger, cmd *cobra.Command, combined *CombinedA
 	}
 
 	// Run plan analysis
-	if !allSkipPlan {
+	if !skipPlan {
 		planExitCode := executePlanAnalysis(log, cmd, combined)
 		if planExitCode > exitCode {
 			exitCode = planExitCode
@@ -200,7 +206,11 @@ func executeVersionAnalysis(log *logger.Logger, cmd *cobra.Command, combined *Co
 	versionSummary, versionExitCode, err := runVersionAnalysis(allPath, log, cmd)
 	if err != nil {
 		log.Errorf("Version analysis failed: %v", err)
-		return 0 // Continue to plan analysis even if version fails
+		// Mark combined analysis as having critical issues
+		combined.HasIssues = true
+		combined.OverallStatus = "critical"
+		cmd.SilenceUsage = true
+		return 1 // Return non-zero exit code for CI/CD
 	}
 
 	combined.VersionDrift = versionSummary
@@ -300,9 +310,9 @@ func runPlanAnalysisInternal(planFile string, log *logger.Logger) (*drift.PlanAn
 	// Check if file exists
 	if _, err := os.Stat(planFile); err != nil {
 		if os.IsNotExist(err) {
-			return nil, 0, fmt.Errorf("%w: %s", ErrPlanFileNotFound, planFile)
+			return nil, 1, fmt.Errorf("%w: %s", ErrPlanFileNotFound, planFile)
 		}
-		return nil, 0, fmt.Errorf("failed to access plan file: %w", err)
+		return nil, 1, fmt.Errorf("failed to access plan file: %w", err)
 	}
 
 	log.Infof("Analyzing plan file: %s", planFile)
@@ -310,7 +320,7 @@ func runPlanAnalysisInternal(planFile string, log *logger.Logger) (*drift.PlanAn
 	// Parse plan file using internal package
 	plan, err := drift.ParsePlanFile(planFile)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to parse plan file: %w", err)
+		return nil, 1, fmt.Errorf("failed to parse plan file: %w", err)
 	}
 
 	// Analyze the plan using internal package
@@ -348,26 +358,51 @@ func formatCombinedJSON(combined *CombinedAnalysis) error {
 }
 
 func formatCombinedCSV(combined *CombinedAnalysis) error {
-	fmt.Println("Analysis Type,Metric,Value")
+	csvWriter := csv.NewWriter(os.Stdout)
+	defer csvWriter.Flush()
 
+	// Write header
+	if err := csvWriter.Write([]string{"Analysis Type", "Metric", "Value"}); err != nil {
+		return fmt.Errorf("failed to write CSV header: %w", err)
+	}
+
+	// Write version drift data
 	if combined.VersionDrift != nil {
-		fmt.Printf("version_drift,total_files,%d\n", combined.VersionDrift.TotalFiles)
-		fmt.Printf("version_drift,files_with_drift,%d\n", combined.VersionDrift.FilesWithDrift)
-		fmt.Printf("version_drift,minor_drift,%d\n", combined.VersionDrift.MinorDrift)
-		fmt.Printf("version_drift,major_drift,%d\n", combined.VersionDrift.MajorDrift)
+		records := [][]string{
+			{"version_drift", "total_files", fmt.Sprintf("%d", combined.VersionDrift.TotalFiles)},
+			{"version_drift", "files_with_drift", fmt.Sprintf("%d", combined.VersionDrift.FilesWithDrift)},
+			{"version_drift", "minor_drift", fmt.Sprintf("%d", combined.VersionDrift.MinorDrift)},
+			{"version_drift", "major_drift", fmt.Sprintf("%d", combined.VersionDrift.MajorDrift)},
+		}
+		for _, record := range records {
+			if err := csvWriter.Write(record); err != nil {
+				return fmt.Errorf("failed to write version drift record: %w", err)
+			}
+		}
 	}
 
+	// Write plan analysis data
 	if combined.PlanAnalysis != nil {
-		fmt.Printf("plan_analysis,total_changes,%d\n", combined.PlanAnalysis.TotalChanges)
-		fmt.Printf("plan_analysis,additions,%d\n", combined.PlanAnalysis.Additions)
-		fmt.Printf("plan_analysis,modifications,%d\n", combined.PlanAnalysis.Modifications)
-		fmt.Printf("plan_analysis,deletions,%d\n", combined.PlanAnalysis.Deletions)
-		fmt.Printf("plan_analysis,replacements,%d\n", combined.PlanAnalysis.Replacements)
+		records := [][]string{
+			{"plan_analysis", "total_changes", fmt.Sprintf("%d", combined.PlanAnalysis.TotalChanges)},
+			{"plan_analysis", "additions", fmt.Sprintf("%d", combined.PlanAnalysis.Additions)},
+			{"plan_analysis", "modifications", fmt.Sprintf("%d", combined.PlanAnalysis.Modifications)},
+			{"plan_analysis", "deletions", fmt.Sprintf("%d", combined.PlanAnalysis.Deletions)},
+			{"plan_analysis", "replacements", fmt.Sprintf("%d", combined.PlanAnalysis.Replacements)},
+		}
+		for _, record := range records {
+			if err := csvWriter.Write(record); err != nil {
+				return fmt.Errorf("failed to write plan analysis record: %w", err)
+			}
+		}
 	}
 
-	fmt.Printf("overall,status,%s\n", combined.OverallStatus)
+	// Write overall status
+	if err := csvWriter.Write([]string{"overall", "status", combined.OverallStatus}); err != nil {
+		return fmt.Errorf("failed to write overall status: %w", err)
+	}
 
-	return nil
+	return csvWriter.Error()
 }
 
 func formatCombinedTable(combined *CombinedAnalysis, useColor bool) error {

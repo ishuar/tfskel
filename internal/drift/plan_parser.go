@@ -26,8 +26,32 @@ func ParsePlanFile(filename string) (*TerraformPlan, error) {
 	}
 
 	// Check if it's likely a binary file (Terraform binary plan format)
-	if len(data) > 0 && data[0] != '{' {
-		return nil, fmt.Errorf("%w. Convert to JSON with: terraform show -json %s > plan.json", ErrBinaryFormat, filename)
+	// Skip leading whitespace and UTF-8 BOM to avoid false positives
+	if len(data) > 0 {
+		offset := 0
+
+		// Skip UTF-8 BOM if present (0xEF, 0xBB, 0xBF)
+		if len(data) >= 3 && data[0] == 0xEF && data[1] == 0xBB && data[2] == 0xBF {
+			offset = 3
+		}
+
+		// Find first non-whitespace byte
+		firstNonWhitespace := byte(0)
+		foundNonWhitespace := false
+		for i := offset; i < len(data); i++ {
+			b := data[i]
+			if b == ' ' || b == '\t' || b == '\r' || b == '\n' {
+				continue
+			}
+			firstNonWhitespace = b
+			foundNonWhitespace = true
+			break
+		}
+
+		// If first non-whitespace byte is not '{', it's likely a binary plan file
+		if foundNonWhitespace && firstNonWhitespace != '{' {
+			return nil, fmt.Errorf("%w. Convert to JSON with: terraform show -json %s > plan.json", ErrBinaryFormat, filename)
+		}
 	}
 
 	var plan TerraformPlan
