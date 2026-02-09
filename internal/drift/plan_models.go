@@ -48,17 +48,24 @@ type PlanAnalysis struct {
 	ResourceChanges  []AnalyzedResource `json:"resource_changes"`
 	TerraformVersion string             `json:"terraform_version"`
 	HasChanges       bool               `json:"has_changes"`
+	// Groupings for better visualization.
+	// Note: These maps are not thread-safe. For concurrent usage, synchronization is required.
+	ByType     map[string]int `json:"by_type,omitempty"`
+	ByModule   map[string]int `json:"by_module,omitempty"`
+	BySeverity map[string]int `json:"by_severity,omitempty"`
+	ByAction   map[string]int `json:"by_action,omitempty"`
 }
 
 // AnalyzedResource represents a resource with analyzed change information
 type AnalyzedResource struct {
-	Address      string   `json:"address"`
-	Type         string   `json:"type"`
-	Name         string   `json:"name"`
-	Provider     string   `json:"provider"`
-	Actions      []string `json:"actions"`
-	ActionString string   `json:"action_string"`
-	Severity     Severity `json:"severity"`
+	Address       string   `json:"address"`
+	Type          string   `json:"type"`
+	Name          string   `json:"name"`
+	Provider      string   `json:"provider"`
+	Actions       []string `json:"actions"`
+	ActionString  string   `json:"action_string"`
+	Severity      Severity `json:"severity"`
+	ModuleAddress string   `json:"module_address,omitempty"`
 }
 
 // Severity represents the risk level of a change
@@ -71,16 +78,25 @@ const (
 	SeverityCritical Severity = "critical"
 )
 
-// ExitCode returns the appropriate exit code based on analysis results
+// Exit codes for plan analysis
+const (
+	// ExitCodeSuccess indicates no infrastructure changes detected
+	ExitCodeSuccess = 0
+	// ExitCodeChanges indicates non-critical changes detected (creates, updates)
+	ExitCodeChanges = 1
+	// ExitCodeCritical indicates critical changes detected (deletes, replacements)
+	ExitCodeCritical = 2
+)
+
+// ExitCode returns the appropriate exit code based on analysis results.
+// Returns ExitCodeSuccess (0) for no changes, ExitCodeChanges (1) for non-critical changes,
+// and ExitCodeCritical (2) for critical changes (deletions or replacements).
 func (a *PlanAnalysis) ExitCode() int {
-	// Exit code 2 for critical changes (deletions/replacements)
 	if a.Deletions > 0 || a.Replacements > 0 {
-		return 2
+		return ExitCodeCritical
 	}
-	// Exit code 1 for any other changes
 	if a.TotalChanges > 0 {
-		return 1
+		return ExitCodeChanges
 	}
-	// Exit code 0 for no changes
-	return 0
+	return ExitCodeSuccess
 }

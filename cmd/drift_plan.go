@@ -47,27 +47,30 @@ Severity Levels:
 
 Examples:
   # Analyze a plan file
-  tfskel drift plan --file tfplan.json
+  tfskel drift plan --plan-file tfplan.json
 
   # Export analysis as JSON for CI/CD
-  tfskel drift plan --file tfplan.json --format json
+  tfskel drift plan --plan-file tfplan.json --format json
 
   # Generate CSV report
-  tfskel drift plan --file tfplan.json --format csv > plan-analysis.csv
+  tfskel drift plan --plan-file tfplan.json --format csv > plan-analysis.csv
 
   # Analyze without colors (for logs)
-  tfskel drift plan --file tfplan.json --no-color`,
+  tfskel drift plan --plan-file tfplan.json --no-color`,
 	RunE: runDriftPlan,
 }
 
 func init() {
 	driftCmd.AddCommand(driftPlanCmd)
 
-	driftPlanCmd.Flags().StringVarP(&planFile, "file", "f", "",
+	driftPlanCmd.Flags().StringVar(&planFile, "plan-file", "",
 		"Path to terraform plan JSON file (required)")
-	_ = driftPlanCmd.MarkFlagRequired("file")
+	if err := driftPlanCmd.MarkFlagRequired("plan-file"); err != nil {
+		// This should never happen with a valid flag name, but handle it for completeness
+		panic(fmt.Sprintf("failed to mark plan-file as required: %v", err))
+	}
 
-	driftPlanCmd.Flags().StringVar(&planFormat, "format", "table",
+	driftPlanCmd.Flags().StringVarP(&planFormat, "format", "f", "table",
 		"Output format: table, json, csv")
 	driftPlanCmd.Flags().BoolVar(&planNoColor, "no-color", false,
 		"Disable colored output")
@@ -78,7 +81,7 @@ func runDriftPlan(cmd *cobra.Command, args []string) error {
 
 	// Validate plan file path
 	if planFile == "" {
-		log.Error("Plan file is required. Use --file flag to specify the path.")
+		log.Error("Plan file is required. Use --plan-file flag to specify the path.")
 		cmd.SilenceUsage = true
 		return ErrPlanFileRequired
 	}

@@ -54,11 +54,27 @@ func NewPlanAnalyzerWithTypes(criticalTypes []string) *PlanAnalyzer {
 	}
 }
 
-// Analyze processes a terraform plan and produces detailed analysis
+// Analyze processes a terraform plan and produces detailed analysis.
+// Returns an empty analysis if plan is nil.
 func (a *PlanAnalyzer) Analyze(plan *TerraformPlan) *PlanAnalysis {
+	if plan == nil {
+		return &PlanAnalysis{
+			TerraformVersion: "unknown",
+			ResourceChanges:  []AnalyzedResource{},
+			ByType:           make(map[string]int),
+			ByModule:         make(map[string]int),
+			BySeverity:       make(map[string]int),
+			ByAction:         make(map[string]int),
+		}
+	}
+
 	analysis := &PlanAnalysis{
 		TerraformVersion: plan.TerraformVersion,
 		ResourceChanges:  make([]AnalyzedResource, 0),
+		ByType:           make(map[string]int),
+		ByModule:         make(map[string]int),
+		BySeverity:       make(map[string]int),
+		ByAction:         make(map[string]int),
 	}
 
 	for _, rc := range plan.ResourceChanges {
@@ -68,13 +84,14 @@ func (a *PlanAnalyzer) Analyze(plan *TerraformPlan) *PlanAnalysis {
 		}
 
 		analyzed := AnalyzedResource{
-			Address:      rc.Address,
-			Type:         rc.Type,
-			Name:         rc.Name,
-			Provider:     rc.ProviderName,
-			Actions:      rc.Change.Actions,
-			ActionString: a.formatActions(rc.Change.Actions),
-			Severity:     a.determineSeverity(rc.Change.Actions, rc.Type),
+			Address:       rc.Address,
+			Type:          rc.Type,
+			Name:          rc.Name,
+			Provider:      rc.ProviderName,
+			Actions:       rc.Change.Actions,
+			ActionString:  a.formatActions(rc.Change.Actions),
+			Severity:      a.determineSeverity(rc.Change.Actions, rc.Type),
+			ModuleAddress: rc.ModuleAddress,
 		}
 
 		analysis.ResourceChanges = append(analysis.ResourceChanges, analyzed)
@@ -82,6 +99,22 @@ func (a *PlanAnalyzer) Analyze(plan *TerraformPlan) *PlanAnalysis {
 
 		// Count by action type
 		a.updateCounts(analysis, rc.Change.Actions)
+
+		// Group by type
+		analysis.ByType[rc.Type]++
+
+		// Group by module
+		module := "root"
+		if rc.ModuleAddress != "" {
+			module = rc.ModuleAddress
+		}
+		analysis.ByModule[module]++
+
+		// Group by severity
+		analysis.BySeverity[string(analyzed.Severity)]++
+
+		// Group by action
+		analysis.ByAction[analyzed.ActionString]++
 	}
 
 	analysis.HasChanges = analysis.TotalChanges > 0
@@ -148,14 +181,18 @@ func (a *PlanAnalyzer) isCriticalResource(resourceType string) bool {
 
 // updateCounts updates the analysis counters based on actions
 func (a *PlanAnalyzer) updateCounts(analysis *PlanAnalysis, actions []string) {
-	if containsAction(actions, "create") && !containsAction(actions, "delete") {
+	switch {
+	case containsAction(actions, "create") && !containsAction(actions, "delete"):
 		analysis.Additions++
-	} else if containsAction(actions, "delete") && containsAction(actions, "create") {
+	case containsAction(actions, "delete") && containsAction(actions, "create"):
 		analysis.Replacements++
-	} else if containsAction(actions, "delete") {
+	case containsAction(actions, "delete"):
 		analysis.Deletions++
-	} else if containsAction(actions, "update") {
+	case containsAction(actions, "update"):
 		analysis.Modifications++
+	case containsAction(actions, "read"):
+		// Data source reads are counted as additions
+		analysis.Additions++
 	}
 }
 
