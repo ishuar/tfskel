@@ -131,23 +131,30 @@ func TestPlanFormatter_Format(t *testing.T) {
 				assert.NotEqual(t, -1, headerLine, "CSV header should be present")
 
 				// Check data rows (after header)
+				// Note: Rows are now sorted by severity (critical, high, low)
 				dataLines := lines[headerLine+1:]
 				assert.Len(t, dataLines, 4) // 4 resources
-				assert.Contains(t, dataLines[0], "aws_instance.new")
-				assert.Contains(t, dataLines[0], "create")
-				assert.Contains(t, dataLines[0], "low")
 
-				assert.Contains(t, dataLines[1], "aws_security_group.updated")
-				assert.Contains(t, dataLines[1], "update")
-				assert.Contains(t, dataLines[1], "high")
+				// First two rows should be critical (vpc.replaced and s3_bucket.deleted)
+				assert.Contains(t, dataLines[0], "critical")
+				assert.True(t,
+					strings.Contains(dataLines[0], "aws_vpc.replaced") || strings.Contains(dataLines[0], "aws_s3_bucket.deleted"),
+					"First row should be a critical resource")
 
-				assert.Contains(t, dataLines[2], "aws_vpc.replaced")
-				assert.Contains(t, dataLines[2], "replace")
-				assert.Contains(t, dataLines[2], "critical")
+				assert.Contains(t, dataLines[1], "critical")
+				assert.True(t,
+					strings.Contains(dataLines[1], "aws_vpc.replaced") || strings.Contains(dataLines[1], "aws_s3_bucket.deleted"),
+					"Second row should be a critical resource")
 
-				assert.Contains(t, dataLines[3], "aws_s3_bucket.deleted")
-				assert.Contains(t, dataLines[3], "delete")
-				assert.Contains(t, dataLines[3], "critical")
+				// Third row should be high (security_group.updated)
+				assert.Contains(t, dataLines[2], "aws_security_group.updated")
+				assert.Contains(t, dataLines[2], "update")
+				assert.Contains(t, dataLines[2], "high")
+
+				// Fourth row should be low (instance.new)
+				assert.Contains(t, dataLines[3], "aws_instance.new")
+				assert.Contains(t, dataLines[3], "create")
+				assert.Contains(t, dataLines[3], "low")
 			},
 		},
 		{
@@ -420,4 +427,128 @@ func TestOutputFormat_Constants(t *testing.T) {
 	assert.Equal(t, FormatJSON, OutputFormat("json"))
 	assert.Equal(t, FormatCSV, OutputFormat("csv"))
 	assert.Equal(t, FormatTable, OutputFormat("table"))
+}
+
+func TestSeverityOrder(t *testing.T) {
+	tests := []struct {
+		name     string
+		severity Severity
+		want     int
+	}{
+		{"critical has lowest order (highest priority)", SeverityCritical, severityOrderCritical},
+		{"high has second order", SeverityHigh, severityOrderHigh},
+		{"medium has third order", SeverityMedium, severityOrderMedium},
+		{"low has fourth order", SeverityLow, severityOrderLow},
+		{"unknown severity has highest order (lowest priority)", Severity("unknown"), severityOrderUnknown},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := severityOrder(tt.severity)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestPlanFormatter_buildResourceData_SortsBySeverity(t *testing.T) {
+	formatter := NewPlanFormatter(false)
+
+	// Create resources in random order
+	resources := []AnalyzedResource{
+		{Name: "resource1", Type: "aws_instance", ActionString: "create", Severity: SeverityLow},
+		{Name: "resource2", Type: "aws_s3_bucket", ActionString: "update", Severity: SeverityHigh},
+		{Name: "resource3", Type: "aws_lambda", ActionString: "update", Severity: SeverityMedium},
+		{Name: "resource4", Type: "aws_rds_cluster", ActionString: "delete", Severity: SeverityCritical},
+		{Name: "resource5", Type: "aws_vpc", ActionString: "update", Severity: SeverityHigh},
+		{Name: "resource6", Type: "aws_dynamodb", ActionString: "delete", Severity: SeverityCritical},
+		{Name: "resource7", Type: "aws_ec2", ActionString: "create", Severity: SeverityLow},
+	}
+
+	data := formatter.buildResourceData(resources)
+
+	// Verify sorting: critical, high, medium, low
+	// Extract severity from the data (4th column)
+	severities := make([]string, len(data))
+	for i, row := range data {
+		severities[i] = row[3] // Severity is the 4th column
+	}
+
+	// Expected order: critical (2), high (2), medium (1), low (2)
+	expectedOrder := []string{"critical", "critical", "high", "high", "medium", "low", "low"}
+	assert.Equal(t, expectedOrder, severities, "Resources should be sorted by severity: critical, high, medium, low")
+
+	// Verify resource names are in expected order
+	expectedNames := []string{"resource4", "resource6", "resource2", "resource5", "resource3", "resource1", "resource7"}
+	actualNames := make([]string, len(data))
+	for i, row := range data {
+		actualNames[i] = row[0] // Name is the 1st column
+	}
+	assert.Equal(t, expectedNames, actualNames, "Resources should maintain their order within same severity")
+}
+
+func TestSortResourcesBySeverity(t *testing.T) {
+	// Create resources in random order
+	resources := []AnalyzedResource{
+		{Name: "low1", Severity: SeverityLow},
+		{Name: "high1", Severity: SeverityHigh},
+		{Name: "critical1", Severity: SeverityCritical},
+		{Name: "medium1", Severity: SeverityMedium},
+		{Name: "low2", Severity: SeverityLow},
+		{Name: "critical2", Severity: SeverityCritical},
+	}
+
+	sorted := sortResourcesBySeverity(resources)
+
+	// Verify original is unchanged
+	assert.Equal(t, "low1", resources[0].Name, "Original slice should not be modified")
+
+	// Verify sorted order
+	expected := []string{"critical1", "critical2", "high1", "medium1", "low1", "low2"}
+	actual := make([]string, len(sorted))
+	for i, r := range sorted {
+		actual[i] = r.Name
+	}
+	assert.Equal(t, expected, actual, "Should be sorted by severity with stable order")
+}
+
+func TestPlanFormatter_formatCSV_SortsBySeverity(t *testing.T) {
+	formatter := NewPlanFormatter(false)
+
+	analysis := &PlanAnalysis{
+		TerraformVersion: "1.14.3",
+		TotalChanges:     4,
+		ResourceChanges: []AnalyzedResource{
+			{Address: "aws_instance.low", Name: "low", Type: "aws_instance", ActionString: "create", Severity: SeverityLow},
+			{Address: "aws_s3_bucket.high", Name: "high", Type: "aws_s3_bucket", ActionString: "update", Severity: SeverityHigh},
+			{Address: "aws_lambda.medium", Name: "medium", Type: "aws_lambda", ActionString: "update", Severity: SeverityMedium},
+			{Address: "aws_rds.critical", Name: "critical", Type: "aws_rds_cluster", ActionString: "delete", Severity: SeverityCritical},
+		},
+	}
+
+	var buf bytes.Buffer
+	err := formatter.formatCSV(analysis, &buf)
+	require.NoError(t, err)
+
+	output := buf.String()
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+
+	// Find the header line and data lines
+	var dataStartIdx int
+	for i, line := range lines {
+		if strings.HasPrefix(line, "Address,") {
+			dataStartIdx = i + 1
+			break
+		}
+	}
+
+	// Verify data is sorted by severity
+	dataLines := lines[dataStartIdx:]
+	assert.Len(t, dataLines, 4)
+
+	// CSV format: Address,Type,Name,Provider,Action,Severity
+	// Check that severities are in order: critical, high, medium, low
+	assert.Contains(t, dataLines[0], "critical", "First row should be critical")
+	assert.Contains(t, dataLines[1], "high", "Second row should be high")
+	assert.Contains(t, dataLines[2], "medium", "Third row should be medium")
+	assert.Contains(t, dataLines[3], "low", "Fourth row should be low")
 }

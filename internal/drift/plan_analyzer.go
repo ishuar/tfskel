@@ -2,6 +2,8 @@ package drift
 
 import (
 	"fmt"
+
+	"github.com/spf13/viper"
 )
 
 // PlanAnalyzer analyzes terraform plans and assesses change severity
@@ -12,38 +14,18 @@ type PlanAnalyzer struct {
 // NewPlanAnalyzer creates a new plan analyzer with default critical resource types
 func NewPlanAnalyzer() *PlanAnalyzer {
 	return &PlanAnalyzer{
-		criticalResourceTypes: []string{
-			// Databases - risk of data loss or service disruption
-			"aws_db_instance",
-			"aws_rds_cluster",
-			"aws_rds_cluster_instance",
-			"aws_dynamodb_table",
-			"google_sql_database_instance",
-			"google_sql_database",
-			"azurerm_sql_database",
-			"azurerm_postgresql_server",
-			"azurerm_mysql_server",
-			"azurerm_mssql_server",
-			// Storage - risk of data loss
-			"aws_s3_bucket",
-			"aws_efs_file_system",
-			"google_storage_bucket",
-			"google_compute_disk",
-			"azurerm_storage_account",
-			"azurerm_storage_blob",
-			// Networking - risk of service disruption
-			"aws_vpc",
-			"aws_subnet",
-			"aws_route_table",
-			"aws_security_group",
-			"aws_network_acl",
-			"google_compute_network",
-			"google_compute_subnetwork",
-			"google_compute_firewall",
-			"azurerm_virtual_network",
-			"azurerm_subnet",
-			"azurerm_network_security_group",
-		},
+		criticalResourceTypes: DefaultCriticalResources(),
+	}
+}
+
+// NewPlanAnalyzerWithConfig creates a plan analyzer with default critical resources
+// merged with user-defined resources from viper config.
+// This allows extending the default list via .tfskel.yaml configuration.
+func NewPlanAnalyzerWithConfig(v *viper.Viper) *PlanAnalyzer {
+	driftConfig := LoadDriftConfig(v)
+	criticalResources := MergeCriticalResources(DefaultCriticalResources(), driftConfig.CriticalResources)
+	return &PlanAnalyzer{
+		criticalResourceTypes: criticalResources,
 	}
 }
 

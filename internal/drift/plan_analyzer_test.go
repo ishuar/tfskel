@@ -372,8 +372,8 @@ func TestPlanAnalyzer_isCriticalResource(t *testing.T) {
 		{"aws s3 bucket", "aws_s3_bucket", true},
 		{"aws vpc", "aws_vpc", true},
 		{"aws security group", "aws_security_group", true},
-		{"google sql database", "google_sql_database_instance", true},
-		{"azure storage account", "azurerm_storage_account", true},
+		{"google sql database", "google_sql_database_instance", false}, // Not in AWS-only default list
+		{"azure storage account", "azurerm_storage_account", false},    // Not in AWS-only default list
 		{"non-critical resource", "aws_instance", false},
 		{"non-critical resource 2", "aws_lambda_function", false},
 	}

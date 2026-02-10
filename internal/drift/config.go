@@ -1,5 +1,7 @@
 package drift
 
+import "github.com/spf13/viper"
+
 // OutputFormat defines the output format type
 type OutputFormat string
 
@@ -29,3 +31,31 @@ const (
 	defaultTopNCount  = 10 // Default number of items to show in top-N summaries
 	severityTopNCount = 0  // Show all severity items (0 = no limit)
 )
+
+// DriftConfig holds drift-specific configuration
+type DriftConfig struct {
+	CriticalResources []string `mapstructure:"critical_resources"`
+	TopNCount         int      `mapstructure:"top_n_count"`
+}
+
+// LoadDriftConfig loads drift configuration from viper.
+// Returns a config with user-defined critical resources, or empty list if not configured.
+func LoadDriftConfig(v *viper.Viper) *DriftConfig {
+	cfg := &DriftConfig{
+		TopNCount: defaultTopNCount, // Default to 10
+	}
+
+	// Check if the key exists in config
+	if v.IsSet("critical_resources") {
+		cfg.CriticalResources = v.GetStringSlice("critical_resources")
+	}
+
+	// Check if top_n_count is configured
+	if v.IsSet("top_n_count") {
+		if topN := v.GetInt("top_n_count"); topN > 0 {
+			cfg.TopNCount = topN
+		}
+	}
+
+	return cfg
+}

@@ -19,11 +19,21 @@ var (
 	ErrUnsupportedPlanFormat = errors.New("unsupported format")
 )
 
+const (
+	// Severity order constants for sorting (lower = higher priority)
+	severityOrderCritical = 0
+	severityOrderHigh     = 1
+	severityOrderMedium   = 2
+	severityOrderLow      = 3
+	severityOrderUnknown  = 4
+)
+
 // PlanFormatter handles formatting of plan analysis results
 type PlanFormatter struct {
 	useColor      bool
 	terminalWidth int
 	tableWidth    int // Consistent width for all tables
+	topNCount     int // Number of items to show in top-N summaries
 }
 
 // NewPlanFormatter creates a new plan formatter with auto-detected terminal width
@@ -37,7 +47,27 @@ func NewPlanFormatter(useColor bool) *PlanFormatter {
 	return &PlanFormatter{
 		useColor:      useColor,
 		terminalWidth: width,
+		tableWidth:    0,                // Will be calculated during formatting
+		topNCount:     defaultTopNCount, // Default to 10
+	}
+}
+
+// NewPlanFormatterWithConfig creates a new plan formatter with configuration
+func NewPlanFormatterWithConfig(useColor bool, topNCount int) *PlanFormatter {
+	width := defaultTerminalWidth
+	if fd := int(os.Stdout.Fd()); term.IsTerminal(fd) {
+		if w, _, err := term.GetSize(fd); err == nil && w > 0 {
+			width = w
+		}
+	}
+	if topNCount <= 0 {
+		topNCount = defaultTopNCount
+	}
+	return &PlanFormatter{
+		useColor:      useColor,
+		terminalWidth: width,
 		tableWidth:    0, // Will be calculated during formatting
+		topNCount:     topNCount,
 	}
 }
 
@@ -87,8 +117,11 @@ func (f *PlanFormatter) formatCSV(analysis *PlanAnalysis, w io.Writer) error {
 		return fmt.Errorf("failed to write CSV header: %w", err)
 	}
 
+	// Sort resources by severity before writing
+	sortedResources := sortResourcesBySeverity(analysis.ResourceChanges)
+
 	// Write resource data with proper CSV escaping
-	for _, rc := range analysis.ResourceChanges {
+	for _, rc := range sortedResources {
 		if err := csvWriter.Write([]string{
 			rc.Address,
 			rc.Type,
@@ -184,14 +217,14 @@ func (f *PlanFormatter) writeTableSummary(w io.Writer, analysis *PlanAnalysis, s
 func (f *PlanFormatter) writeTableGroupings(w io.Writer, analysis *PlanAnalysis, styles CommonStyles) error {
 	// Changes by Resource Type
 	if len(analysis.ByType) > 0 {
-		if err := f.printGroupSummary(w, styles, "Changes by Resource Type", analysis.ByType, defaultTopNCount); err != nil {
+		if err := f.printGroupSummary(w, styles, "Changes by Resource Type", analysis.ByType, f.topNCount); err != nil {
 			return err
 		}
 	}
 
 	// Changes by Module
 	if len(analysis.ByModule) > 1 { // Only show if more than root module
-		if err := f.printGroupSummary(w, styles, "Changes by Module", analysis.ByModule, defaultTopNCount); err != nil {
+		if err := f.printGroupSummary(w, styles, "Changes by Module", analysis.ByModule, f.topNCount); err != nil {
 			return err
 		}
 	}
@@ -295,10 +328,14 @@ func (f *PlanFormatter) colorizeSeverity(severity string) string {
 
 // buildResourceData constructs resource table rows.
 // Columns are auto-sized based on content without truncation.
+// Resources are sorted by severity: critical, high, medium, low.
 func (f *PlanFormatter) buildResourceData(resources []AnalyzedResource) [][]string {
-	data := make([][]string, 0, len(resources))
+	// Sort resources by severity using shared function
+	sortedResources := sortResourcesBySeverity(resources)
 
-	for _, rc := range resources {
+	data := make([][]string, 0, len(sortedResources))
+
+	for _, rc := range sortedResources {
 		// Show resource name with module path if present
 		resourceName := rc.Name
 		if rc.ModuleAddress != "" {
@@ -434,6 +471,35 @@ func (f *PlanFormatter) extractModuleName(moduleAddr string) string {
 		result += p
 	}
 	return result
+}
+
+// sortResourcesBySeverity sorts resources by severity level (critical, high, medium, low).
+// Returns a new sorted slice without modifying the original.
+// Uses stable sort to maintain original order within same severity level.
+func sortResourcesBySeverity(resources []AnalyzedResource) []AnalyzedResource {
+	sorted := make([]AnalyzedResource, len(resources))
+	copy(sorted, resources)
+	sort.SliceStable(sorted, func(i, j int) bool {
+		return severityOrder(sorted[i].Severity) < severityOrder(sorted[j].Severity)
+	})
+	return sorted
+}
+
+// severityOrder returns the sort order for severity levels.
+// Lower values are sorted first (higher priority).
+func severityOrder(s Severity) int {
+	switch s {
+	case SeverityCritical:
+		return severityOrderCritical
+	case SeverityHigh:
+		return severityOrderHigh
+	case SeverityMedium:
+		return severityOrderMedium
+	case SeverityLow:
+		return severityOrderLow
+	default:
+		return severityOrderUnknown
+	}
 }
 
 // splitModuleAddress splits a module address string by dots into its component parts.
