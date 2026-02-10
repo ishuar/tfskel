@@ -12,7 +12,7 @@ templates_dir: "" # Custom templates_dir
 extra_template_extensions: [] # by default .tf.tmpl templates are processed only
 backend:
   s3:
-    bucket_name: CHANGE_ME_WITH_YOUR_GLOBALY_UNIQUE_S3_BUCKET_NAME
+    bucket_name: CHANGE_ME_WITH_YOUR_GLOBALLY_UNIQUE_S3_BUCKET_NAME
 provider:
   aws:
     version: ~> 6.0
@@ -22,3 +22,24 @@ provider:
       dev: "123456789012"
       prd: "210987654321"
       stg: "109876543210"
+
+# Critical resources for drift analysis
+# These resources will be added to the default AWS critical resources list
+# Updates to these resources will be flagged as HIGH severity in drift analysis
+# See docs/critical-resources.md for the full list of default critical resources
+critical_resources:
+  # Example: Add compute resources as critical
+  - aws_lambda_function
+  - aws_ecs_cluster
+  - aws_eks_cluster
+  # Example: Add API Gateway as critical
+  - aws_api_gateway_rest_api
+  - aws_apigatewayv2_api
+  # Example: Add CloudFront as critical
+  - aws_cloudfront_distribution
+
+# Top N count for summary tables (optional, default: 10)
+# Controls how many items to show in "Changes by Resource Type" and "Changes by Module" tables
+# Set to 0 to show all items (not recommended for large projects)
+# top_n_count: 15
+

@@ -6,18 +6,22 @@
 
 # tfskel
 
-**Opinionated Terraform scaffolding for real-world teams.**
+<div align="center">
+<strong>Opinionated Terraform scaffolding for real-world teams. No vendor lock-in, just better project structure</strong>
+</div>
+
+---
 
 tfskel is a CLI tool that scaffolds Terraform monorepos with an **opinionated**, **scalable** and **consistent** way by using environment-based directory structure across multiple regions. No wrappers, no complexity—just vanilla Terraform with consistent backend configs, version **drift detection**, and sensible defaults. Spend less time on project setup and more time writing infrastructure code.
 
 ## What It Does
 
-- **Scaffolds production-ready Terraform monorepos** organized by environment (dev/stg/prd) and region
-- **Generates AWS backend & provider configs** using reusable Go templates with smart defaults
-- **Detects version drift** across Terraform and provider versions in entire repositories—catch inconsistencies before they cause production issues
-- **Analyzes Terraform plans** to surface resource changes, impact severity, and compliance risks at a glance
-- **Safe and idempotent**—only creates new files, never overwrites existing infrastructure code
-- **Works with vanilla Terraform**—no custom wrappers, no vendor lock-in, just better project structure
+- **Scaffolds production-ready Terraform monorepos** organized by environment (dev/stg/prd) and region.
+- **Generates AWS backend & provider configs** using reusable Go templates with smart defaults.
+- **Detects version drift** across Terraform and provider versions in entire repositories—catch inconsistencies before they cause production issues.
+- **Analyzes Terraform plans** to surface resource changes, impact severity, and compliance risks at a glance.
+- **Safe and idempotent** creates new files without overwriting existing infrastructure code.
+- **Works with vanilla Terraform** no custom wrappers, no vendor lock-in, just better project structure.
 
 ## Installation
 
@@ -30,115 +34,6 @@ go install github.com/ishuar/tfskel@latest
 ```
 
 Make sure `$HOME/go/bin` is in your PATH.
-
-## Quick Start
-
-1. Help and available commands
-
-```bash
-tfskel --help
-```
-2. Initialize a new Terraform monorepo:
-
-```bash
-# Create project structure with default config
-tfskel init
-
-# Or specify a custom directory
-tfskel init --dir /path/to/your/project
-
-```
-This creates an opinionated structure with environment directories and configuration files:
-
-```
-.
-├── .tfskel.yaml             # Project configuration
-├── .gitignore               # Terraform-specific ignores
-├── .pre-commit-config.yaml  # Pre-commit hooks
-├── .tflint.hcl             # Linting config
-├── trivy.yaml              # Security scanning config
-└── envs/
-    ├── dev/
-    │   ├── .terraform-version
-    │   └── eu-central-1/
-    ├── stg/
-    │   ├── .terraform-version
-    │   └── eu-central-1/
-    └── prd/
-        ├── .terraform-version
-        └── eu-central-1/
-```
-
-3. Generate Terraform code for a specific application:
-
-```bash
-tfskel generate myapp --env dev --region us-east-1
-
-```
-
-4. Detect version drift and analyze Terraform plans:
-
-```bash
-# Check version drift across all Terraform files
-tfskel drift version
-
-# Analyze a Terraform plan for change impact
-tfskel drift plan --plan-file plan.json
-
-# Run both analyses together
-tfskel drift all --plan-file plan.json
-```
-## Drift Detection
-
-**Why it matters:** In large repos and monorepos, version inconsistencies can cause failed deployments, security vulnerabilities, and hours of debugging. Plan analysis helps you assess change impact before applying.
-
-**Version Drift Detection**
-```bash
-# Scan repository for version inconsistencies
-tfskel drift version --path ./envs
-
-# Output as JSON for CI/CD pipelines
-tfskel drift version --format json > drift-report.json
-
-# Compare against custom config
-tfskel drift version --config ./custom-config.yaml
-```
-
-**Terraform Plan Analysis**
-```bash
-# Analyze plan after terraform plan -out=plan.bin
-terraform show -json plan.bin > plan.json
-tfskel drift plan --plan-file plan.json
-
-# Focus on high-severity changes only
-tfskel drift plan --plan-file plan.json --top-n 5
-
-# Export as CSV for reporting
-tfskel drift plan --plan-file plan.json --format csv
-```
-
-**Combined Analysis**
-```bash
-# Run both version drift and plan analysis
-tfskel drift all --plan-file plan.json
-
-# Skip version check if not needed
-tfskel drift all --plan-file plan.json --skip-version
-```
-
-## Usage Examples
-
-**Deploy the same app across multiple regions:**
-```bash
-tfskel generate myapp --env prd --region us-east-1
-tfskel generate myapp --env prd --region eu-west-1
-tfskel generate myapp --env prd --region ap-south-1
-```
-
-**Use a custom configuration file:**
-```bash
-tfskel generate myapp --config ./my-config.yaml --env stg --region us-west-2
-```
 
 ## Configuration
 
@@ -167,33 +62,109 @@ provider:
 > Use [.tfskel.yaml.example](.tfskel.yaml.example) for reference.
 > Configuration precedence: CLI flags → config file → defaults
 
-See [docs/tfskel-book.md](docs/tfskel-book.md) for detailed configuration options.
-
-## What Gets Generated
-
-Running `tfskel generate` creates a complete Terraform module directory with backend and version configuration:
+## Quick Start
+1. Help and available commands
 
 ```bash
-envs/dev/us-east-1/myapp/
-├── backend.tf       # S3 backend with state locking & encryption enabled
-└── versions.tf      # Terraform and provider versions
+tfskel --help
+```
+2. Initialize a new Terraform monorepo:
+
+```bash
+# Create project structure with default config
+tfskel init
+
+# Or specify a custom directory
+tfskel init --dir /path/to/your/project
 ```
 
-You can extend this by creating custom templates for additional files (`main.tf`, `variables.tf`, `outputs.tf`, etc.). Place templates in a directory and tfskel will use them alongside the defaults.
+- This creates an opinionated structure with environment directories and configuration files:
+
+```
+.
+├── .tfskel.yaml             # Project configuration
+├── .gitignore               # Terraform-specific ignores
+├── .pre-commit-config.yaml  # Pre-commit hooks
+├── .tflint.hcl             # Linting config
+├── trivy.yaml              # Security scanning config
+└── envs/
+    ├── dev/
+    │   ├── .terraform-version
+    │   └── eu-central-1/
+    ├── stg/
+    │   ├── .terraform-version
+    │   └── eu-central-1/
+    └── prd/
+        ├── .terraform-version
+        └── eu-central-1/
+```
+
+3. Generate Terraform code for a specific application:
+
+```bash
+tfskel generate myapp --env dev --region us-east-1
+```
+- Running `tfskel generate` creates a complete Terraform module directory with backend and version configuration
+
+```bash
+  envs/dev/us-east-1/myapp/
+  ├── backend.tf       # S3 backend with state locking & encryption enabled
+  └── versions.tf      # Terraform and provider versions
+```
+
+```bash
+## custom templates directory via cmd arguments, otherwise use .tfskel.yaml config else default templates
+tfskel generate myapp --env dev --region us-east-1 --templates-dir <path-to-templates-dir>
+```
+> [!TIP]
+> You can extend this by creating custom go templates for additional files (`main.tf`, `variables.tf`, `outputs.tf`, etc.).
+> Place templates in a directory, config accordingly and tfskel will use them alongside the defaults.
+
+## Drift Detection
+
+**Why it matters:** In large repos and monorepos, version inconsistencies can cause failed deployments, security vulnerabilities, and hours of debugging. Plan analysis helps you assess change impact before applying.
+
+**Version Drift Detection**
+```bash
+# Scan repository for version inconsistencies
+tfskel drift version --path ./envs
+
+# Output as JSON for CI/CD pipelines
+tfskel drift version --format json > drift-report.json
+```
+
+**Terraform Plan Analysis**
+```bash
+# Analyze plan after terraform plan -out=plan.bin
+terraform plan -out plan.bin
+terraform show -json plan.bin > plan.json
+tfskel drift plan --plan-file plan.json
+
+# Export as CSV for reporting
+tfskel drift plan --plan-file plan.json --format csv
+```
+
+**Combined Analysis**
+```bash
+# Run both version drift and plan analysis
+tfskel drift all --plan-file plan.json
+```
 
 ## Contributing
-
 Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+1) Fork the repository on GitHub
+2) Clone your fork and create a new branch
+3) Make your changes
+4) Run tests and checks
+5) Push your branch and open a pull request
 
-Development quick start:
 ```bash
-git clone https://github.com/ishuar/tfskel.git
+git clone https://github.com/<your-username>/tfskel.git
 cd tfskel
-make test          # Run tests
-make check         # Run all quality checks
-make install       # Install locally
+git checkout -b my-feature-branch
+make test   # Run tests
+make check  # Run all quality checks
 ```
-
 > [!Important]
 > Please keep your pull requests small and focused. This will make it easier to review and merge.
 
