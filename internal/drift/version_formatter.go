@@ -349,7 +349,7 @@ func (f *Formatter) writeDriftDetails(writer io.Writer, report *DriftReport, sty
 				return lipgloss.NewStyle().Bold(true).Foreground(styles.HeaderColor).Align(lipgloss.Center)
 			}
 			// All other columns: center-aligned
-			return lipgloss.NewStyle().Foreground(styles.RowColor).Align(lipgloss.Center)
+			return lipgloss.NewStyle().Foreground(styles.RowColor).Align(lipgloss.Left)
 		}).
 		Width(f.tableWidth).
 		Headers("File", "Type", "Expected", "Actual", "Status").
