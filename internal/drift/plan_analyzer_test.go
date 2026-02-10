@@ -306,13 +306,14 @@ func TestPlanAnalyzer_Analyze(t *testing.T) {
 			},
 		},
 		{
-			name: "data sources with read action",
+			name: "data sources are skipped (not tracked)",
 			plan: &TerraformPlan{
 				FormatVersion:    "1.2",
 				TerraformVersion: "1.14.3",
 				ResourceChanges: []ResourceChange{
 					{
 						Address:      "data.aws_iam_policy_document.test",
+						Mode:         "data",
 						Type:         "aws_iam_policy_document",
 						Name:         "test",
 						ProviderName: "registry.terraform.io/hashicorp/aws",
@@ -322,18 +323,15 @@ func TestPlanAnalyzer_Analyze(t *testing.T) {
 					},
 				},
 			},
-			wantTotalChanges:  1,
-			wantAdditions:     1,
+			wantTotalChanges:  0,
+			wantAdditions:     0,
 			wantModifications: 0,
 			wantDeletions:     0,
 			wantReplacements:  0,
-			wantHasChanges:    true,
-			wantExitCode:      1,
+			wantHasChanges:    false,
+			wantExitCode:      0,
 			validateResources: func(t *testing.T, resources []AnalyzedResource) {
-				require.Len(t, resources, 1)
-				assert.Equal(t, "read", resources[0].ActionString)
-				// Read actions treated similar to create (low severity)
-				assert.Equal(t, SeverityLow, resources[0].Severity)
+				require.Len(t, resources, 0, "data sources should not be tracked")
 			},
 		},
 	}

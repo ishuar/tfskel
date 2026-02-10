@@ -232,6 +232,9 @@ func executePlanAnalysis(log *logger.Logger, cmd *cobra.Command, combined *Combi
 	planAnalysis, planExitCode, err := runPlanAnalysisInternal(allPlanFile, log)
 	if err != nil {
 		log.Errorf("Plan analysis failed: %v", err)
+		// Mark combined analysis as having critical issues on plan analysis failure
+		combined.HasIssues = true
+		combined.OverallStatus = "critical"
 		cmd.SilenceUsage = true
 		return planExitCode
 	}

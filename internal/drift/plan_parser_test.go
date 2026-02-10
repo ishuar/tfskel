@@ -207,7 +207,7 @@ func TestParsePlanFile(t *testing.T) {
 				return "/path/to/nonexistent/file.json"
 			},
 			wantErr:     true,
-			errContains: "failed to read plan file",
+			errContains: "failed to open plan file",
 		},
 		{
 			name: "invalid JSON",

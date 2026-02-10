@@ -153,7 +153,8 @@ func runDriftVersions(cmd *cobra.Command, args []string) error {
 	exitCode := report.ExitCode()
 	if exitCode != 0 {
 		log.Warnf("Drift detected - exiting with code %d", exitCode)
-		os.Exit(exitCode)
+		cmd.SilenceUsage = true
+		return NewExitError(exitCode, "")
 	}
 
 	log.Success("No drift detected - all files are in sync")

@@ -60,6 +60,11 @@ func (a *PlanAnalyzer) Analyze(plan *TerraformPlan) *PlanAnalysis {
 	}
 
 	for _, rc := range plan.ResourceChanges {
+		// Skip data sources - we only track managed resources
+		if rc.Mode == "data" {
+			continue
+		}
+
 		// Skip resources with no actions or no-op actions
 		if len(rc.Change.Actions) == 0 || isNoOp(rc.Change.Actions) {
 			continue
@@ -172,9 +177,6 @@ func (a *PlanAnalyzer) updateCounts(analysis *PlanAnalysis, actions []string) {
 		analysis.Deletions++
 	case containsAction(actions, "update"):
 		analysis.Modifications++
-	case containsAction(actions, "read"):
-		// Data source reads are counted as additions
-		analysis.Additions++
 	}
 }
 
