@@ -118,7 +118,7 @@ func runDriftPlan(cmd *cobra.Command, args []string) error {
 	}
 
 	// Analyze the plan using internal package
-	analyzer := drift.NewPlanAnalyzer()
+	analyzer := drift.NewPlanAnalyzerWithConfig(viper.GetViper())
 	analysis := analyzer.Analyze(plan)
 
 	if !analysis.HasChanges {
@@ -128,8 +128,11 @@ func runDriftPlan(cmd *cobra.Command, args []string) error {
 
 	log.Infof("Found %d resource changes", analysis.TotalChanges)
 
+	// Load drift config for formatter settings
+	driftConfig := drift.LoadDriftConfig(viper.GetViper())
+
 	// Format and output using internal package
-	formatter := drift.NewPlanFormatter(!planNoColor)
+	formatter := drift.NewPlanFormatterWithConfig(!planNoColor, driftConfig.TopNCount)
 	if err := formatter.Format(analysis, drift.OutputFormat(planFormat), os.Stdout); err != nil {
 		log.Errorf("Failed to format output: %v", err)
 		cmd.SilenceUsage = true

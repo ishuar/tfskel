@@ -324,7 +324,7 @@ func runPlanAnalysisInternal(planFile string, log *logger.Logger) (*drift.PlanAn
 	}
 
 	// Analyze the plan using internal package
-	analyzer := drift.NewPlanAnalyzer()
+	analyzer := drift.NewPlanAnalyzerWithConfig(viper.GetViper())
 	analysis := analyzer.Analyze(plan)
 
 	if !analysis.HasChanges {
