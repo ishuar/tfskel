@@ -18,7 +18,9 @@ var (
 )
 
 var (
+	// ErrPlanFileRequired indicates the plan file flag was not provided
 	ErrPlanFileRequired = errors.New("plan file is required")
+	// ErrPlanFileNotFound indicates the specified plan file does not exist
 	ErrPlanFileNotFound = errors.New("plan file not found")
 )
 
@@ -76,7 +78,7 @@ func init() {
 		"Disable colored output")
 }
 
-func runDriftPlan(cmd *cobra.Command, args []string) error {
+func runDriftPlan(cmd *cobra.Command, _ []string) error {
 	log := logger.New(viper.GetBool("verbose"))
 
 	// Validate plan file path
@@ -102,7 +104,7 @@ func runDriftPlan(cmd *cobra.Command, args []string) error {
 	}
 
 	// Suppress logs for machine-readable formats
-	if planFormat == "json" || planFormat == "csv" {
+	if planFormat == formatJSON || planFormat == formatCSV {
 		log.SetOutput(os.Stderr)
 	}
 

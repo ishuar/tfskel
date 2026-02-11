@@ -90,7 +90,7 @@ func TestFormatter_FormatJSON(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify it's valid JSON
-	var result map[string]interface{}
+	var result map[string]any
 	err = json.Unmarshal(buf.Bytes(), &result)
 	assert.NoError(t, err)
 

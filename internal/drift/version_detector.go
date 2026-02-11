@@ -13,7 +13,12 @@ import (
 )
 
 var (
+	// ErrHCLParsingWarnings indicates HCL parsing completed with warnings
 	ErrHCLParsingWarnings = errors.New("HCL parsing warnings")
+)
+
+const (
+	hclTypeString = "string"
 )
 
 // Detector scans directories and extracts version information
@@ -162,7 +167,7 @@ func (d *Detector) extractTerraformBlock(block *hclsyntax.Block, info *VersionIn
 	// Extract required_version
 	if attr, exists := body.Attributes["required_version"]; exists {
 		val, diags := attr.Expr.Value(nil)
-		if !diags.HasErrors() && val.Type().FriendlyName() == "string" {
+		if !diags.HasErrors() && val.Type().FriendlyName() == hclTypeString {
 			info.TerraformVersion = val.AsString()
 		}
 	}
@@ -194,12 +199,12 @@ func (d *Detector) extractProvidersBlock(block *hclsyntax.Block, info *VersionIn
 		provider := ProviderVer{}
 
 		// Extract source
-		if sourceVal := val.GetAttr("source"); sourceVal.Type().FriendlyName() == "string" {
+		if sourceVal := val.GetAttr("source"); sourceVal.Type().FriendlyName() == hclTypeString {
 			provider.Source = sourceVal.AsString()
 		}
 
 		// Extract version
-		if versionVal := val.GetAttr("version"); versionVal.Type().FriendlyName() == "string" {
+		if versionVal := val.GetAttr("version"); versionVal.Type().FriendlyName() == hclTypeString {
 			provider.Version = versionVal.AsString()
 		}
 

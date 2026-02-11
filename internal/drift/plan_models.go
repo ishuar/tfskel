@@ -6,13 +6,13 @@ import (
 
 // TerraformPlan represents the structure of terraform plan JSON output
 type TerraformPlan struct {
-	FormatVersion    string                 `json:"format_version"`
-	TerraformVersion string                 `json:"terraform_version"`
-	PlannedValues    map[string]interface{} `json:"planned_values,omitempty"`
-	ResourceChanges  []ResourceChange       `json:"resource_changes"`
-	OutputChanges    map[string]interface{} `json:"output_changes,omitempty"`
-	PriorState       map[string]interface{} `json:"prior_state,omitempty"`
-	Configuration    map[string]interface{} `json:"configuration,omitempty"`
+	FormatVersion    string           `json:"format_version"`
+	TerraformVersion string           `json:"terraform_version"`
+	PlannedValues    map[string]any   `json:"planned_values,omitempty"`
+	ResourceChanges  []ResourceChange `json:"resource_changes"`
+	OutputChanges    map[string]any   `json:"output_changes,omitempty"`
+	PriorState       map[string]any   `json:"prior_state,omitempty"`
+	Configuration    map[string]any   `json:"configuration,omitempty"`
 }
 
 // ResourceChange represents a change to a resource in the plan
@@ -28,14 +28,14 @@ type ResourceChange struct {
 }
 
 // ChangeDetail contains the details of what's changing
-// Note: before_sensitive and after_sensitive can be either bool or map[string]interface{}
+// Note: before_sensitive and after_sensitive can be either bool or map[string]any
 type ChangeDetail struct {
-	Actions         []string               `json:"actions"`
-	Before          map[string]interface{} `json:"before"`
-	After           map[string]interface{} `json:"after"`
-	AfterUnknown    map[string]interface{} `json:"after_unknown,omitempty"`
-	BeforeSensitive json.RawMessage        `json:"before_sensitive,omitempty"`
-	AfterSensitive  json.RawMessage        `json:"after_sensitive,omitempty"`
+	Actions         []string        `json:"actions"`
+	Before          map[string]any  `json:"before"`
+	After           map[string]any  `json:"after"`
+	AfterUnknown    map[string]any  `json:"after_unknown,omitempty"`
+	BeforeSensitive json.RawMessage `json:"before_sensitive,omitempty"`
+	AfterSensitive  json.RawMessage `json:"after_sensitive,omitempty"`
 }
 
 // PlanAnalysis represents the analyzed plan results
@@ -72,9 +72,13 @@ type AnalyzedResource struct {
 type Severity string
 
 const (
-	SeverityLow      Severity = "low"
-	SeverityMedium   Severity = "medium"
-	SeverityHigh     Severity = "high"
+	// SeverityLow indicates low-risk changes (additions)
+	SeverityLow Severity = "low"
+	// SeverityMedium indicates medium-risk changes (standard updates)
+	SeverityMedium Severity = "medium"
+	// SeverityHigh indicates high-risk changes (updates to critical resources)
+	SeverityHigh Severity = "high"
+	// SeverityCritical indicates critical changes (deletions or replacements)
 	SeverityCritical Severity = "critical"
 )
 

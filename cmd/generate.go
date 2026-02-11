@@ -14,10 +14,14 @@ import (
 )
 
 var (
+	// ErrEnvironmentRequired indicates the --env flag was not provided
 	ErrEnvironmentRequired = errors.New("environment is required (use --env flag)")
-	ErrRegionRequired      = errors.New("region is required (use --region flag)")
-	ErrAppDirRequired      = errors.New("app directory name is required (provide as argument)")
-	ErrAccountMapping      = errors.New("account mapping is required for environment in your configuration")
+	// ErrRegionRequired indicates the --region flag was not provided
+	ErrRegionRequired = errors.New("region is required (use --region flag)")
+	// ErrAppDirRequired indicates no app directory argument was provided
+	ErrAppDirRequired = errors.New("app directory name is required (provide as argument)")
+	// ErrAccountMapping indicates account mapping is missing for the environment
+	ErrAccountMapping = errors.New("account mapping is required for environment in your configuration")
 )
 
 var generateCmd = &cobra.Command{

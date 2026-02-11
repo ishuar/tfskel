@@ -47,29 +47,7 @@ func (a *Analyzer) Analyze(scanRoot string, versionInfos []VersionInfo) *DriftRe
 		// Update summary statistics
 		if record.HasDrift {
 			report.FilesWithDrift++
-
-			// Categorize drift severity - a file is "major" if it has ANY major drift
-			hasMajor := false
-
-			if record.TerraformDriftStatus == StatusMajorDrift {
-				hasMajor = true
-			}
-
-			if !hasMajor {
-				for _, pd := range record.Providers {
-					if pd.DriftStatus == StatusMajorDrift {
-						hasMajor = true
-						break
-					}
-				}
-			}
-
-			if hasMajor {
-				report.Summary.FilesWithMajorDrift++
-			} else {
-				// Only minor drift if no major drift found
-				report.Summary.FilesWithMinorDrift++
-			}
+			categorizeDriftSeverity(&report.Summary, record)
 		} else {
 			report.Summary.FilesInSync++
 		}
@@ -88,6 +66,26 @@ func (a *Analyzer) Analyze(scanRoot string, versionInfos []VersionInfo) *DriftRe
 	}
 
 	return report
+}
+
+// categorizeDriftSeverity determines if a drift is major or minor and updates summary counts
+func categorizeDriftSeverity(summary *DriftSummary, record DriftRecord) {
+	hasMajor := record.TerraformDriftStatus == StatusMajorDrift
+
+	if !hasMajor {
+		for _, pd := range record.Providers {
+			if pd.DriftStatus == StatusMajorDrift {
+				hasMajor = true
+				break
+			}
+		}
+	}
+
+	if hasMajor {
+		summary.FilesWithMajorDrift++
+	} else {
+		summary.FilesWithMinorDrift++
+	}
 }
 
 // analyzeVersionInfo compares a single version info against config

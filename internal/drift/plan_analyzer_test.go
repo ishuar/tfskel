@@ -107,6 +107,7 @@ func TestPlanAnalyzer_Analyze(t *testing.T) {
 			wantHasChanges:    true,
 			wantExitCode:      1,
 			validateResources: func(t *testing.T, resources []AnalyzedResource) {
+				t.Helper()
 				require.Len(t, resources, 1)
 				assert.Equal(t, "aws_instance.new", resources[0].Address)
 				assert.Equal(t, "create", resources[0].ActionString)
@@ -138,6 +139,7 @@ func TestPlanAnalyzer_Analyze(t *testing.T) {
 			wantHasChanges:    true,
 			wantExitCode:      1,
 			validateResources: func(t *testing.T, resources []AnalyzedResource) {
+				t.Helper()
 				require.Len(t, resources, 1)
 				assert.Equal(t, "update", resources[0].ActionString)
 				assert.Equal(t, SeverityMedium, resources[0].Severity)
@@ -168,6 +170,7 @@ func TestPlanAnalyzer_Analyze(t *testing.T) {
 			wantHasChanges:    true,
 			wantExitCode:      1,
 			validateResources: func(t *testing.T, resources []AnalyzedResource) {
+				t.Helper()
 				require.Len(t, resources, 1)
 				assert.Equal(t, "aws_db_instance.database", resources[0].Address)
 				assert.Equal(t, "update", resources[0].ActionString)
@@ -199,6 +202,7 @@ func TestPlanAnalyzer_Analyze(t *testing.T) {
 			wantHasChanges:    true,
 			wantExitCode:      2,
 			validateResources: func(t *testing.T, resources []AnalyzedResource) {
+				t.Helper()
 				require.Len(t, resources, 1)
 				assert.Equal(t, "delete", resources[0].ActionString)
 				assert.Equal(t, SeverityCritical, resources[0].Severity)
@@ -229,6 +233,7 @@ func TestPlanAnalyzer_Analyze(t *testing.T) {
 			wantHasChanges:    true,
 			wantExitCode:      2,
 			validateResources: func(t *testing.T, resources []AnalyzedResource) {
+				t.Helper()
 				require.Len(t, resources, 1)
 				assert.Equal(t, "replace", resources[0].ActionString)
 				assert.Equal(t, SeverityCritical, resources[0].Severity)
@@ -286,6 +291,7 @@ func TestPlanAnalyzer_Analyze(t *testing.T) {
 			wantHasChanges:    true,
 			wantExitCode:      2,
 			validateResources: func(t *testing.T, resources []AnalyzedResource) {
+				t.Helper()
 				require.Len(t, resources, 4)
 
 				// Verify create
@@ -331,6 +337,7 @@ func TestPlanAnalyzer_Analyze(t *testing.T) {
 			wantHasChanges:    false,
 			wantExitCode:      0,
 			validateResources: func(t *testing.T, resources []AnalyzedResource) {
+				t.Helper()
 				require.Len(t, resources, 0, "data sources should not be tracked")
 			},
 		},

@@ -17,7 +17,9 @@ import (
 )
 
 var (
-	ErrUnsupportedDataType   = errors.New("unsupported data type for template rendering")
+	// ErrUnsupportedDataType indicates an unsupported data type was encountered during template rendering
+	ErrUnsupportedDataType = errors.New("unsupported data type for template rendering")
+	// ErrMissingAccountMapping indicates AWS account mapping configuration is missing
 	ErrMissingAccountMapping = errors.New("provider.aws.account_mapping is missing or empty")
 )
 
@@ -59,7 +61,7 @@ func init() {
 	initCmd.Flags().StringVarP(&initDir, "dir", "d", "", "directory to initialize (default: current directory)")
 }
 
-func runInit(cmd *cobra.Command, args []string) error {
+func runInit(cmd *cobra.Command, _ []string) error {
 	// Initialize logger
 	log := logger.New(viper.GetBool("verbose"))
 
@@ -276,7 +278,7 @@ func createProjectStructure(baseDir string, terraformVersion string, regions []s
 	return nil
 }
 
-func createFileFromTemplate(targetPath string, templateName string, data interface{}, log *logger.Logger) error {
+func createFileFromTemplate(targetPath string, templateName string, data any, log *logger.Logger) error {
 	// Check if file already exists
 	if _, err := os.Stat(targetPath); err == nil {
 		// File exists, skip creation
@@ -356,10 +358,10 @@ func createDefaultConfig(configPath string, log *logger.Logger) error {
 		return nil
 	}
 
-	defaultConfig := map[string]interface{}{
+	defaultConfig := map[string]any{
 		"terraform_version": "~> 1.13",
-		"provider": map[string]interface{}{
-			"aws": map[string]interface{}{
+		"provider": map[string]any{
+			"aws": map[string]any{
 				"version": "~> 6.0",
 				"account_mapping": map[string]string{
 					"dev": "REPLACE_WITH_YOUR_DEV_ACCOUNT_ID",
@@ -372,8 +374,8 @@ func createDefaultConfig(configPath string, log *logger.Logger) error {
 				"regions": []string{"eu-central-1"},
 			},
 		},
-		"backend": map[string]interface{}{
-			"s3": map[string]interface{}{
+		"backend": map[string]any{
+			"s3": map[string]any{
 				"bucket_name": "CHANGE_ME_WITH_YOUR_GLOBALLY_UNIQUE_S3_BUCKET_NAME",
 			},
 		},

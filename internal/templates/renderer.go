@@ -13,8 +13,10 @@ import (
 )
 
 var (
+	// ErrCustomTemplateDirNotExist indicates the specified custom template directory does not exist
 	ErrCustomTemplateDirNotExist = errors.New("custom template directory does not exist")
-	ErrTemplateNotFound          = errors.New("template not found")
+	// ErrTemplateNotFound indicates the requested template was not found
+	ErrTemplateNotFound = errors.New("template not found")
 )
 
 // stripConstraint removes version constraint operators (~>, >=, <=, >, <, =) and returns just the version number
@@ -128,7 +130,7 @@ func (r *Renderer) loadTemplatesFromFS(fsys fs.FS) error {
 		}
 
 		r.templates[path] = tmpl
-		r.sources[path] = fmt.Sprintf("embedded:%s", path)
+		r.sources[path] = "embedded:" + path
 		return nil
 	})
 }

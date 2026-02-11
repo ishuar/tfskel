@@ -18,6 +18,7 @@ import (
 )
 
 var (
+	// ErrMetadataKeyNotFound indicates the requested metadata key was not found in template metadata
 	ErrMetadataKeyNotFound = errors.New("metadata key not found")
 )
 

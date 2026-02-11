@@ -9,13 +9,21 @@ import (
 	"io"
 	"os"
 	"sort"
+	"strconv"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
 	"golang.org/x/term"
 )
 
+const (
+	severityNone  = "none"
+	severityMinor = "minor"
+	severityMajor = "major"
+)
+
 var (
+	// ErrUnsupportedFormat indicates an unsupported output format was requested
 	ErrUnsupportedFormat = errors.New("unsupported format")
 )
 
@@ -65,9 +73,7 @@ func (f *Formatter) calculateOptimalWidth(report *DriftReport) int {
 		if record.HasDrift && len(record.FilePath) > baseFilePathWidth {
 			// Add extra space for longer paths, up to a reasonable limit
 			extraSpace := (len(record.FilePath) - baseFilePathWidth) / pathDivisor
-			if extraSpace > maxExtraSpaceForPaths {
-				extraSpace = maxExtraSpaceForPaths // Cap extra space
-			}
+			extraSpace = min(extraSpace, maxExtraSpaceForPaths)
 			minRequired += extraSpace
 			break
 		}
@@ -154,7 +160,7 @@ func (f *Formatter) writeSummary(writer io.Writer, report *DriftReport, styles t
 		Border(lipgloss.RoundedBorder()).
 		BorderStyle(lipgloss.NewStyle().Foreground(styles.BorderColor)).
 		Width(f.tableWidth).
-		StyleFunc(func(row, col int) lipgloss.Style {
+		StyleFunc(func(_, col int) lipgloss.Style {
 			if col == 0 {
 				// First column: left-aligned labels
 				return lipgloss.NewStyle().Bold(true).Foreground(styles.RowColor).Width(labelWidth).Align(lipgloss.Right)
@@ -173,24 +179,24 @@ func (f *Formatter) writeSummary(writer io.Writer, report *DriftReport, styles t
 // buildSummaryData constructs summary table rows
 func (f *Formatter) buildSummaryData(report *DriftReport) [][]string {
 	summaryData := [][]string{
-		{"Total Files Scanned", fmt.Sprintf("%d", report.TotalFiles)},
-		{"Files in Sync", fmt.Sprintf("%d", report.Summary.FilesInSync)},
+		{"Total Files Scanned", strconv.Itoa(report.TotalFiles)},
+		{"Files in Sync", strconv.Itoa(report.Summary.FilesInSync)},
 	}
 
 	if report.FilesWithDrift > 0 {
-		summaryData = append(summaryData, []string{"Files with Drift", fmt.Sprintf("%d", report.FilesWithDrift)})
+		summaryData = append(summaryData, []string{"Files with Drift", strconv.Itoa(report.FilesWithDrift)})
 		if report.Summary.FilesWithMajorDrift > 0 {
-			summaryData = append(summaryData, []string{"  ↳ Major Drift", fmt.Sprintf("%d", report.Summary.FilesWithMajorDrift)})
+			summaryData = append(summaryData, []string{"  ↳ Major Drift", strconv.Itoa(report.Summary.FilesWithMajorDrift)})
 		}
 		if report.Summary.FilesWithMinorDrift > 0 {
-			summaryData = append(summaryData, []string{"  ↳ Minor Drift", fmt.Sprintf("%d", report.Summary.FilesWithMinorDrift)})
+			summaryData = append(summaryData, []string{"  ↳ Minor Drift", strconv.Itoa(report.Summary.FilesWithMinorDrift)})
 		}
 	} else {
 		summaryData = append(summaryData, []string{"Files with Drift", "0"})
 	}
 
 	if report.Summary.FilesWithErrors > 0 {
-		summaryData = append(summaryData, []string{"Files with Errors", fmt.Sprintf("%d", report.Summary.FilesWithErrors)})
+		summaryData = append(summaryData, []string{"Files with Errors", strconv.Itoa(report.Summary.FilesWithErrors)})
 	}
 
 	return summaryData
@@ -217,7 +223,7 @@ func (f *Formatter) writeTerraformVersions(writer io.Writer, report *DriftReport
 		Border(lipgloss.RoundedBorder()).
 		BorderStyle(lipgloss.NewStyle().Foreground(styles.BorderColor)).
 		Width(f.tableWidth).
-		StyleFunc(func(row, col int) lipgloss.Style {
+		StyleFunc(func(row, _ int) lipgloss.Style {
 			if row == -1 {
 				// Headers: center-aligned
 				return lipgloss.NewStyle().Bold(true).Foreground(styles.HeaderColor).Align(lipgloss.Center)
@@ -236,7 +242,7 @@ func (f *Formatter) writeTerraformVersions(writer io.Writer, report *DriftReport
 
 // buildVersionData constructs version table rows
 func (f *Formatter) buildVersionData(versions map[string]int, expectedVersion string) [][]string {
-	versionData := [][]string{}
+	versionData := make([][]string, 0, len(versions))
 
 	// Sort versions for consistent display
 	sortedVersions := make([]string, 0, len(versions))
@@ -290,7 +296,7 @@ func (f *Formatter) writeProviderVersions(writer io.Writer, report *DriftReport,
 
 // buildProviderTable constructs a table for a single provider's versions
 func (f *Formatter) buildProviderTable(provider string, versions map[string]int, styles tableStyles) string {
-	providerData := [][]string{}
+	providerData := make([][]string, 0, len(versions))
 
 	// Sort versions
 	versionList := make([]string, 0, len(versions))
@@ -308,7 +314,7 @@ func (f *Formatter) buildProviderTable(provider string, versions map[string]int,
 		Border(lipgloss.RoundedBorder()).
 		BorderStyle(lipgloss.NewStyle().Foreground(styles.BorderColor)).
 		Width(f.tableWidth).
-		StyleFunc(func(row, col int) lipgloss.Style {
+		StyleFunc(func(row, _ int) lipgloss.Style {
 			if row == -1 {
 				// Headers: center-aligned
 				return lipgloss.NewStyle().Bold(true).Foreground(styles.HeaderColor).Align(lipgloss.Center)
@@ -343,7 +349,7 @@ func (f *Formatter) writeDriftDetails(writer io.Writer, report *DriftReport, sty
 	driftTable := table.New().
 		Border(lipgloss.RoundedBorder()).
 		BorderStyle(lipgloss.NewStyle().Foreground(styles.BorderColor)).
-		StyleFunc(func(row, col int) lipgloss.Style {
+		StyleFunc(func(row, _ int) lipgloss.Style {
 			if row == -1 {
 				// Headers: center-aligned
 				return lipgloss.NewStyle().Bold(true).Foreground(styles.HeaderColor).Align(lipgloss.Center)
@@ -429,7 +435,7 @@ func (f *Formatter) buildDriftData(records []DriftRecord, styles tableStyles) []
 
 				driftData = append(driftData, []string{
 					displayPath,
-					fmt.Sprintf("Provider: %s", pd.Name),
+					"Provider: " + pd.Name,
 					expected,
 					pd.Actual,
 					f.formatStatus(pd.DriftStatus),
@@ -471,12 +477,14 @@ func (f *Formatter) formatCSV(report *DriftReport, writer io.Writer) error {
 	// Write records
 	for _, record := range report.Records {
 		// Terraform version
-		severity := "none"
+		severity := severityNone
 		switch record.TerraformDriftStatus {
 		case StatusMajorDrift:
-			severity = "major"
+			severity = severityMajor
 		case StatusMinorDrift:
-			severity = "minor"
+			severity = severityMinor
+		case StatusInSync, StatusMissing, StatusNotManaged:
+			severity = severityNone
 		}
 
 		row := []string{
@@ -494,12 +502,14 @@ func (f *Formatter) formatCSV(report *DriftReport, writer io.Writer) error {
 
 		// Providers
 		for _, pd := range record.Providers {
-			severity := "none"
+			severity := severityNone
 			switch pd.DriftStatus {
 			case StatusMajorDrift:
-				severity = "major"
+				severity = severityMajor
 			case StatusMinorDrift:
-				severity = "minor"
+				severity = severityMinor
+			case StatusInSync, StatusMissing, StatusNotManaged:
+				severity = severityNone
 			}
 
 			row := []string{

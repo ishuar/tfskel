@@ -145,6 +145,7 @@ func TestOSFileSystem_FileExists(t *testing.T) {
 		{
 			name: "file exists",
 			setup: func(t *testing.T) string {
+				t.Helper()
 				tmpDir := t.TempDir()
 				filePath := filepath.Join(tmpDir, "exists.txt")
 				err := os.WriteFile(filePath, []byte("test"), 0644)
@@ -156,6 +157,7 @@ func TestOSFileSystem_FileExists(t *testing.T) {
 		{
 			name: "file does not exist",
 			setup: func(t *testing.T) string {
+				t.Helper()
 				return "/non/existent/file.txt"
 			},
 			expected: false,
@@ -163,6 +165,7 @@ func TestOSFileSystem_FileExists(t *testing.T) {
 		{
 			name: "directory instead of file",
 			setup: func(t *testing.T) string {
+				t.Helper()
 				return t.TempDir()
 			},
 			expected: false,
@@ -188,6 +191,7 @@ func TestOSFileSystem_DirExists(t *testing.T) {
 		{
 			name: "directory exists",
 			setup: func(t *testing.T) string {
+				t.Helper()
 				return t.TempDir()
 			},
 			expected: true,
@@ -195,6 +199,7 @@ func TestOSFileSystem_DirExists(t *testing.T) {
 		{
 			name: "directory does not exist",
 			setup: func(t *testing.T) string {
+				t.Helper()
 				return "/non/existent/directory"
 			},
 			expected: false,
@@ -202,6 +207,7 @@ func TestOSFileSystem_DirExists(t *testing.T) {
 		{
 			name: "file instead of directory",
 			setup: func(t *testing.T) string {
+				t.Helper()
 				tmpDir := t.TempDir()
 				filePath := filepath.Join(tmpDir, "file.txt")
 				err := os.WriteFile(filePath, []byte("test"), 0644)

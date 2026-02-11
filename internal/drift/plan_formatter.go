@@ -8,6 +8,8 @@ import (
 	"io"
 	"os"
 	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
@@ -100,7 +102,7 @@ func (f *PlanFormatter) formatCSV(analysis *PlanAnalysis, w io.Writer) error {
 	// Write metadata as comments (not CSV escaped)
 	comments := []string{
 		"# Terraform Plan Analysis",
-		fmt.Sprintf("# Terraform Version: %s", analysis.TerraformVersion),
+		"# Terraform Version: " + analysis.TerraformVersion,
 		fmt.Sprintf("# Total Changes: %d", analysis.TotalChanges),
 		fmt.Sprintf("# Additions: %d, Modifications: %d, Deletions: %d, Replacements: %d",
 			analysis.Additions, analysis.Modifications, analysis.Deletions, analysis.Replacements),
@@ -185,18 +187,18 @@ func (f *PlanFormatter) writeTableSummary(w io.Writer, analysis *PlanAnalysis, s
 	}
 
 	summaryData := [][]string{
-		{"Total Changes", fmt.Sprintf("%d", analysis.TotalChanges)},
-		{"Additions", fmt.Sprintf("%d", analysis.Additions)},
-		{"Modifications", fmt.Sprintf("%d", analysis.Modifications)},
-		{"Deletions", fmt.Sprintf("%d", analysis.Deletions)},
-		{"Replacements", fmt.Sprintf("%d", analysis.Replacements)},
+		{"Total Changes", strconv.Itoa(analysis.TotalChanges)},
+		{"Additions", strconv.Itoa(analysis.Additions)},
+		{"Modifications", strconv.Itoa(analysis.Modifications)},
+		{"Deletions", strconv.Itoa(analysis.Deletions)},
+		{"Replacements", strconv.Itoa(analysis.Replacements)},
 	}
 
 	summaryTable := table.New().
 		Border(lipgloss.RoundedBorder()).
 		BorderStyle(lipgloss.NewStyle().Foreground(styles.BorderColor)).
 		Width(f.tableWidth).
-		StyleFunc(func(row, col int) lipgloss.Style {
+		StyleFunc(func(_, col int) lipgloss.Style {
 			if col == 0 {
 				// First column: right-aligned labels
 				return lipgloss.NewStyle().Bold(true).Foreground(styles.RowColor).Align(lipgloss.Right)
@@ -413,7 +415,7 @@ func (f *PlanFormatter) printGroupSummary(w io.Writer, styles CommonStyles, titl
 	// Build table data
 	data := make([][]string, len(sorted))
 	for i, gc := range sorted {
-		data[i] = []string{gc.name, fmt.Sprintf("%d", gc.count)}
+		data[i] = []string{gc.name, strconv.Itoa(gc.count)}
 	}
 
 	groupTable := table.New().
@@ -463,14 +465,14 @@ func (f *PlanFormatter) extractModuleName(moduleAddr string) string {
 		// Show first and last for long module paths
 		return parts[0] + "..." + parts[len(parts)-1]
 	}
-	result := ""
+	var result strings.Builder
 	for i, p := range parts {
 		if i > 0 {
-			result += "."
+			result.WriteString(".")
 		}
-		result += p
+		result.WriteString(p)
 	}
-	return result
+	return result.String()
 }
 
 // sortResourcesBySeverity sorts resources by severity level (critical, high, medium, low).
