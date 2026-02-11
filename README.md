@@ -4,13 +4,10 @@
 [![Go Report Card][go-report-img]][go-report]
 [![License: MIT][license-img]][license]
 
-<div align="center">
-<strong>Opinionated Terraform scaffolding for real-world teams. No vendor lock-in, just better project structure</strong>
-</div>
-
 # tfskel
+_Opinionated Terraform scaffolding for teams. No vendor lock-in, just better project structure_
 
-tfskel is a CLI tool that scaffolds Terraform monorepos with an **opinionated**, **scalable** and **consistent** way by using environment-based directory structure across multiple regions. No wrappers, no complexity, just vanilla Terraform with consistent backend configs, version **drift detection**, **terraform plan analysis**, and sensible defaults. Spend less time on project setup and more time writing infrastructure code.
+`tfskel` is a CLI tool that scaffolds Terraform monorepos with an **opinionated**, **scalable** and **consistent** way by using environment-based directory structure across multiple regions. No wrappers, no complexity, just vanilla Terraform with consistent backend configs, version **drift detection**, **terraform plan analysis**, and sensible defaults. Spend less time on project setup and more time writing infrastructure code.
 
 <p align="left">
   <img src="assets/tfskel-init.gif" alt="tfskel init demo" width="600" />
