@@ -34,6 +34,7 @@ What you get:
   - Clean, environment-first project layouts (dev, stg, prd) with region separation
   - Pre-wired backend and provider configuration using reusable templates
   - Terraform and AWS provider version drift detection across repos and monorepos
+  - Plan file analysis to understand infrastructure changes before applying
   - Simple, declarative customization via .tfskel.yaml
 
 Configuration:
@@ -53,7 +54,7 @@ func init() {
 	cobra.OnInitialize(initConfig)
 
 	// Global flags
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is .tfskel.yaml in current directory)")
+	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file (default is .tfskel.yaml in current directory)")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "enable verbose output")
 
 	// Bind flags to viper
@@ -65,7 +66,7 @@ func init() {
 
 // initConfig reads in config file and ENV variables if set.
 // Similar to Trivy's approach: checks current directory by default,
-// --config flag takes precedence if specified.
+// --config | -c flag takes precedence if specified.
 func initConfig() {
 	if cfgFile != "" {
 		// Use config file from the flag (takes precedence).
