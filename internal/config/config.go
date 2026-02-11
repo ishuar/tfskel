@@ -9,7 +9,9 @@ import (
 )
 
 var (
-	ErrAWSProviderRequired    = errors.New("AWS provider configuration is required")
+	// ErrAWSProviderRequired indicates AWS provider configuration is missing
+	ErrAWSProviderRequired = errors.New("AWS provider configuration is required")
+	// ErrAccountMappingRequired indicates AWS account mapping is missing from provider configuration
 	ErrAccountMappingRequired = errors.New("AWS account mapping is required in provider configuration")
 )
 
@@ -68,26 +70,45 @@ func Load(cmd *cobra.Command, v *viper.Viper) (*Config, error) {
 
 // applyFlagOverrides applies command line flag values to the config
 func applyFlagOverrides(cmd *cobra.Command, cfg *Config) {
-	if cmd.Flags().Changed("templates-dir") {
-		if templatesDir, err := cmd.Flags().GetString("templates-dir"); err == nil {
-			cfg.TemplatesDir = templatesDir
-		}
+	applyTemplatesDirOverride(cmd, cfg)
+	applyS3BucketNameOverride(cmd, cfg)
+	applyExtraTemplateExtensionsOverride(cmd, cfg)
+}
+
+func applyTemplatesDirOverride(cmd *cobra.Command, cfg *Config) {
+	if !cmd.Flags().Changed("templates-dir") {
+		return
 	}
-	if cmd.Flags().Changed("s3-bucket-name") {
-		if bucketName, err := cmd.Flags().GetString("s3-bucket-name"); err == nil {
-			if cfg.Backend == nil {
-				cfg.Backend = &Backend{}
-			}
-			if cfg.Backend.S3 == nil {
-				cfg.Backend.S3 = &S3Backend{}
-			}
-			cfg.Backend.S3.BucketName = bucketName
-		}
+	templatesDir, err := cmd.Flags().GetString("templates-dir")
+	if err == nil {
+		cfg.TemplatesDir = templatesDir
 	}
-	if cmd.Flags().Changed("extra-template-extensions") {
-		if extraExts, err := cmd.Flags().GetStringSlice("extra-template-extensions"); err == nil {
-			cfg.ExtraTemplateExtensions = extraExts
-		}
+}
+
+func applyS3BucketNameOverride(cmd *cobra.Command, cfg *Config) {
+	if !cmd.Flags().Changed("s3-bucket-name") {
+		return
+	}
+	bucketName, err := cmd.Flags().GetString("s3-bucket-name")
+	if err != nil {
+		return
+	}
+	if cfg.Backend == nil {
+		cfg.Backend = &Backend{}
+	}
+	if cfg.Backend.S3 == nil {
+		cfg.Backend.S3 = &S3Backend{}
+	}
+	cfg.Backend.S3.BucketName = bucketName
+}
+
+func applyExtraTemplateExtensionsOverride(cmd *cobra.Command, cfg *Config) {
+	if !cmd.Flags().Changed("extra-template-extensions") {
+		return
+	}
+	extraExts, err := cmd.Flags().GetStringSlice("extra-template-extensions")
+	if err == nil {
+		cfg.ExtraTemplateExtensions = extraExts
 	}
 }
 

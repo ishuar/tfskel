@@ -4,6 +4,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// Output format constants shared across drift subcommands
+const (
+	formatJSON  = "json"
+	formatCSV   = "csv"
+	formatTable = "table"
+)
+
 // driftCmd represents the drift command
 var driftCmd = &cobra.Command{
 	Use:   "drift",

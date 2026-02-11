@@ -86,8 +86,9 @@ func TestPlanFormatter_Format(t *testing.T) {
 			format:   FormatJSON,
 			useColor: false,
 			validate: func(t *testing.T, output string) {
+				t.Helper()
 				// Verify it's valid JSON
-				var result map[string]interface{}
+				var result map[string]any
 				err := json.Unmarshal([]byte(output), &result)
 				require.NoError(t, err)
 
@@ -103,7 +104,7 @@ func TestPlanFormatter_Format(t *testing.T) {
 				}
 
 				// Verify resource_changes array
-				if resources, ok := result["resource_changes"].([]interface{}); ok {
+				if resources, ok := result["resource_changes"].([]any); ok {
 					assert.Len(t, resources, 4)
 				}
 			},
@@ -113,6 +114,7 @@ func TestPlanFormatter_Format(t *testing.T) {
 			format:   FormatCSV,
 			useColor: false,
 			validate: func(t *testing.T, output string) {
+				t.Helper()
 				lines := strings.Split(strings.TrimSpace(output), "\n")
 
 				// Check metadata comments
@@ -162,6 +164,7 @@ func TestPlanFormatter_Format(t *testing.T) {
 			format:   FormatTable,
 			useColor: false,
 			validate: func(t *testing.T, output string) {
+				t.Helper()
 				// Check for key sections
 				assert.Contains(t, output, "Terraform Plan Analysis")
 				assert.Contains(t, output, "Terraform Version: 1.14.3")
@@ -205,6 +208,7 @@ func TestPlanFormatter_Format(t *testing.T) {
 			format:   FormatTable,
 			useColor: true,
 			validate: func(t *testing.T, output string) {
+				t.Helper()
 				// Check basic structure
 				assert.Contains(t, output, "Terraform Plan Analysis")
 				assert.Contains(t, output, "Resource Changes (detailed)")
@@ -264,7 +268,8 @@ func TestPlanFormatter_FormatEmptyAnalysis(t *testing.T) {
 			name:   "empty JSON",
 			format: FormatJSON,
 			validate: func(t *testing.T, output string) {
-				var result map[string]interface{}
+				t.Helper()
+				var result map[string]any
 				err := json.Unmarshal([]byte(output), &result)
 				require.NoError(t, err)
 				assert.Equal(t, float64(0), result["total_changes"])
@@ -277,6 +282,7 @@ func TestPlanFormatter_FormatEmptyAnalysis(t *testing.T) {
 			name:   "empty CSV",
 			format: FormatCSV,
 			validate: func(t *testing.T, output string) {
+				t.Helper()
 				lines := strings.Split(strings.TrimSpace(output), "\n")
 				// Should have metadata comments + header, but no data rows
 				assert.Contains(t, output, "# Terraform Plan Analysis")
@@ -299,6 +305,7 @@ func TestPlanFormatter_FormatEmptyAnalysis(t *testing.T) {
 			name:   "empty table",
 			format: FormatTable,
 			validate: func(t *testing.T, output string) {
+				t.Helper()
 				assert.Contains(t, output, "Terraform Plan Analysis")
 				assert.Contains(t, output, "Total Changes")
 				assert.Contains(t, output, "0")

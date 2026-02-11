@@ -20,11 +20,16 @@ type ProviderVer struct {
 type DriftStatus string
 
 const (
-	StatusInSync     DriftStatus = "in-sync"
+	// StatusInSync indicates versions are synchronized with expected values
+	StatusInSync DriftStatus = "in-sync"
+	// StatusMinorDrift indicates minor version differences
 	StatusMinorDrift DriftStatus = "minor-drift"
+	// StatusMajorDrift indicates major version differences
 	StatusMajorDrift DriftStatus = "major-drift"
-	StatusMissing    DriftStatus = "missing"
-	StatusNotManaged DriftStatus = "not-managed" // Not in .tfskel config
+	// StatusMissing indicates expected version is missing
+	StatusMissing DriftStatus = "missing"
+	// StatusNotManaged indicates resource is not managed in tfskel config
+	StatusNotManaged DriftStatus = "not-managed"
 )
 
 // DriftRecord represents a single drift finding

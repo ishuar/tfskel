@@ -20,6 +20,7 @@ func TestParsePlanFile(t *testing.T) {
 		{
 			name: "valid plan file with resource changes",
 			setupFile: func(t *testing.T) string {
+				t.Helper()
 				content := `{
   "format_version": "1.2",
   "terraform_version": "1.14.3",
@@ -53,6 +54,7 @@ func TestParsePlanFile(t *testing.T) {
 			},
 			wantErr: false,
 			validate: func(t *testing.T, plan *TerraformPlan) {
+				t.Helper()
 				assert.Equal(t, "1.2", plan.FormatVersion)
 				assert.Equal(t, "1.14.3", plan.TerraformVersion)
 				assert.Len(t, plan.ResourceChanges, 1)
@@ -64,6 +66,7 @@ func TestParsePlanFile(t *testing.T) {
 		{
 			name: "plan with boolean sensitive fields",
 			setupFile: func(t *testing.T) string {
+				t.Helper()
 				content := `{
   "format_version": "1.2",
   "terraform_version": "1.14.3",
@@ -91,6 +94,7 @@ func TestParsePlanFile(t *testing.T) {
 			},
 			wantErr: false,
 			validate: func(t *testing.T, plan *TerraformPlan) {
+				t.Helper()
 				assert.Equal(t, "1.2", plan.FormatVersion)
 				assert.Len(t, plan.ResourceChanges, 1)
 				// Verify sensitive fields are parsed (as RawMessage)
@@ -101,6 +105,7 @@ func TestParsePlanFile(t *testing.T) {
 		{
 			name: "plan with nested sensitive fields",
 			setupFile: func(t *testing.T) string {
+				t.Helper()
 				content := `{
   "format_version": "1.2",
   "terraform_version": "1.14.3",
@@ -130,6 +135,7 @@ func TestParsePlanFile(t *testing.T) {
 			},
 			wantErr: false,
 			validate: func(t *testing.T, plan *TerraformPlan) {
+				t.Helper()
 				assert.Len(t, plan.ResourceChanges, 1)
 				assert.Equal(t, "aws_db_instance.example", plan.ResourceChanges[0].Address)
 			},
@@ -137,6 +143,7 @@ func TestParsePlanFile(t *testing.T) {
 		{
 			name: "plan with multiple action types",
 			setupFile: func(t *testing.T) string {
+				t.Helper()
 				content := `{
   "format_version": "1.2",
   "terraform_version": "1.14.3",
@@ -192,6 +199,7 @@ func TestParsePlanFile(t *testing.T) {
 			},
 			wantErr: false,
 			validate: func(t *testing.T, plan *TerraformPlan) {
+				t.Helper()
 				assert.Len(t, plan.ResourceChanges, 3)
 				// Replace action
 				assert.Equal(t, []string{"delete", "create"}, plan.ResourceChanges[0].Change.Actions)
@@ -204,6 +212,7 @@ func TestParsePlanFile(t *testing.T) {
 		{
 			name: "non-existent file",
 			setupFile: func(t *testing.T) string {
+				t.Helper()
 				return "/path/to/nonexistent/file.json"
 			},
 			wantErr:     true,
@@ -212,6 +221,7 @@ func TestParsePlanFile(t *testing.T) {
 		{
 			name: "invalid JSON",
 			setupFile: func(t *testing.T) string {
+				t.Helper()
 				content := `{invalid json`
 				return createTempFile(t, content)
 			},
@@ -221,6 +231,7 @@ func TestParsePlanFile(t *testing.T) {
 		{
 			name: "binary plan file",
 			setupFile: func(t *testing.T) string {
+				t.Helper()
 				// Create a file that starts with binary data (not '{')
 				content := "\x00\x01\x02\x03binary data"
 				return createTempFile(t, content)
@@ -231,6 +242,7 @@ func TestParsePlanFile(t *testing.T) {
 		{
 			name: "JSON but not a terraform plan",
 			setupFile: func(t *testing.T) string {
+				t.Helper()
 				content := `{"some": "json", "but": "not terraform plan"}`
 				return createTempFile(t, content)
 			},
@@ -240,6 +252,7 @@ func TestParsePlanFile(t *testing.T) {
 		{
 			name: "empty plan file",
 			setupFile: func(t *testing.T) string {
+				t.Helper()
 				content := `{
   "format_version": "1.2",
   "terraform_version": "1.14.3",
@@ -249,6 +262,7 @@ func TestParsePlanFile(t *testing.T) {
 			},
 			wantErr: false,
 			validate: func(t *testing.T, plan *TerraformPlan) {
+				t.Helper()
 				assert.Equal(t, "1.2", plan.FormatVersion)
 				assert.Equal(t, "1.14.3", plan.TerraformVersion)
 				assert.Empty(t, plan.ResourceChanges)

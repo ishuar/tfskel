@@ -135,7 +135,7 @@ func (l *Logger) log(color, levelStr, message string, out io.Writer, msgLevel Lo
 		prefix = color
 	}
 
-	_, _ = fmt.Fprintf(out, "%s[%-7s] %s%s\n", prefix, levelStr, message, colorReset) //nolint:errcheck
+	_, _ = fmt.Fprintf(out, "%s[%-7s] %s%s\n", prefix, levelStr, message, colorReset) //nolint:errcheck // Writing to stderr/stdout in logger is best-effort, ignoring errors is acceptable
 }
 
 // Debug logs a debug message only if debug level is enabled
@@ -145,7 +145,7 @@ func (l *Logger) Debug(message string) {
 }
 
 // Debugf logs a formatted debug message
-func (l *Logger) Debugf(format string, args ...interface{}) {
+func (l *Logger) Debugf(format string, args ...any) {
 	l.Debug(fmt.Sprintf(format, args...))
 }
 
@@ -156,7 +156,7 @@ func (l *Logger) Info(message string) {
 }
 
 // Infof logs a formatted info message
-func (l *Logger) Infof(format string, args ...interface{}) {
+func (l *Logger) Infof(format string, args ...any) {
 	l.Info(fmt.Sprintf(format, args...))
 }
 
@@ -167,7 +167,7 @@ func (l *Logger) Warn(message string) {
 }
 
 // Warnf logs a formatted warning message
-func (l *Logger) Warnf(format string, args ...interface{}) {
+func (l *Logger) Warnf(format string, args ...any) {
 	l.Warn(fmt.Sprintf(format, args...))
 }
 
@@ -178,7 +178,7 @@ func (l *Logger) Success(message string) {
 }
 
 // Successf logs a formatted success message
-func (l *Logger) Successf(format string, args ...interface{}) {
+func (l *Logger) Successf(format string, args ...any) {
 	l.Success(fmt.Sprintf(format, args...))
 }
 
@@ -189,6 +189,6 @@ func (l *Logger) Error(message string) {
 }
 
 // Errorf logs a formatted error message
-func (l *Logger) Errorf(format string, args ...interface{}) {
+func (l *Logger) Errorf(format string, args ...any) {
 	l.Error(fmt.Sprintf(format, args...))
 }

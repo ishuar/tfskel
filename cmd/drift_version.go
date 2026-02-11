@@ -20,7 +20,9 @@ var (
 )
 
 var (
+	// ErrPathDoesNotExist indicates the specified path does not exist
 	ErrPathDoesNotExist = errors.New("path does not exist")
+	// ErrPathNotDirectory indicates the specified path is not a directory
 	ErrPathNotDirectory = errors.New("path is not a directory")
 )
 
@@ -69,7 +71,7 @@ func init() {
 		"Path to scan for Terraform files (default: current directory)")
 }
 
-func runDriftVersions(cmd *cobra.Command, args []string) error {
+func runDriftVersions(cmd *cobra.Command, _ []string) error {
 	log := logger.New(viper.GetBool("verbose"))
 
 	// Validate and normalize path
@@ -112,7 +114,7 @@ func runDriftVersions(cmd *cobra.Command, args []string) error {
 	}
 
 	// Suppress logs for machine-readable formats (JSON/CSV)
-	if versionsFormat == "json" || versionsFormat == "csv" {
+	if versionsFormat == formatJSON || versionsFormat == formatCSV {
 		log.SetOutput(os.Stderr)
 	}
 

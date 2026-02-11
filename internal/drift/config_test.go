@@ -26,7 +26,7 @@ func TestLoadDriftConfig(t *testing.T) {
 		},
 		{
 			name: "config without critical resources",
-			viperSetup: func(v *viper.Viper) {
+			viperSetup: func(_ *viper.Viper) {
 				// Don't set any critical_resources
 			},
 			wantResources:    nil,
@@ -110,7 +110,7 @@ func TestNewPlanAnalyzerWithConfig(t *testing.T) {
 		},
 		{
 			name: "without user-defined critical resources",
-			viperSetup: func(v *viper.Viper) {
+			viperSetup: func(_ *viper.Viper) {
 				// Don't set any critical_resources
 			},
 			expectedToContain: []string{

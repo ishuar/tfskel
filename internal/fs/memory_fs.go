@@ -21,7 +21,7 @@ func NewMemoryFileSystem() *MemoryFileSystem {
 }
 
 // MkdirAll creates a directory path
-func (fs *MemoryFileSystem) MkdirAll(path string, perm os.FileMode) error {
+func (fs *MemoryFileSystem) MkdirAll(path string, _ os.FileMode) error {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
 	fs.dirs[path] = true
@@ -29,7 +29,7 @@ func (fs *MemoryFileSystem) MkdirAll(path string, perm os.FileMode) error {
 }
 
 // WriteFile writes data to a file
-func (fs *MemoryFileSystem) WriteFile(path string, data []byte, perm os.FileMode) error {
+func (fs *MemoryFileSystem) WriteFile(path string, data []byte, _ os.FileMode) error {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
 	fs.files[path] = data

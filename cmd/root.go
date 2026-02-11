@@ -12,9 +12,12 @@ var (
 	cfgFile string
 	verbose bool
 	// Version information (set by goreleaser)
-	Version   = "dev"
-	Commit    = "unknown"
-	Date      = "unknown"
+	Version = "dev"
+	// Commit is the git commit hash of the build
+	Commit = "unknown"
+	// Date is the build date
+	Date = "unknown"
+	// BuildTime is the build timestamp
 	BuildTime = "unknown"
 )
 

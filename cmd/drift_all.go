@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/ishuar/tfskel/internal/config"
@@ -19,6 +20,11 @@ import (
 const (
 	// separatorWidth defines the width of separator lines in table output
 	separatorWidth = 70
+
+	// Status constants for overall analysis status
+	statusCritical = "critical"
+	statusWarning  = "warning"
+	statusClean    = "clean"
 )
 
 var (
@@ -31,6 +37,7 @@ var (
 )
 
 var (
+	// ErrAllAnalysisFailed indicates that one or more analyses failed during execution
 	ErrAllAnalysisFailed = errors.New("one or more analyses failed")
 	// ErrInvalidSkipFlags indicates both analyses were skipped
 	ErrInvalidSkipFlags = errors.New("invalid flags: cannot skip all analyses")
@@ -116,7 +123,7 @@ func init() {
 		"Skip version analysis (plan only)")
 }
 
-func runDriftAll(cmd *cobra.Command, args []string) error {
+func runDriftAll(cmd *cobra.Command, _ []string) error {
 	log := logger.New(viper.GetBool("verbose"))
 
 	// Validate flags and get effective skip values
@@ -133,7 +140,7 @@ func runDriftAll(cmd *cobra.Command, args []string) error {
 	log.Info("Starting comprehensive drift analysis...")
 
 	combined := &CombinedAnalysis{
-		OverallStatus: "clean",
+		OverallStatus: statusClean,
 	}
 
 	exitCode := executeAnalyses(log, cmd, combined, skipVersion, skipPlan)
@@ -208,7 +215,7 @@ func executeVersionAnalysis(log *logger.Logger, cmd *cobra.Command, combined *Co
 		log.Errorf("Version analysis failed: %v", err)
 		// Mark combined analysis as having critical issues
 		combined.HasIssues = true
-		combined.OverallStatus = "critical"
+		combined.OverallStatus = statusCritical
 		cmd.SilenceUsage = true
 		return 1 // Return non-zero exit code for CI/CD
 	}
@@ -217,9 +224,9 @@ func executeVersionAnalysis(log *logger.Logger, cmd *cobra.Command, combined *Co
 	if versionSummary.HasDrift {
 		combined.HasIssues = true
 		if versionSummary.MajorDrift > 0 {
-			combined.OverallStatus = "critical"
-		} else if combined.OverallStatus == "clean" {
-			combined.OverallStatus = "warning"
+			combined.OverallStatus = statusCritical
+		} else if combined.OverallStatus == statusClean {
+			combined.OverallStatus = statusWarning
 		}
 	}
 
@@ -234,7 +241,7 @@ func executePlanAnalysis(log *logger.Logger, cmd *cobra.Command, combined *Combi
 		log.Errorf("Plan analysis failed: %v", err)
 		// Mark combined analysis as having critical issues on plan analysis failure
 		combined.HasIssues = true
-		combined.OverallStatus = "critical"
+		combined.OverallStatus = statusCritical
 		cmd.SilenceUsage = true
 		return planExitCode
 	}
@@ -243,9 +250,9 @@ func executePlanAnalysis(log *logger.Logger, cmd *cobra.Command, combined *Combi
 	if planAnalysis.HasChanges {
 		combined.HasIssues = true
 		if planAnalysis.Deletions > 0 || planAnalysis.Replacements > 0 {
-			combined.OverallStatus = "critical"
-		} else if combined.OverallStatus != "critical" {
-			combined.OverallStatus = "warning"
+			combined.OverallStatus = statusCritical
+		} else if combined.OverallStatus != statusCritical {
+			combined.OverallStatus = statusWarning
 		}
 	}
 
@@ -372,10 +379,10 @@ func formatCombinedCSV(combined *CombinedAnalysis) error {
 	// Write version drift data
 	if combined.VersionDrift != nil {
 		records := [][]string{
-			{"version_drift", "total_files", fmt.Sprintf("%d", combined.VersionDrift.TotalFiles)},
-			{"version_drift", "files_with_drift", fmt.Sprintf("%d", combined.VersionDrift.FilesWithDrift)},
-			{"version_drift", "minor_drift", fmt.Sprintf("%d", combined.VersionDrift.MinorDrift)},
-			{"version_drift", "major_drift", fmt.Sprintf("%d", combined.VersionDrift.MajorDrift)},
+			{"version_drift", "total_files", strconv.Itoa(combined.VersionDrift.TotalFiles)},
+			{"version_drift", "files_with_drift", strconv.Itoa(combined.VersionDrift.FilesWithDrift)},
+			{"version_drift", "minor_drift", strconv.Itoa(combined.VersionDrift.MinorDrift)},
+			{"version_drift", "major_drift", strconv.Itoa(combined.VersionDrift.MajorDrift)},
 		}
 		for _, record := range records {
 			if err := csvWriter.Write(record); err != nil {
@@ -387,11 +394,11 @@ func formatCombinedCSV(combined *CombinedAnalysis) error {
 	// Write plan analysis data
 	if combined.PlanAnalysis != nil {
 		records := [][]string{
-			{"plan_analysis", "total_changes", fmt.Sprintf("%d", combined.PlanAnalysis.TotalChanges)},
-			{"plan_analysis", "additions", fmt.Sprintf("%d", combined.PlanAnalysis.Additions)},
-			{"plan_analysis", "modifications", fmt.Sprintf("%d", combined.PlanAnalysis.Modifications)},
-			{"plan_analysis", "deletions", fmt.Sprintf("%d", combined.PlanAnalysis.Deletions)},
-			{"plan_analysis", "replacements", fmt.Sprintf("%d", combined.PlanAnalysis.Replacements)},
+			{"plan_analysis", "total_changes", strconv.Itoa(combined.PlanAnalysis.TotalChanges)},
+			{"plan_analysis", "additions", strconv.Itoa(combined.PlanAnalysis.Additions)},
+			{"plan_analysis", "modifications", strconv.Itoa(combined.PlanAnalysis.Modifications)},
+			{"plan_analysis", "deletions", strconv.Itoa(combined.PlanAnalysis.Deletions)},
+			{"plan_analysis", "replacements", strconv.Itoa(combined.PlanAnalysis.Replacements)},
 		}
 		for _, record := range records {
 			if err := csvWriter.Write(record); err != nil {
@@ -409,72 +416,112 @@ func formatCombinedCSV(combined *CombinedAnalysis) error {
 }
 
 func formatCombinedTable(combined *CombinedAnalysis, useColor bool) error {
+	printTableHeader()
+
+	if combined.VersionDrift != nil {
+		printVersionDriftSection(combined.VersionDrift, useColor)
+	}
+
+	if combined.PlanAnalysis != nil {
+		printPlanAnalysisSection(combined.PlanAnalysis, useColor)
+	}
+
+	printOverallSummary(combined.OverallStatus, useColor)
+
+	return nil
+}
+
+// printTableHeader prints the header section of the combined analysis table
+func printTableHeader() {
 	fmt.Println("\n" + strings.Repeat("=", separatorWidth))
 	fmt.Println("                 COMBINED DRIFT ANALYSIS RESULTS")
 	fmt.Println(strings.Repeat("=", separatorWidth))
+}
 
-	// Version Drift Section
-	if combined.VersionDrift != nil {
-		fmt.Println("\n─── Version Drift Analysis ───")
-		fmt.Printf("  Total Files Scanned:    %d\n", combined.VersionDrift.TotalFiles)
-		fmt.Printf("  Files with Drift:       %d\n", combined.VersionDrift.FilesWithDrift)
-		fmt.Printf("  Minor Drift:            %d\n", combined.VersionDrift.MinorDrift)
-		fmt.Printf("  Major Drift:            %d\n", combined.VersionDrift.MajorDrift)
-		status := "✔ Clean"
-		if combined.VersionDrift.HasDrift {
-			status = "✘ Drift Detected"
-			if useColor {
-				if combined.VersionDrift.MajorDrift > 0 {
-					status = "\033[1;31m✘ Drift Detected\033[0m"
-				} else {
-					status = "\033[33m✘ Drift Detected\033[0m"
-				}
-			}
-		} else if useColor {
-			status = "\033[32m✔ Clean\033[0m"
-		}
-		fmt.Printf("  Status:                 %s\n", status)
+// printVersionDriftSection prints the version drift analysis section
+func printVersionDriftSection(vd *VersionDriftSummary, useColor bool) {
+	fmt.Println("\n─── Version Drift Analysis ───")
+	fmt.Printf("  Total Files Scanned:    %d\n", vd.TotalFiles)
+	fmt.Printf("  Files with Drift:       %d\n", vd.FilesWithDrift)
+	fmt.Printf("  Minor Drift:            %d\n", vd.MinorDrift)
+	fmt.Printf("  Major Drift:            %d\n", vd.MajorDrift)
+
+	status := formatVersionDriftStatus(vd, useColor)
+	fmt.Printf("  Status:                 %s\n", status)
+}
+
+// formatVersionDriftStatus returns a formatted status string for version drift
+func formatVersionDriftStatus(vd *VersionDriftSummary, useColor bool) string {
+	if !vd.HasDrift {
+		return formatStatus("✔ Clean", "green", useColor)
 	}
 
-	// Plan Analysis Section
-	if combined.PlanAnalysis != nil {
-		fmt.Println("\n─── Plan Analysis ───")
-		fmt.Printf("  Total Changes:          %d\n", combined.PlanAnalysis.TotalChanges)
-		fmt.Printf("  Additions:              %d\n", combined.PlanAnalysis.Additions)
-		fmt.Printf("  Modifications:          %d\n", combined.PlanAnalysis.Modifications)
-		fmt.Printf("  Deletions:              %d\n", combined.PlanAnalysis.Deletions)
-		fmt.Printf("  Replacements:           %d\n", combined.PlanAnalysis.Replacements)
-		status := "✔ No Changes"
-		if combined.PlanAnalysis.HasChanges {
-			status = "✘ Changes Detected"
-			if useColor {
-				if combined.PlanAnalysis.Deletions > 0 || combined.PlanAnalysis.Replacements > 0 {
-					status = "\033[1;31m✘ Changes Detected\033[0m"
-				} else {
-					status = "\033[33m✘ Changes Detected\033[0m"
-				}
-			}
-		} else if useColor {
-			status = "\033[32m✔ No Changes\033[0m"
-		}
-		fmt.Printf("  Status:                 %s\n", status)
+	if vd.MajorDrift > 0 {
+		return formatStatus("✘ Drift Detected", "red", useColor)
 	}
 
-	// Overall Summary
+	return formatStatus("✘ Drift Detected", "yellow", useColor)
+}
+
+// printPlanAnalysisSection prints the plan analysis section
+func printPlanAnalysisSection(pa *drift.PlanAnalysis, useColor bool) {
+	fmt.Println("\n─── Plan Analysis ───")
+	fmt.Printf("  Total Changes:          %d\n", pa.TotalChanges)
+	fmt.Printf("  Additions:              %d\n", pa.Additions)
+	fmt.Printf("  Modifications:          %d\n", pa.Modifications)
+	fmt.Printf("  Deletions:              %d\n", pa.Deletions)
+	fmt.Printf("  Replacements:           %d\n", pa.Replacements)
+
+	status := formatPlanAnalysisStatus(pa, useColor)
+	fmt.Printf("  Status:                 %s\n", status)
+}
+
+// formatPlanAnalysisStatus returns a formatted status string for plan analysis
+func formatPlanAnalysisStatus(pa *drift.PlanAnalysis, useColor bool) string {
+	if !pa.HasChanges {
+		return formatStatus("✔ No Changes", "green", useColor)
+	}
+
+	if pa.Deletions > 0 || pa.Replacements > 0 {
+		return formatStatus("✘ Changes Detected", "red", useColor)
+	}
+
+	return formatStatus("✘ Changes Detected", "yellow", useColor)
+}
+
+// printOverallSummary prints the overall summary section
+func printOverallSummary(status string, useColor bool) {
 	fmt.Println("\n" + strings.Repeat("─", separatorWidth))
-	overallStatus := combined.OverallStatus
-	if useColor {
-		switch combined.OverallStatus {
-		case "critical":
-			overallStatus = "\033[1;31mCRITICAL\033[0m"
-		case "warning":
-			overallStatus = "\033[33mWARNING\033[0m"
-		case "clean":
-			overallStatus = "\033[32mCLEAN\033[0m"
-		}
-	}
-	fmt.Printf("  Overall Status:         %s\n", overallStatus)
-	fmt.Println(strings.Repeat("=", separatorWidth) + "\n")
 
-	return nil
+	colorMap := map[string]string{
+		statusCritical: "red",
+		statusWarning:  "yellow",
+		statusClean:    "green",
+	}
+
+	colorName := colorMap[status]
+	formattedStatus := formatStatus(strings.ToUpper(status), colorName, useColor)
+
+	fmt.Printf("  Overall Status:         %s\n", formattedStatus)
+	fmt.Println(strings.Repeat("=", separatorWidth) + "\n")
+}
+
+// formatStatus formats a status string with optional ANSI color codes
+func formatStatus(text, colorName string, useColor bool) string {
+	if !useColor {
+		return text
+	}
+
+	colorCodes := map[string]string{
+		"red":    "\033[1;31m",
+		"yellow": "\033[33m",
+		"green":  "\033[32m",
+	}
+
+	colorCode, exists := colorCodes[colorName]
+	if !exists {
+		return text
+	}
+
+	return fmt.Sprintf("%s%s\033[0m", colorCode, text)
 }

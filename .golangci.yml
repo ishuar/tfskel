@@ -35,21 +35,11 @@ linters:
     - wsl_v5          # Whitespace style handled by formatter
     - godot           # Sentence ending periods not enforced
     - testifylint     # Testify usage is acceptable
-    - revive         # Using revive but with custom rules below
-    ### TEMP
-    - nolintlint
-    - usetesting
-    - thelper
-    - modernize
-    - gochecknoinits
-    - exhaustive
-    - funcorder
-    - gocognit
-    - goconst
-    - nestif
-    - perfsprint
+    - usetesting      # Not applicable to this codebase
+    - gochecknoinits  # Some init functions are acceptable
+    - funcorder       # Function ordering is stylistic
+    - gocognit        # Cognitive complexity (redundant with gocyclo)
     - noinlineerr     # Inline error handling is idiomatic Go
-    - prealloc
   settings:
     # Cyclomatic complexity
     cyclop:
@@ -83,11 +73,7 @@ linters:
     # Magic numbers
     mnd:
       ignored-numbers:
-        - "0"
-        - "1"
         - "2"
-        - "0o755"
-        - "0o644"
         - "0600"
         - "0644"
         - "0755"
@@ -138,9 +124,7 @@ linters:
             - disableStutteringCheck
         - name: if-return
         - name: increment-decrement
-        - name: var-naming
         - name: var-declaration
-        - name: package-comments
         - name: range
         - name: receiver-naming
         - name: time-naming

@@ -2,6 +2,7 @@ package drift
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/spf13/viper"
 )
@@ -158,12 +159,7 @@ func (a *PlanAnalyzer) determineSeverity(actions []string, resourceType string) 
 
 // isCriticalResource checks if a resource type is considered critical
 func (a *PlanAnalyzer) isCriticalResource(resourceType string) bool {
-	for _, t := range a.criticalResourceTypes {
-		if resourceType == t {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(a.criticalResourceTypes, resourceType)
 }
 
 // updateCounts updates the analysis counters based on actions
@@ -182,10 +178,5 @@ func (a *PlanAnalyzer) updateCounts(analysis *PlanAnalysis, actions []string) {
 
 // containsAction checks if an action is in the actions list
 func containsAction(actions []string, action string) bool {
-	for _, a := range actions {
-		if a == action {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(actions, action)
 }
