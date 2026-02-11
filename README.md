@@ -4,15 +4,17 @@
 [![Go Report Card][go-report-img]][go-report]
 [![License: MIT][license-img]][license]
 
-# tfskel
-
 <div align="center">
 <strong>Opinionated Terraform scaffolding for real-world teams. No vendor lock-in, just better project structure</strong>
 </div>
 
----
+# tfskel
 
-tfskel is a CLI tool that scaffolds Terraform monorepos with an **opinionated**, **scalable** and **consistent** way by using environment-based directory structure across multiple regions. No wrappers, no complexity—just vanilla Terraform with consistent backend configs, version **drift detection**, and sensible defaults. Spend less time on project setup and more time writing infrastructure code.
+tfskel is a CLI tool that scaffolds Terraform monorepos with an **opinionated**, **scalable** and **consistent** way by using environment-based directory structure across multiple regions. No wrappers, no complexity, just vanilla Terraform with consistent backend configs, version **drift detection**, **terraform plan analysis**, and sensible defaults. Spend less time on project setup and more time writing infrastructure code.
+
+<p align="left">
+  <img src="assets/tfskel-init.gif" alt="tfskel init demo" width="600" />
+</p>
 
 ## What It Does
 
@@ -22,6 +24,18 @@ tfskel is a CLI tool that scaffolds Terraform monorepos with an **opinionated**,
 - **Analyzes Terraform plans** to surface resource changes, impact severity, and compliance risks at a glance.
 - **Safe and idempotent** creates new files without overwriting existing infrastructure code.
 - **Works with vanilla Terraform** no custom wrappers, no vendor lock-in, just better project structure.
+
+## tfskel in action
+
+#### Terraform and AWS provider version drift
+<p align="left">
+<img src="assets/tfskel-drift-version.gif" alt="tfskel drift version demo" width="600" />
+</p>
+
+#### Terraform plan analysis
+<p align="left">
+<img src="assets/tfskel-drift-plan.gif" alt="tfskel drift plan demo" width="600" />
+</p>
 
 ## Installation
 
@@ -133,6 +147,9 @@ tfskel drift version --path ./envs
 tfskel drift version --format json > drift-report.json
 ```
 
+> [!Tip]
+> ref to [tfskel-in-action](#terraform-and-aws-provider-version-drift)
+
 **Terraform Plan Analysis**
 ```bash
 # Analyze plan after terraform plan -out=plan.bin
@@ -143,6 +160,9 @@ tfskel drift plan --plan-file plan.json
 # Export as CSV for reporting
 tfskel drift plan --plan-file plan.json --format csv
 ```
+
+> [!Tip]
+> ref to [tfskel-in-action](#terraform-plan-analysis)
 
 **Combined Analysis**
 ```bash
