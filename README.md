@@ -25,7 +25,7 @@ tfskel is a CLI tool that scaffolds Terraform monorepos with an **opinionated**,
 - **Safe and idempotent** creates new files without overwriting existing infrastructure code.
 - **Works with vanilla Terraform** no custom wrappers, no vendor lock-in, just better project structure.
 
-## tfskel in action
+## tfskel in Action
 
 #### Terraform and AWS provider version drift
 <p align="left">
