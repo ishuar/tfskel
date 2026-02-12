@@ -38,11 +38,25 @@ type Backend struct {
 	S3 *S3Backend `mapstructure:"s3"`
 }
 
+// GithubWorkflows holds GitHub workflows configuration
+type GithubWorkflows struct {
+	Create       bool   `mapstructure:"create"`
+	NameTemplate string `mapstructure:"name_template"`
+	AWSRoleName  string `mapstructure:"aws_role_name"`
+	AWSRoleArn   string `mapstructure:"aws_role_arn"`
+}
+
+// Generate holds generate command specific configuration
+type Generate struct {
+	GithubWorkflows *GithubWorkflows `mapstructure:"github_workflows"`
+}
+
 // Config holds the application configuration
 type Config struct {
 	TerraformVersion        string    `mapstructure:"terraform_version"`
 	Provider                *Provider `mapstructure:"provider"`
 	Backend                 *Backend  `mapstructure:"backend"`
+	Generate                *Generate `mapstructure:"generate"`
 	TemplatesDir            string    `mapstructure:"templates_dir"`
 	ExtraTemplateExtensions []string  `mapstructure:"extra_template_extensions"`
 }
@@ -73,6 +87,7 @@ func applyFlagOverrides(cmd *cobra.Command, cfg *Config) {
 	applyTemplatesDirOverride(cmd, cfg)
 	applyS3BucketNameOverride(cmd, cfg)
 	applyExtraTemplateExtensionsOverride(cmd, cfg)
+	applyCreateGithubWorkflowsOverride(cmd, cfg)
 }
 
 func applyTemplatesDirOverride(cmd *cobra.Command, cfg *Config) {
@@ -110,6 +125,23 @@ func applyExtraTemplateExtensionsOverride(cmd *cobra.Command, cfg *Config) {
 	if err == nil {
 		cfg.ExtraTemplateExtensions = extraExts
 	}
+}
+
+func applyCreateGithubWorkflowsOverride(cmd *cobra.Command, cfg *Config) {
+	if !cmd.Flags().Changed("create-github-workflows") {
+		return
+	}
+	createWorkflows, err := cmd.Flags().GetBool("create-github-workflows")
+	if err != nil {
+		return
+	}
+	if cfg.Generate == nil {
+		cfg.Generate = &Generate{}
+	}
+	if cfg.Generate.GithubWorkflows == nil {
+		cfg.Generate.GithubWorkflows = &GithubWorkflows{}
+	}
+	cfg.Generate.GithubWorkflows.Create = createWorkflows
 }
 
 // setDefaults initializes default values for unset configuration fields

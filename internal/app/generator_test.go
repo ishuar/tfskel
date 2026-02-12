@@ -1414,3 +1414,421 @@ func TestGenerator_MetadataPresenceValidation(t *testing.T) {
 		assert.Equal(t, "~> 6.0", metadata["aws_provider_ver"])
 	})
 }
+
+func TestGenerator_generateWorkflowFileName(t *testing.T) {
+	tests := []struct {
+		name             string
+		originalFileName string
+		data             *templates.Data
+		expectedOutput   string
+	}{
+		{
+			name:             "lint workflow with standard data",
+			originalFileName: "lint.yaml",
+			data: &templates.Data{
+				AppDir:      "myapp",
+				Env:         "dev",
+				ShortRegion: "euc1",
+			},
+			expectedOutput: "myapp-dev-euc1-lint.yaml",
+		},
+		{
+			name:             "terraform workflow with standard data",
+			originalFileName: "terraform.yaml",
+			data: &templates.Data{
+				AppDir:      "backend-api",
+				Env:         "prd",
+				ShortRegion: "use1",
+			},
+			expectedOutput: "backend-api-prd-use1-terraform.yaml",
+		},
+		{
+			name:             "workflow with hyphenated app name",
+			originalFileName: "lint.yaml",
+			data: &templates.Data{
+				AppDir:      "my-complex-app",
+				Env:         "stg",
+				ShortRegion: "euw1",
+			},
+			expectedOutput: "my-complex-app-stg-euw1-lint.yaml",
+		},
+		{
+			name:             "workflow with underscore app name",
+			originalFileName: "terraform.yaml",
+			data: &templates.Data{
+				AppDir:      "test_app",
+				Env:         "dev",
+				ShortRegion: "apse2",
+			},
+			expectedOutput: "test_app-dev-apse2-terraform.yaml",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &config.Config{}
+			filesystem := fs.NewMemoryFileSystem()
+			log := logger.New(false)
+			gen := NewGenerator(cfg, filesystem, log)
+
+			result := gen.generateWorkflowFileName(tt.originalFileName, tt.data)
+			assert.Equal(t, tt.expectedOutput, result)
+		})
+	}
+}
+
+func TestGenerator_determineOutputPath_GitHubWorkflows(t *testing.T) {
+	tests := []struct {
+		name         string
+		tmplPath     string
+		appPath      string
+		data         *templates.Data
+		expectedPath string
+		expectedOK   bool
+	}{
+		{
+			name:     "github lint workflow creates dynamic name",
+			tmplPath: "github/lint.yaml.tmpl",
+			appPath:  "envs/dev/eu-central-1/myapp",
+			data: &templates.Data{
+				AppDir:      "myapp",
+				Env:         "dev",
+				ShortRegion: "euc1",
+			},
+			expectedPath: ".github/workflows/myapp-dev-euc1-lint.yaml",
+			expectedOK:   true,
+		},
+		{
+			name:     "github terraform workflow creates dynamic name",
+			tmplPath: "github/terraform.yaml.tmpl",
+			appPath:  "envs/prd/us-west-2/api",
+			data: &templates.Data{
+				AppDir:      "api",
+				Env:         "prd",
+				ShortRegion: "usw2",
+			},
+			expectedPath: ".github/workflows/api-prd-usw2-terraform.yaml",
+			expectedOK:   true,
+		},
+		{
+			name:     "tf template goes to app directory",
+			tmplPath: "tf/backend.tf.tmpl",
+			appPath:  "envs/dev/eu-central-1/myapp",
+			data: &templates.Data{
+				AppDir:      "myapp",
+				Env:         "dev",
+				ShortRegion: "euc1",
+			},
+			expectedPath: "envs/dev/eu-central-1/myapp/backend.tf",
+			expectedOK:   true,
+		},
+		{
+			name:     "root template goes to project root",
+			tmplPath: "root/.gitignore.tmpl",
+			appPath:  "envs/dev/eu-central-1/myapp",
+			data: &templates.Data{
+				AppDir:      "myapp",
+				Env:         "dev",
+				ShortRegion: "euc1",
+			},
+			expectedPath: ".gitignore",
+			expectedOK:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &config.Config{}
+			filesystem := fs.NewMemoryFileSystem()
+			log := logger.New(false)
+			gen := NewGenerator(cfg, filesystem, log)
+
+			resultPath, ok := gen.determineOutputPath(tt.tmplPath, tt.appPath, tt.data)
+			assert.Equal(t, tt.expectedOK, ok)
+			if ok {
+				assert.Equal(t, tt.expectedPath, resultPath)
+			}
+		})
+	}
+}
+
+func TestGenerator_GitHubWorkflows_Integration(t *testing.T) {
+	t.Run("creates github workflows when flag is enabled", func(t *testing.T) {
+		cfg := &config.Config{
+			TerraformVersion: "~> 1.13",
+			Provider: &config.Provider{
+				AWS: &config.AWSProvider{
+					Version: "~> 6.0",
+					AccountMapping: map[string]string{
+						"dev": "123456789012",
+					},
+				},
+			},
+			Backend: &config.Backend{
+				S3: &config.S3Backend{
+					BucketName: "test-bucket",
+				},
+			},
+			Generate: &config.Generate{
+				GithubWorkflows: &config.GithubWorkflows{
+					Create: true,
+				},
+			},
+		}
+
+		filesystem := fs.NewMemoryFileSystem()
+		log := logger.New(false)
+		gen := NewGenerator(cfg, filesystem, log)
+
+		appPath := "envs/dev/eu-central-1/testapp"
+		_ = filesystem.MkdirAll(appPath, 0755)
+
+		renderer, err := templates.NewRenderer()
+		require.NoError(t, err)
+		gen.renderer = renderer
+
+		err = gen.generateFiles(appPath, "dev", "eu-central-1", "testapp")
+		require.NoError(t, err)
+
+		// Verify terraform files were created
+		assert.True(t, filesystem.FileExists(filepath.Join(appPath, "backend.tf")))
+		assert.True(t, filesystem.FileExists(filepath.Join(appPath, "versions.tf")))
+
+		// Verify github workflow files were created with correct dynamic names
+		expectedLintWorkflow := ".github/workflows/testapp-dev-euc1-lint.yaml"
+		expectedTerraformWorkflow := ".github/workflows/testapp-dev-euc1-terraform.yaml"
+
+		assert.True(t, filesystem.FileExists(expectedLintWorkflow),
+			"expected lint workflow to exist at %s", expectedLintWorkflow)
+		assert.True(t, filesystem.FileExists(expectedTerraformWorkflow),
+			"expected terraform workflow to exist at %s", expectedTerraformWorkflow)
+
+		// Verify workflow files have content
+		lintContent, err := filesystem.ReadFile(expectedLintWorkflow)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, lintContent, "lint workflow should have content")
+
+		terraformContent, err := filesystem.ReadFile(expectedTerraformWorkflow)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, terraformContent, "terraform workflow should have content")
+	})
+
+	t.Run("skips github workflows when flag is disabled", func(t *testing.T) {
+		cfg := &config.Config{
+			TerraformVersion: "~> 1.13",
+			Provider: &config.Provider{
+				AWS: &config.AWSProvider{
+					Version: "~> 6.0",
+					AccountMapping: map[string]string{
+						"dev": "123456789012",
+					},
+				},
+			},
+			Backend: &config.Backend{
+				S3: &config.S3Backend{
+					BucketName: "test-bucket",
+				},
+			},
+			Generate: &config.Generate{
+				GithubWorkflows: &config.GithubWorkflows{
+					Create: false,
+				},
+			},
+		}
+
+		filesystem := fs.NewMemoryFileSystem()
+		log := logger.New(false)
+		gen := NewGenerator(cfg, filesystem, log)
+
+		appPath := "envs/dev/eu-central-1/testapp"
+		_ = filesystem.MkdirAll(appPath, 0755)
+
+		renderer, err := templates.NewRenderer()
+		require.NoError(t, err)
+		gen.renderer = renderer
+
+		err = gen.generateFiles(appPath, "dev", "eu-central-1", "testapp")
+		require.NoError(t, err)
+
+		// Verify terraform files were created
+		assert.True(t, filesystem.FileExists(filepath.Join(appPath, "backend.tf")))
+		assert.True(t, filesystem.FileExists(filepath.Join(appPath, "versions.tf")))
+
+		// Verify github workflow files were NOT created
+		expectedLintWorkflow := ".github/workflows/testapp-dev-euc1-lint.yaml"
+		expectedTerraformWorkflow := ".github/workflows/testapp-dev-euc1-terraform.yaml"
+
+		assert.False(t, filesystem.FileExists(expectedLintWorkflow),
+			"lint workflow should not exist when flag is disabled")
+		assert.False(t, filesystem.FileExists(expectedTerraformWorkflow),
+			"terraform workflow should not exist when flag is disabled")
+
+		// Verify .github/workflows directory was not created
+		assert.False(t, filesystem.DirExists(".github/workflows"),
+			".github/workflows directory should not be created when flag is disabled")
+	})
+
+	t.Run("skips github workflows when Generate config is nil", func(t *testing.T) {
+		cfg := &config.Config{
+			TerraformVersion: "~> 1.13",
+			Provider: &config.Provider{
+				AWS: &config.AWSProvider{
+					Version: "~> 6.0",
+					AccountMapping: map[string]string{
+						"dev": "123456789012",
+					},
+				},
+			},
+			Backend: &config.Backend{
+				S3: &config.S3Backend{
+					BucketName: "test-bucket",
+				},
+			},
+			Generate: nil, // No Generate config provided
+		}
+
+		filesystem := fs.NewMemoryFileSystem()
+		log := logger.New(false)
+		gen := NewGenerator(cfg, filesystem, log)
+
+		appPath := "envs/dev/eu-central-1/testapp"
+		_ = filesystem.MkdirAll(appPath, 0755)
+
+		renderer, err := templates.NewRenderer()
+		require.NoError(t, err)
+		gen.renderer = renderer
+
+		err = gen.generateFiles(appPath, "dev", "eu-central-1", "testapp")
+		require.NoError(t, err)
+
+		// Verify terraform files were created
+		assert.True(t, filesystem.FileExists(filepath.Join(appPath, "backend.tf")))
+		assert.True(t, filesystem.FileExists(filepath.Join(appPath, "versions.tf")))
+
+		// Verify github workflow files were NOT created
+		expectedLintWorkflow := ".github/workflows/testapp-dev-euc1-lint.yaml"
+		expectedTerraformWorkflow := ".github/workflows/testapp-dev-euc1-terraform.yaml"
+
+		assert.False(t, filesystem.FileExists(expectedLintWorkflow),
+			"lint workflow should not exist when Generate config is nil")
+		assert.False(t, filesystem.FileExists(expectedTerraformWorkflow),
+			"terraform workflow should not exist when Generate config is nil")
+	})
+
+	t.Run("does not overwrite existing workflow files", func(t *testing.T) {
+		cfg := &config.Config{
+			TerraformVersion: "~> 1.13",
+			Provider: &config.Provider{
+				AWS: &config.AWSProvider{
+					Version: "~> 6.0",
+					AccountMapping: map[string]string{
+						"dev": "123456789012",
+					},
+				},
+			},
+			Backend: &config.Backend{
+				S3: &config.S3Backend{
+					BucketName: "test-bucket",
+				},
+			},
+			Generate: &config.Generate{
+				GithubWorkflows: &config.GithubWorkflows{
+					Create: true,
+				},
+			},
+		}
+
+		filesystem := fs.NewMemoryFileSystem()
+		log := logger.New(false)
+		gen := NewGenerator(cfg, filesystem, log)
+
+		appPath := "envs/dev/eu-central-1/testapp"
+		_ = filesystem.MkdirAll(appPath, 0755)
+
+		// Create existing workflow file with custom content
+		existingWorkflowPath := ".github/workflows/testapp-dev-euc1-lint.yaml"
+		existingContent := "# Custom workflow content - do not overwrite"
+		_ = filesystem.MkdirAll(filepath.Dir(existingWorkflowPath), 0755)
+		err := filesystem.WriteFile(existingWorkflowPath, []byte(existingContent), 0644)
+		require.NoError(t, err)
+
+		renderer, err := templates.NewRenderer()
+		require.NoError(t, err)
+		gen.renderer = renderer
+
+		err = gen.generateFiles(appPath, "dev", "eu-central-1", "testapp")
+		require.NoError(t, err)
+
+		// Verify existing workflow was NOT overwritten
+		content, err := filesystem.ReadFile(existingWorkflowPath)
+		require.NoError(t, err)
+		assert.Equal(t, existingContent, string(content),
+			"existing workflow file should not be overwritten")
+	})
+
+	t.Run("creates workflows with different names for different environments", func(t *testing.T) {
+		cfg := &config.Config{
+			TerraformVersion: "~> 1.13",
+			Provider: &config.Provider{
+				AWS: &config.AWSProvider{
+					Version: "~> 6.0",
+					AccountMapping: map[string]string{
+						"dev": "123456789012",
+						"prd": "234567890123",
+					},
+				},
+			},
+			Backend: &config.Backend{
+				S3: &config.S3Backend{
+					BucketName: "test-bucket",
+				},
+			},
+			Generate: &config.Generate{
+				GithubWorkflows: &config.GithubWorkflows{
+					Create: true,
+				},
+			},
+		}
+
+		filesystem := fs.NewMemoryFileSystem()
+		log := logger.New(false)
+		gen := NewGenerator(cfg, filesystem, log)
+
+		renderer, err := templates.NewRenderer()
+		require.NoError(t, err)
+		gen.renderer = renderer
+
+		// Generate for dev environment
+		devAppPath := "envs/dev/eu-central-1/myapp"
+		_ = filesystem.MkdirAll(devAppPath, 0755)
+		err = gen.generateFiles(devAppPath, "dev", "eu-central-1", "myapp")
+		require.NoError(t, err)
+
+		// Generate for prd environment
+		prdAppPath := "envs/prd/us-east-1/myapp"
+		_ = filesystem.MkdirAll(prdAppPath, 0755)
+		err = gen.generateFiles(prdAppPath, "prd", "us-east-1", "myapp")
+		require.NoError(t, err)
+
+		// Verify both sets of workflows were created with different names
+		devLintWorkflow := ".github/workflows/myapp-dev-euc1-lint.yaml"
+		devTerraformWorkflow := ".github/workflows/myapp-dev-euc1-terraform.yaml"
+		prdLintWorkflow := ".github/workflows/myapp-prd-use1-lint.yaml"
+		prdTerraformWorkflow := ".github/workflows/myapp-prd-use1-terraform.yaml"
+
+		assert.True(t, filesystem.FileExists(devLintWorkflow),
+			"dev lint workflow should exist")
+		assert.True(t, filesystem.FileExists(devTerraformWorkflow),
+			"dev terraform workflow should exist")
+		assert.True(t, filesystem.FileExists(prdLintWorkflow),
+			"prd lint workflow should exist")
+		assert.True(t, filesystem.FileExists(prdTerraformWorkflow),
+			"prd terraform workflow should exist")
+
+		// Verify they are different files
+		devContent, _ := filesystem.ReadFile(devLintWorkflow)
+		prdContent, _ := filesystem.ReadFile(prdLintWorkflow)
+		assert.NotEmpty(t, devContent)
+		assert.NotEmpty(t, prdContent)
+	})
+}
