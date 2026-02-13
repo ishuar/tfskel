@@ -115,16 +115,6 @@ release:
     # Using Go
     go install github.com/ishuar/tfskel@{{ .Tag }}
 
-    # Using curl
-    curl -sSfL https://github.com/ishuar/tfskel/releases/download/{{ .Tag }}/tfskel_{{ .Version }}_{{ .Os }}_{{ .Arch }}.tar.gz | tar xz
-    ```
-
-    **Windows:**
-    ```powershell
-    # Download from releases page or use go install
-    go install github.com/ishuar/tfskel@{{ .Tag }}
-    ```
-
     ### What's Changed
   footer: |
     **Full Changelog**: https://github.com/ishuar/tfskel/compare/{{ .PreviousTag }}...{{ .Tag }}
