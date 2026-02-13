@@ -6,6 +6,7 @@ project_name: tfskel
 before:
   hooks:
     - go mod tidy
+    - go test ./...
 
 builds:
   - id: tfskel
@@ -135,6 +136,3 @@ gomod:
 # Set a custom directory for artifacts
 dist: dist
 
-# Announce releases (optional)
-announce:
-  skip: "{{gt .Patch 0}}"  # Only announce major/minor releases

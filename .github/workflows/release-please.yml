@@ -17,15 +17,13 @@ jobs:
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
-      version: ${{ steps.release.outputs.major }}.${{ steps.release.outputs.minor }}.${{ steps.release.outputs.patch }}
+      version: ${{ steps.release.outputs.version }}
     steps:
       - name: Run release-please
         id: release
         uses: googleapis/release-please-action@v4
         with:
-          # Token for creating release PR and releases
-          token: ${{ secrets.MY_RELEASE_PLEASE_TOKEN }}
-          # Configuration file paths
+          token: ${{ secrets.GITHUB_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
       - name: Output release information
