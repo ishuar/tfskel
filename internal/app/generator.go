@@ -212,46 +212,88 @@ func (g *Generator) determineOutputPath(tmplPath, appPath string, data *template
 	}
 }
 
+// sanitizeWorkflowFileName validates and sanitizes a workflow filename to prevent path traversal
+// Returns the sanitized filename and a boolean indicating if it's valid
+func sanitizeWorkflowFileName(filename string) (string, bool) {
+	// Reject paths containing dangerous characters or patterns BEFORE cleaning
+	if strings.Contains(filename, "..") || strings.ContainsRune(filename, filepath.Separator) || strings.Contains(filename, "/") || strings.Contains(filename, "\\") {
+		return "", false
+	}
+
+	// Reject empty or just extension
+	if filename == "" || filename == ".yaml" || filename == "." {
+		return "", false
+	}
+
+	// Additional validation: ensure the cleaned version matches the input
+	cleaned := filepath.Clean(filename)
+	if cleaned != filename {
+		return "", false
+	}
+
+	return filename, true
+}
+
 // generateWorkflowFileName creates dynamic workflow file names based on template data
 // Pattern: {{.AppDir}}-{{.Env}}-{{.ShortRegion}}-{lint|terraform}.yaml
 // Example: myapp-dev-euc1-lint.yaml, myapp-dev-euc1-terraform.yaml
 // If name_template is provided in config, it uses that template instead
 func (g *Generator) generateWorkflowFileName(originalFileName string, data *templates.Data) string {
-	// Check if custom name template is provided
-	if g.config.Generate != nil && g.config.Generate.GithubWorkflows != nil && g.config.Generate.GithubWorkflows.NameTemplate != "" {
-		// Use custom template
-		nameTemplate := g.config.Generate.GithubWorkflows.NameTemplate
-
-		// Extract workflow type and add to data for template rendering
-		workflowType := strings.TrimSuffix(originalFileName, ".yaml")
-
-		// Create a temporary template to render the name
-		tmpl, err := template.New("workflow_name").Parse(nameTemplate)
-		if err != nil {
-			g.log.Warnf("Failed to parse name_template, using default naming: %v", err)
-			return g.generateDefaultWorkflowFileName(originalFileName, data)
-		}
-
-		// Create extended data map for template (no .Type - it's internal)
-		dataMap := map[string]string{
-			"AppDir":      data.AppDir,
-			"Env":         data.Env,
-			"Region":      data.Region,
-			"ShortRegion": data.ShortRegion,
-		}
-
-		var buf bytes.Buffer
-		if err := tmpl.Execute(&buf, dataMap); err != nil {
-			g.log.Warnf("Failed to execute name_template, using default naming: %v", err)
-			return g.generateDefaultWorkflowFileName(originalFileName, data)
-		}
-
-		// Automatically append workflow type and .yaml extension
-		return buf.String() + "-" + workflowType + ".yaml"
+	// Check if custom name template is not provided
+	if g.config.Generate == nil || g.config.Generate.GithubWorkflows == nil || g.config.Generate.GithubWorkflows.NameTemplate == "" {
+		return g.generateDefaultWorkflowFileName(originalFileName, data)
 	}
 
-	// Use default naming
-	return g.generateDefaultWorkflowFileName(originalFileName, data)
+	// Use custom template
+	nameTemplate := g.config.Generate.GithubWorkflows.NameTemplate
+	workflowType := strings.TrimSuffix(originalFileName, ".yaml")
+
+	// Parse and execute the custom template
+	rendered, err := g.renderCustomWorkflowName(nameTemplate, data)
+	if err != nil {
+		g.log.Warnf("Failed to render name_template, using default naming: %v", err)
+		return g.generateDefaultWorkflowFileName(originalFileName, data)
+	}
+
+	// Normalize: strip trailing .yaml if user included it
+	rendered, _ = strings.CutSuffix(rendered, ".yaml")
+
+	// Normalize: strip trailing -<workflowType> if user included it
+	rendered, _ = strings.CutSuffix(rendered, "-"+workflowType)
+
+	// Append workflow type and .yaml extension
+	baseFileName := rendered + "-" + workflowType + ".yaml"
+
+	// Validate and sanitize the filename to prevent path traversal
+	sanitized, valid := sanitizeWorkflowFileName(baseFileName)
+	if !valid {
+		g.log.Warnf("name_template produced invalid filename (potential path traversal), using default naming")
+		return g.generateDefaultWorkflowFileName(originalFileName, data)
+	}
+
+	return sanitized
+}
+
+// renderCustomWorkflowName renders a custom workflow name template
+func (g *Generator) renderCustomWorkflowName(nameTemplate string, data *templates.Data) (string, error) {
+	tmpl, err := template.New("workflow_name").Parse(nameTemplate)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse template: %w", err)
+	}
+
+	dataMap := map[string]string{
+		"AppDir":      data.AppDir,
+		"Env":         data.Env,
+		"Region":      data.Region,
+		"ShortRegion": data.ShortRegion,
+	}
+
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, dataMap); err != nil {
+		return "", fmt.Errorf("failed to execute template: %w", err)
+	}
+
+	return buf.String(), nil
 }
 
 // generateDefaultWorkflowFileName creates the default workflow file name

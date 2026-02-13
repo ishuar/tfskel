@@ -70,7 +70,7 @@ jobs:
       changes: ${{ steps.plan.outputs.changes }}
     steps:
       - name: checkout the repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       ## No Static Credentials, use OIDC to assume role
       ## Extendible to Least Privilege Principle
@@ -80,7 +80,7 @@ jobs:
           role-to-assume: ${{ inputs.aws_role_to_assume }}
           aws-region: ${{ inputs.aws_region }}
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         name: 'Terraform cache'
         id: cache
         with:
@@ -99,11 +99,13 @@ jobs:
           path: ${{ inputs.terraform_files_path }}
           label: ${{ inputs.terraform_files_path }}
           add_github_comment: true
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+
+      # Store plan file for apply job (needed for push events where no PR exists)
+      - name: Upload plan artifact
+        uses: actions/upload-artifact@v7
         with:
-          name: tfplan-${{ inputs.environment }}-${{ github.head_ref }}
-          path: '${{ steps.plan.outputs.plan_path }}'
+          name: tfplan-${{ inputs.environment }}-${{ github.run_id }}
+          path: ${{ steps.plan.outputs.plan_path }}
 
   apply:
     name: Terraform Apply Stage
@@ -125,7 +127,7 @@ jobs:
       }}
     steps:
       - name: checkout the repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
         ## ::Highlight:: Security: Least Privilege Principle
       - name: Configure AWS Credentials
@@ -134,20 +136,23 @@ jobs:
           role-to-assume: ${{ inputs.aws_role_to_assume }}
           aws-region: ${{ inputs.aws_region }}
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         name: 'Terraform cache'
         id: cache
         with:
           path: ${{ env.TF_PLUGIN_CACHE_DIR }}
           key: ${{ runner.os }}-${{ inputs.terraform_files_path }}-${{ hashFiles(format('{0}/{1}', inputs.terraform_files_path, inputs.cache_hash_file)) }}
 
-      ## Reliability & Security: Apply the plan which was reviewed
-      - uses: actions/download-artifact@v4
+      # Download the plan created in the plan job
+      # Extract to workspace root so plan_path references work correctly
+      - name: Download plan artifact
+        uses: actions/download-artifact@v7
         with:
-          name: tfplan-${{ inputs.environment }}-${{ github.head_ref }}
-          path: '${{ needs.plan.outputs.plan_path }}'
+          name: tfplan-${{ inputs.environment }}-${{ github.run_id }}
+
       - name: Terraform apply
         uses: dflook/terraform-apply@v2
         with:
           path: ${{ inputs.terraform_files_path }}
           label: ${{ inputs.terraform_files_path }}
+          plan: ${{ needs.plan.outputs.plan_path }}

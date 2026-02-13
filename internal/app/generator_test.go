@@ -1832,3 +1832,212 @@ func TestGenerator_GitHubWorkflows_Integration(t *testing.T) {
 		assert.NotEmpty(t, prdContent)
 	})
 }
+
+func TestGenerator_buildAWSRoleArn(t *testing.T) {
+	tests := []struct {
+		name        string
+		config      *config.Config
+		env         string
+		expectedArn string
+	}{
+		{
+			name: "explicit ARN takes precedence over role name",
+			config: &config.Config{
+				Provider: &config.Provider{
+					AWS: &config.AWSProvider{
+						AccountMapping: map[string]string{
+							"dev": "123456789012",
+						},
+					},
+				},
+				Generate: &config.Generate{
+					GithubWorkflows: &config.GithubWorkflows{
+						AWSRoleArn:  "arn:aws:iam::999999999999:role/CustomRole",
+						AWSRoleName: "ShouldBeIgnored",
+					},
+				},
+			},
+			env:         "dev",
+			expectedArn: "arn:aws:iam::999999999999:role/CustomRole",
+		},
+		{
+			name: "role name constructs ARN when no explicit ARN provided",
+			config: &config.Config{
+				Provider: &config.Provider{
+					AWS: &config.AWSProvider{
+						AccountMapping: map[string]string{
+							"dev": "123456789012",
+						},
+					},
+				},
+				Generate: &config.Generate{
+					GithubWorkflows: &config.GithubWorkflows{
+						AWSRoleName: "TerraformDeployRole",
+					},
+				},
+			},
+			env:         "dev",
+			expectedArn: "arn:aws:iam::123456789012:role/TerraformDeployRole",
+		},
+		{
+			name: "returns placeholder when no ARN or role name provided",
+			config: &config.Config{
+				Provider: &config.Provider{
+					AWS: &config.AWSProvider{
+						AccountMapping: map[string]string{
+							"dev": "123456789012",
+						},
+					},
+				},
+				Generate: &config.Generate{
+					GithubWorkflows: &config.GithubWorkflows{},
+				},
+			},
+			env:         "dev",
+			expectedArn: "arn:aws:iam::123456789012:role/REPLACE_WITH_ROLE_TO_ASSUME",
+		},
+		{
+			name: "returns placeholder when GithubWorkflows is nil",
+			config: &config.Config{
+				Provider: &config.Provider{
+					AWS: &config.AWSProvider{
+						AccountMapping: map[string]string{
+							"dev": "123456789012",
+						},
+					},
+				},
+				Generate: &config.Generate{
+					GithubWorkflows: nil,
+				},
+			},
+			env:         "dev",
+			expectedArn: "arn:aws:iam::123456789012:role/REPLACE_WITH_ROLE_TO_ASSUME",
+		},
+		{
+			name: "returns placeholder when Generate is nil",
+			config: &config.Config{
+				Provider: &config.Provider{
+					AWS: &config.AWSProvider{
+						AccountMapping: map[string]string{
+							"dev": "123456789012",
+						},
+					},
+				},
+				Generate: nil,
+			},
+			env:         "dev",
+			expectedArn: "arn:aws:iam::123456789012:role/REPLACE_WITH_ROLE_TO_ASSUME",
+		},
+		{
+			name: "works with different environment",
+			config: &config.Config{
+				Provider: &config.Provider{
+					AWS: &config.AWSProvider{
+						AccountMapping: map[string]string{
+							"dev": "123456789012",
+							"prd": "987654321098",
+						},
+					},
+				},
+				Generate: &config.Generate{
+					GithubWorkflows: &config.GithubWorkflows{
+						AWSRoleName: "TerraformDeployRole",
+					},
+				},
+			},
+			env:         "prd",
+			expectedArn: "arn:aws:iam::987654321098:role/TerraformDeployRole",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			filesystem := fs.NewMemoryFileSystem()
+			log := logger.New(false)
+			gen := NewGenerator(tt.config, filesystem, log)
+
+			result := gen.buildAWSRoleArn(tt.env)
+			assert.Equal(t, tt.expectedArn, result)
+		})
+	}
+}
+
+func TestSanitizeWorkflowFileName(t *testing.T) {
+	tests := []struct {
+		name          string
+		input         string
+		expectedValid bool
+		expectedOut   string
+	}{
+		{
+			name:          "valid simple filename",
+			input:         "myapp-dev-euc1-lint.yaml",
+			expectedValid: true,
+			expectedOut:   "myapp-dev-euc1-lint.yaml",
+		},
+		{
+			name:          "valid filename with underscores",
+			input:         "my_app-dev-lint.yaml",
+			expectedValid: true,
+			expectedOut:   "my_app-dev-lint.yaml",
+		},
+		{
+			name:          "reject path with directory traversal using ..",
+			input:         "../../../etc/passwd",
+			expectedValid: false,
+			expectedOut:   "",
+		},
+		{
+			name:          "reject path with subdirectory",
+			input:         "subdir/workflow.yaml",
+			expectedValid: false,
+			expectedOut:   "",
+		},
+		{
+			name:          "reject absolute path",
+			input:         "/etc/passwd",
+			expectedValid: false,
+			expectedOut:   "",
+		},
+		{
+			name:          "reject path with .. in middle",
+			input:         "valid-name..yaml",
+			expectedValid: false,
+			expectedOut:   "",
+		},
+		{
+			name:          "reject empty filename",
+			input:         "",
+			expectedValid: false,
+			expectedOut:   "",
+		},
+		{
+			name:          "reject just extension",
+			input:         ".yaml",
+			expectedValid: false,
+			expectedOut:   "",
+		},
+		{
+			name:          "reject path even if basename would be valid",
+			input:         "some/path/workflow.yaml",
+			expectedValid: false,
+			expectedOut:   "",
+		},
+		{
+			name:          "accept filename with dots",
+			input:         "my.app.workflow.yaml",
+			expectedValid: true,
+			expectedOut:   "my.app.workflow.yaml",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, valid := sanitizeWorkflowFileName(tt.input)
+			assert.Equal(t, tt.expectedValid, valid, "validity mismatch")
+			if valid {
+				assert.Equal(t, tt.expectedOut, result, "sanitized output mismatch")
+			}
+		})
+	}
+}
