@@ -1,4 +1,6 @@
 # GoReleaser configuration
+# https://goreleaser.com/customization/
+
 project_name: tfskel
 
 before:
@@ -7,24 +9,39 @@ before:
     - go test ./...
 
 builds:
-  - env:
+  - id: tfskel
+    binary: tfskel
+    env:
       - CGO_ENABLED=0
     goos:
       - linux
       - darwin
+      - windows
     goarch:
       - amd64
       - arm64
+      - "386"
+    # Ignore combinations that don't make sense
+    ignore:
+      - goos: darwin
+        goarch: "386"
+      - goos: windows
+        goarch: arm64  # Windows ARM64 support is limited
     ldflags:
       - -s -w
-      - -X github.com/ishuar/tfskel/cmd.Version={{.Version}}
       - -X github.com/ishuar/tfskel/cmd.Commit={{.Commit}}
       - -X github.com/ishuar/tfskel/cmd.Date={{.Date}}
+      - -X github.com/ishuar/tfskel/cmd.BuildTime={{.CommitTimestamp}}
+    mod_timestamp: "{{.CommitTimestamp}}"
+    flags:
+      - -trimpath
 
 archives:
-  - format: tar.gz
+  - id: tfskel-archive
+    format: tar.gz
     name_template: >-
       {{ .ProjectName }}_
+      {{- .Version }}_
       {{- title .Os }}_
       {{- if eq .Arch "amd64" }}x86_64
       {{- else if eq .Arch "386" }}i386
@@ -37,41 +54,45 @@ archives:
       - README.md
       - LICENSE
       - CONTRIBUTING.md
+      - docs/**/*
 
 checksum:
   name_template: 'checksums.txt'
+  algorithm: sha256
 
 snapshot:
   name_template: "{{ incpatch .Version }}-next"
 
 changelog:
+  use: github
   sort: asc
   filters:
     exclude:
       - '^docs:'
       - '^test:'
       - '^chore:'
+      - '^ci:'
       - 'merge conflict'
       - Merge pull request
       - Merge remote-tracking branch
       - Merge branch
   groups:
-    - title: 'New Features'
+    - title: '🚀 New Features'
       regexp: "^.*feat[(\\w)]*:+.*$"
       order: 0
-    - title: 'Bug Fixes'
+    - title: '🐛 Bug Fixes'
       regexp: "^.*fix[(\\w)]*:+.*$"
       order: 1
-    - title: 'Performance Improvements'
+    - title: '⚡ Performance Improvements'
       regexp: "^.*perf[(\\w)]*:+.*$"
       order: 2
-    - title: 'Refactoring'
+    - title: '♻️ Refactoring'
       regexp: "^.*refactor[(\\w)]*:+.*$"
       order: 3
-    - title: 'Documentation Updates'
+    - title: '📚 Documentation'
       regexp: "^.*docs[(\\w)]*:+.*$"
       order: 4
-    - title: 'Other Changes'
+    - title: '🔧 Other Changes'
       order: 999
 
 release:
@@ -80,8 +101,28 @@ release:
     name: tfskel
   draft: false
   prerelease: auto
+  mode: append
   name_template: "{{.ProjectName}} v{{.Version}}"
   header: |
-    ## tfskel {{ .Tag }} ({{ .Date }})
+    ## 🎉 tfskel {{ .Tag }} ({{ .Date }})
 
     Welcome to this new release of tfskel!
+
+    ### Installation
+
+    **macOS/Linux:**
+    ```bash
+    # Using Go
+    go install github.com/ishuar/tfskel@{{ .Tag }}
+
+    ### What's Changed
+  footer: |
+    **Full Changelog**: https://github.com/ishuar/tfskel/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+# Validate configuration
+gomod:
+  proxy: true
+
+# Set a custom directory for artifacts
+dist: dist
+
