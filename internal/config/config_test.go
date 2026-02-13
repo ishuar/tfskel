@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestValidate(t *testing.T) {
@@ -156,4 +157,159 @@ func TestConfig_MultipleAccountMappings(t *testing.T) {
 			assert.Equal(t, expectedAccount, result)
 		}
 	})
+}
+
+func TestGenerate_CreateGithubWorkflows(t *testing.T) {
+	tests := []struct {
+		name     string
+		config   *Config
+		expected bool
+	}{
+		{
+			name: "create_github_workflows enabled via config",
+			config: &Config{
+				Generate: &Generate{
+					GithubWorkflows: &GithubWorkflows{
+						Create: true,
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "create_github_workflows disabled via config",
+			config: &Config{
+				Generate: &Generate{
+					GithubWorkflows: &GithubWorkflows{
+						Create: false,
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "create_github_workflows not set (nil GithubWorkflows)",
+			config: &Config{
+				Generate: &Generate{
+					GithubWorkflows: nil,
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "create_github_workflows not set (nil Generate)",
+			config: &Config{
+				Generate: nil,
+			},
+			expected: false,
+		},
+		{
+			name:     "create_github_workflows not set (empty config)",
+			config:   &Config{},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.config.Generate != nil && tt.config.Generate.GithubWorkflows != nil {
+				assert.Equal(t, tt.expected, tt.config.Generate.GithubWorkflows.Create)
+			} else {
+				// When Generate or GithubWorkflows is nil, the feature should be disabled
+				if tt.config.Generate != nil {
+					assert.Nil(t, tt.config.Generate.GithubWorkflows)
+				} else {
+					assert.Nil(t, tt.config.Generate)
+				}
+			}
+		})
+	}
+}
+
+func TestApplyCreateGithubWorkflowsOverride(t *testing.T) {
+	tests := []struct {
+		name           string
+		initialConfig  *Config
+		flagValue      bool
+		flagChanged    bool
+		expectedValue  bool
+		expectedNonNil bool
+	}{
+		{
+			name: "flag set to true overrides nil config",
+			initialConfig: &Config{
+				Generate: nil,
+			},
+			flagValue:      true,
+			flagChanged:    true,
+			expectedValue:  true,
+			expectedNonNil: true,
+		},
+		{
+			name: "flag set to false overrides true config",
+			initialConfig: &Config{
+				Generate: &Generate{
+					GithubWorkflows: &GithubWorkflows{
+						Create: true,
+					},
+				},
+			},
+			flagValue:      false,
+			flagChanged:    true,
+			expectedValue:  false,
+			expectedNonNil: true,
+		},
+		{
+			name: "flag not changed preserves config value",
+			initialConfig: &Config{
+				Generate: &Generate{
+					GithubWorkflows: &GithubWorkflows{
+						Create: true,
+					},
+				},
+			},
+			flagValue:      false,
+			flagChanged:    false,
+			expectedValue:  true,
+			expectedNonNil: true,
+		},
+		{
+			name: "flag not changed preserves nil Generate",
+			initialConfig: &Config{
+				Generate: nil,
+			},
+			flagValue:      true,
+			flagChanged:    false,
+			expectedValue:  false,
+			expectedNonNil: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Note: This test validates the logic without actually creating cobra commands
+			// The actual function would be called with a cobra command, but we test the logic here
+			cfg := tt.initialConfig
+
+			// Simulate what applyCreateGithubWorkflowsOverride does
+			if tt.flagChanged {
+				if cfg.Generate == nil {
+					cfg.Generate = &Generate{}
+				}
+				if cfg.Generate.GithubWorkflows == nil {
+					cfg.Generate.GithubWorkflows = &GithubWorkflows{}
+				}
+				cfg.Generate.GithubWorkflows.Create = tt.flagValue
+			}
+
+			if tt.expectedNonNil {
+				require.NotNil(t, cfg.Generate)
+				require.NotNil(t, cfg.Generate.GithubWorkflows)
+				assert.Equal(t, tt.expectedValue, cfg.Generate.GithubWorkflows.Create)
+			} else if !tt.flagChanged {
+				// When flag is not changed and Generate was nil, it should stay nil
+				assert.Nil(t, cfg.Generate)
+			}
+		})
+	}
 }

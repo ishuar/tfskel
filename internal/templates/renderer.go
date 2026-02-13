@@ -48,7 +48,7 @@ var funcMap = template.FuncMap{
 	"stripConstraint": stripConstraint,
 }
 
-//go:embed files/**/*.tmpl
+//go:embed files/**/*.tmpl files/**/*.yaml
 var embeddedTemplates embed.FS
 
 // templateFS is the sub-filesystem without the "files/" prefix
@@ -73,12 +73,15 @@ type Data struct {
 	TerraformVersion   string
 	AWSProviderVersion string
 	DefaultTags        map[string]string
+	AWSRoleArn         string // AWS role ARN for terraform workflows
+	WorkflowFileName   string // Generated workflow filename for self-reference in triggers
 }
 
 // Renderer handles template rendering
 type Renderer struct {
-	templates map[string]*template.Template
-	sources   map[string]string // Track where each template came from (for logging)
+	templates     map[string]*template.Template
+	staticContent map[string]string // Raw content for static files (like reusable workflows)
+	sources       map[string]string // Track where each template came from (for logging)
 }
 
 // NewRenderer creates a new template renderer with default embedded templates
@@ -90,8 +93,9 @@ func NewRenderer() (*Renderer, error) {
 // allowedExtensions specifies which file extensions to load from custom directory (e.g., ["tf.tmpl", "md.tmpl"])
 func NewRendererWithCustomTemplates(customTemplateDir string, allowedExtensions []string) (*Renderer, error) {
 	r := &Renderer{
-		templates: make(map[string]*template.Template),
-		sources:   make(map[string]string),
+		templates:     make(map[string]*template.Template),
+		staticContent: make(map[string]string),
+		sources:       make(map[string]string),
 	}
 
 	// Load default embedded templates
@@ -115,7 +119,12 @@ func (r *Renderer) loadTemplatesFromFS(fsys fs.FS) error {
 		if err != nil {
 			return err
 		}
-		if d.IsDir() || !strings.HasSuffix(path, ".tmpl") {
+		if d.IsDir() {
+			return nil
+		}
+
+		// Only process .tmpl and .yaml files
+		if !strings.HasSuffix(path, ".tmpl") && !strings.HasSuffix(path, ".yaml") {
 			return nil
 		}
 
@@ -124,6 +133,15 @@ func (r *Renderer) loadTemplatesFromFS(fsys fs.FS) error {
 			return fmt.Errorf("failed to read template %s: %w", path, err)
 		}
 
+		// For .yaml files (reusable workflows), store as raw content (no template parsing)
+		// These files contain GitHub Actions syntax like ${{ inputs.foo }} which conflicts with Go templates
+		if strings.HasSuffix(path, ".yaml") {
+			r.staticContent[path] = string(content)
+			r.sources[path] = "embedded:" + path
+			return nil
+		}
+
+		// For .tmpl files, parse as Go templates
 		tmpl, err := template.New(path).Funcs(funcMap).Parse(string(content))
 		if err != nil {
 			return fmt.Errorf("failed to parse template %s: %w", path, err)
@@ -187,17 +205,28 @@ func (r *Renderer) loadCustomTemplates(customDir string, allowedExtensions []str
 	})
 }
 
-// GetTemplateNames returns all loaded template names
+// GetTemplateNames returns all loaded template names (both templates and static content)
 func (r *Renderer) GetTemplateNames() []string {
-	names := make([]string, 0, len(r.templates))
+	count := len(r.templates) + len(r.staticContent)
+	names := make([]string, 0, count)
 	for name := range r.templates {
+		names = append(names, name)
+	}
+	for name := range r.staticContent {
 		names = append(names, name)
 	}
 	return names
 }
 
 // Render renders a template with the provided data
+// For static content (.yaml files), returns the content as-is without template processing
 func (r *Renderer) Render(templateName string, data *Data) (string, error) {
+	// Check if this is static content first
+	if content, ok := r.staticContent[templateName]; ok {
+		return content, nil
+	}
+
+	// Otherwise, render as a template
 	tmpl, ok := r.templates[templateName]
 	if !ok {
 		return "", fmt.Errorf("%w: %s", ErrTemplateNotFound, templateName)

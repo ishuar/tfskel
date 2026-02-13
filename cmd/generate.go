@@ -60,6 +60,7 @@ var (
 	templatesDir            string
 	s3BucketName            string
 	extraTemplateExtensions []string
+	createGithubWorkflows   bool
 )
 
 func init() {
@@ -80,6 +81,7 @@ func init() {
 	generateCmd.Flags().StringVar(&templatesDir, "templates-dir", "", "directory containing custom template files (overrides defaults)")
 	generateCmd.Flags().StringVar(&s3BucketName, "s3-bucket-name", "", "S3 bucket name for Terraform state")
 	generateCmd.Flags().StringSliceVar(&extraTemplateExtensions, "extra-template-extensions", []string{"tf.tmpl"}, "template file extensions to process from templates-dir (tf.tmpl always included)")
+	generateCmd.Flags().BoolVar(&createGithubWorkflows, "create-github-workflows", false, "create GitHub workflow files from default templates (disabled by default)")
 
 	// Bind flags to viper for config file support (only for optional flags that can come from config)
 	// These bindings are non-critical, errors are logged but not fatal
@@ -91,6 +93,9 @@ func init() {
 	}
 	if err := viper.BindPFlag("extra_template_extensions", generateCmd.Flags().Lookup("extra-template-extensions")); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: failed to bind extra-template-extensions flag: %v\n", err)
+	}
+	if err := viper.BindPFlag("generate.github_workflows.create", generateCmd.Flags().Lookup("create-github-workflows")); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to bind create-github-workflows flag: %v\n", err)
 	}
 }
 

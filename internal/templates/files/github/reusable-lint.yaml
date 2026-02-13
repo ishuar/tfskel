@@ -1,0 +1,228 @@
+name: Validate Terraform Changes
+on:
+  workflow_call:
+    inputs:
+      terraform_files_path:
+        required: true
+        description: Path to the terraform files to validate
+        type: string
+
+      enable_terraform_docs_check:
+        required: false
+        description: Enable terraform-docs check , applicable for modules only.
+        type: boolean
+        default: false
+
+      terraform_docs_version:
+        required: false
+        description: Version of terraform-docs to use
+        type: string
+        default: 'v0.20.0'
+
+      tflint_version:
+        required: false
+        description: Version of tflint to use
+        type: string
+        default: 'v0.59.1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: 'lint-${{ inputs.terraform_files_path }}-${{ github.event.pull_request.number || github.ref_name }}'
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    permissions:
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - uses: actions/cache@v5
+        name: Cache plugin dir
+        with:
+          path: ~/.tflint.d/plugins
+          key: tflint-${{ inputs.tflint_version }}-${{ hashFiles('.tflint.hcl') }}
+
+      - name: Get Terraform Version
+        id: get-tf-version
+        run: |
+          # Extract envs/<env>
+          env_path=$(echo "${{ inputs.terraform_files_path }}" | cut -d'/' -f1-2)
+
+          # Build path to .terraform-version file
+          tf_file="$env_path/.terraform-version"
+
+          # Read Terraform version
+          TF_VERSION=$(cat "$tf_file")
+          echo "Terraform version is $TF_VERSION"
+
+          # Export as step output
+          echo "TF_VERSION=$TF_VERSION" >> $GITHUB_OUTPUT
+
+      - uses: hashicorp/setup-terraform@v3
+        name: Setup Terraform
+        with:
+          terraform_version: ${{ steps.get-tf-version.outputs.TF_VERSION }}
+      - name: Check Terraform Format
+        id: fmt
+        continue-on-error: true
+        run: terraform fmt -check -recursive -diff "${{ inputs.terraform_files_path }}"
+
+      - uses: terraform-linters/setup-tflint@v6
+        name: Setup TFLint
+        with:
+          tflint_version: ${{ inputs.tflint_version }}
+
+      - name: Show version
+        run: tflint --version
+
+      - name: Init TFLint
+        run: tflint --init
+        env:
+          # https://github.com/terraform-linters/tflint/blob/master/docs/user-guide/plugins.md#avoiding-rate-limiting
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Run TFLint
+        id: tflint
+        continue-on-error: true
+        run: tflint -f compact
+        working-directory: '${{ inputs.terraform_files_path }}'
+
+      - name: Render and check diff on Readme with Terraform Changes
+        if: always() && !cancelled() && inputs.enable_terraform_docs_check
+        working-directory: '${{ inputs.terraform_files_path }}'
+        id: docs
+        continue-on-error: true
+        run: |
+          curl -sSfL https://github.com/terraform-docs/terraform-docs/releases/download/${{ inputs.terraform_docs_version }}/terraform-docs-${{ inputs.terraform_docs_version }}-linux-amd64.tar.gz | tar xzf - terraform-docs
+          chmod +x terraform-docs
+          ./terraform-docs .
+          git diff --exit-code
+
+      - name: Comment on the PR if Readme is not updated.
+        if: failure() && !cancelled() && github.event_name == 'pull_request' && inputs.enable_terraform_docs_check
+        uses: thollander/actions-comment-pull-request@v3
+        with:
+          reactions: eyes
+          mode: recreate
+          comment-tag: documentation-${{ inputs.terraform_files_path }}
+          message: |
+            **${{ github.workflow }} failed, Run `make docs` in the module directory `${{ inputs.terraform_files_path }}` to continue**
+
+      - name: Delete Comment on the PR if Readme is updated.
+        if: ${{ always() && steps.docs.conclusion == 'success' && !cancelled() && github.event_name == 'pull_request'}}
+        uses: thollander/actions-comment-pull-request@v3
+        with:
+          comment-tag: documentation-${{ inputs.terraform_files_path }}
+          mode: delete
+
+      - name: Check if any validation failed
+        id: validation-summary
+        if: always()
+        run: |
+          echo "Checking validation results..."
+
+          # Initialize variables
+          FAILED=false
+          TF_FMT_CUSTOM_EXIT_CODE=0
+          TFLINT_CUSTOM_EXIT_CODE=0
+          TF_DOCS_CUSTOM_EXIT_CODE=0
+          SUMMARY_TABLE="| Check | Status | Details |\n|-------|--------|---------|"
+
+          # Check Terraform format
+          if [[ "${{ steps.fmt.outcome }}" == "failure" ]]; then
+            echo "❌ Terraform format check failed"
+            SUMMARY_TABLE="${SUMMARY_TABLE}\n| Terraform Format | Failed :x: | Code formatting issues found. Run \`terraform fmt\` to fix. |"
+            FAILED=true
+            TF_FMT_CUSTOM_EXIT_CODE=777
+          elif [[ "${{ steps.fmt.outcome }}" == "success" ]]; then
+            echo "✅ Terraform format check passed"
+            SUMMARY_TABLE="${SUMMARY_TABLE}\n| Terraform Format | Passed :white_check_mark: | Code is properly formatted. |"
+          else
+            echo "⏭️ Terraform format check skipped"
+            SUMMARY_TABLE="${SUMMARY_TABLE}\n| Terraform Format | Skipped :fast_forward: | Step was skipped or cancelled. |"
+          fi
+
+          # Check TFLint
+          if [[ "${{ steps.tflint.outcome }}" == "failure" ]]; then
+            echo "❌ TFLint check failed"
+            SUMMARY_TABLE="${SUMMARY_TABLE}\n| TFLint | Failed :x: | Linting issues found. Run \`tflint\` to check/fix. |"
+            FAILED=true
+            TFLINT_CUSTOM_EXIT_CODE=888
+          elif [[ "${{ steps.tflint.outcome }}" == "success" ]]; then
+            echo "✅ TFLint check passed"
+            SUMMARY_TABLE="${SUMMARY_TABLE}\n| TFLint | Passed :white_check_mark: | No linting issues found. |"
+          else
+            echo "⏭️ TFLint check skipped"
+            SUMMARY_TABLE="${SUMMARY_TABLE}\n| TFLint | Skipped :fast_forward: | Step was skipped or cancelled. |"
+          fi
+
+          # Check Terraform docs (only if enabled)
+          if [[ "${{ inputs.enable_terraform_docs_check }}" == "true" ]]; then
+            if [[ "${{ steps.docs.outcome }}" == "failure" ]]; then
+              echo "❌ Terraform docs check failed"
+              SUMMARY_TABLE="${SUMMARY_TABLE}\n| Terraform Docs | Failed :x: | Documentation is out of sync. Run \`make docs\` in the module directory. |"
+              FAILED=true
+              TF_DOCS_CUSTOM_EXIT_CODE=999
+            elif [[ "${{ steps.docs.outcome }}" == "success" ]]; then
+              echo "✅ Terraform docs check passed"
+              SUMMARY_TABLE="${SUMMARY_TABLE}\n| Terraform Docs | Passed :white_check_mark: | Documentation is up to date. |"
+            else
+              echo "⏭️ Terraform docs check skipped"
+              SUMMARY_TABLE="${SUMMARY_TABLE}\n| Terraform Docs | Skipped :fast_forward: | Step was skipped or cancelled. |"
+            fi
+          else
+            SUMMARY_TABLE="${SUMMARY_TABLE}\n| Terraform Docs | Disabled :heavy_exclamation_mark: | Documentation check is disabled for this path. |"
+          fi
+
+          # Export as step outputs
+          echo "TF_FMT_CUSTOM_EXIT_CODE=${TF_FMT_CUSTOM_EXIT_CODE}" >> $GITHUB_OUTPUT
+          echo "TFLINT_CUSTOM_EXIT_CODE=${TFLINT_CUSTOM_EXIT_CODE}" >> $GITHUB_OUTPUT
+          echo "TF_DOCS_CUSTOM_EXIT_CODE=${TF_DOCS_CUSTOM_EXIT_CODE}" >> $GITHUB_OUTPUT
+          echo "failed=${FAILED}" >> $GITHUB_OUTPUT
+          {
+            echo "summary_table<<EOF"
+            echo -e "${SUMMARY_TABLE}"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+
+          if [[ "${FAILED}" == "true" ]]; then
+            echo "::error::One or more validation checks failed. Please fix the issues above."
+          else
+            echo "🎉 All validation checks passed!"
+          fi
+
+      - name: Comment validation summary on PR
+        if: always() && github.event_name == 'pull_request' && steps.validation-summary.outputs.failed == 'true'
+        uses: thollander/actions-comment-pull-request@v3
+        with:
+          reactions: eyes
+          mode: recreate
+          comment-tag: validation-summary-${{ inputs.terraform_files_path }}
+          message: |
+            ## Terraform linting summary for `${{ inputs.terraform_files_path }}`
+
+            ${{ steps.validation-summary.outputs.summary_table }}
+
+            ---
+
+            ❌ **Linting failed**: Please review the issues above and fix them before merging.
+            > [!IMPORTANT]
+            > *This comment will be automatically updated on new commits and deleted when all checks pass.*
+
+      - name: Delete validation comment if all checks passed
+        if: always() && github.event_name == 'pull_request' && steps.validation-summary.outputs.failed == 'false'
+        uses: thollander/actions-comment-pull-request@v3
+        with:
+          comment-tag: validation-summary-${{ inputs.terraform_files_path }}
+          mode: delete
+
+      - name: Fail job if any validation failed
+        if: always() && steps.validation-summary.outputs.failed == 'true'
+        run: |
+          echo "::error::One or more validation checks failed. Please fix the issues above."
+          exit 1

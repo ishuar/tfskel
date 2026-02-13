@@ -1,0 +1,158 @@
+name: 'Terraform Plan and Apply workflow'
+
+on:
+  workflow_call:
+    inputs:
+      terraform_files_path:
+        required: true
+        description: Path to the terraform configuration files
+        type: string
+      terraform_log_level:
+        required: false
+        description: Terraform log level
+        type: string
+        default: 'INFO'
+      runner:
+        type: string
+        required: false
+        default: ubuntu-latest
+        description: The Github action runner OS , on which the action runs.
+      cache_hash_file:
+        type: string
+        required: false
+        default: '/versions.tf'
+        description: The file used to create common hash cache naming.
+      aws_region:
+        type: string
+        required: true
+        default: eu-west-1
+        description: The AWS region in which terraform resources should be deployed.
+      aws_role_to_assume:
+        type: string
+        required: true
+        description: The AWS role to assume for the terraform deployment.
+      enable_apply_on_pr:
+        type: boolean
+        required: false
+        default: false
+        description: Enable terraform apply on pull request. This is not recommended for production environments.
+      environment:
+        type: string
+        required: true
+        description: The environment in which the terraform resources should be deployed.
+
+env:
+  # verbosity setting for Terraform logs
+  TF_LOG: ${{ inputs.terraform_log_level }}
+  ##! https://developer.hashicorp.com/terraform/cli/config/environment-variables
+  TF_PLUGIN_CACHE_DIR: '${{ github.workspace }}/.terraform-plugin-cache'
+  TF_IN_AUTOMATION: true
+  TF_INPUT: false
+  GITHUB_TOKEN: ${{ github.token }}
+  TERRAFORM_SSH_KEY: ${{ secrets.TERRAFORM_MODULES_SSH_DEPLOY_KEY }}
+
+permissions:
+  pull-requests: write
+  contents: read
+  id-token: write
+
+concurrency:
+  group: 'tf-plan-apply-${{ inputs.terraform_files_path }}-${{ github.event.pull_request.number || github.ref_name }}'
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    name: Terraform Plan Stage
+    runs-on: ${{ inputs.runner }}
+    environment: ${{ inputs.environment }}
+    outputs:
+      plan_path: ${{ steps.plan.outputs.plan_path }}
+      changes: ${{ steps.plan.outputs.changes }}
+    steps:
+      - name: checkout the repository
+        uses: actions/checkout@v6
+
+      ## No Static Credentials, use OIDC to assume role
+      ## Extendible to Least Privilege Principle
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ inputs.aws_role_to_assume }}
+          aws-region: ${{ inputs.aws_region }}
+
+      - uses: actions/cache@v5
+        name: 'Terraform cache'
+        id: cache
+        with:
+          path: ${{ env.TF_PLUGIN_CACHE_DIR }}
+          key: ${{ runner.os }}-${{ inputs.terraform_files_path }}-${{ hashFiles(format('{0}/{1}', inputs.terraform_files_path , inputs.cache_hash_file)) }}
+
+      - if: ${{ steps.cache.outputs.cache-hit != 'true' }}
+        name: Create TF_PLUGIN_CACHE_DIR
+        shell: bash
+        run: mkdir -p ${{ env.TF_PLUGIN_CACHE_DIR }}
+
+      - name: terraform plan
+        uses: dflook/terraform-plan@v2
+        id: plan
+        with:
+          path: ${{ inputs.terraform_files_path }}
+          label: ${{ inputs.terraform_files_path }}
+          add_github_comment: true
+
+      # Store plan file for apply job (needed for push events where no PR exists)
+      - name: Upload plan artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: tfplan-${{ inputs.environment }}-${{ github.run_id }}
+          path: ${{ steps.plan.outputs.plan_path }}
+
+  apply:
+    name: Terraform Apply Stage
+    runs-on: ${{ inputs.runner }}
+    environment: ${{ inputs.environment }}
+    needs: plan
+    ## if not cancelled and not failed and plan was created successfully
+    ## if plan has changes, otherwise skip the job
+    ## only allowed on non-prod envs on PR when enabled
+    ## on Prod only from push to main branch (after PR merge)
+    if: ${{
+      !cancelled() &&
+      !failure() &&
+      needs.plan.outputs.changes == 'true' &&
+      (
+      (github.event_name == 'pull_request' && inputs.environment != 'prd' && inputs.enable_apply_on_pr == true) ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main' && inputs.environment == 'prd')
+      )
+      }}
+    steps:
+      - name: checkout the repository
+        uses: actions/checkout@v6
+
+        ## ::Highlight:: Security: Least Privilege Principle
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ inputs.aws_role_to_assume }}
+          aws-region: ${{ inputs.aws_region }}
+
+      - uses: actions/cache@v5
+        name: 'Terraform cache'
+        id: cache
+        with:
+          path: ${{ env.TF_PLUGIN_CACHE_DIR }}
+          key: ${{ runner.os }}-${{ inputs.terraform_files_path }}-${{ hashFiles(format('{0}/{1}', inputs.terraform_files_path, inputs.cache_hash_file)) }}
+
+      # Download the plan created in the plan job
+      # Extract to workspace root so plan_path references work correctly
+      - name: Download plan artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: tfplan-${{ inputs.environment }}-${{ github.run_id }}
+
+      - name: Terraform apply
+        uses: dflook/terraform-apply@v2
+        with:
+          path: ${{ inputs.terraform_files_path }}
+          label: ${{ inputs.terraform_files_path }}
+          plan: ${{ needs.plan.outputs.plan_path }}
