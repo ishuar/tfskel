@@ -24,14 +24,19 @@ _Opinionated Terraform scaffolding for teams. No vendor lock-in, just better pro
 
 ## tfskel in Action
 
-#### Terraform and AWS provider version drift
+### Terraform and AWS provider version drift
 <p align="left">
 <img src="assets/tfskel-drift-version.gif" alt="tfskel drift version demo" width="600" />
 </p>
 
-#### Terraform plan analysis
+### Terraform plan analysis
 <p align="left">
 <img src="assets/tfskel-drift-plan.gif" alt="tfskel drift plan demo" width="600" />
+</p>
+
+### Terraform files with default github workflow generation
+<p align="left">
+<img src="assets/tfskel-generate.gif" alt="tfskel drift plan demo" width="600" />
 </p>
 
 ## Installation
