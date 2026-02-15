@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.0.2](https://github.com/ishuar/tfskel/compare/v0.0.1...v0.0.2) (2026-02-15)
+## [0.0.1](https://github.com/ishuar/tfskel/releases/tag/v0.0.1) (2026-02-15)
 
 
 ### Features
@@ -25,3 +25,6 @@
 * **generate:** re-usable workflow,  refactored sanitize function and more tests to generator ([626afee](https://github.com/ishuar/tfskel/commit/626afeeca647833caada79bb196e744dc9a9b8fd))
 * make golanci-lint happier ([c1e5527](https://github.com/ishuar/tfskel/commit/c1e552760588e71bbf3409a78db06bc6d303a5b4))
 * resolve golangci-lint errors ([6964e81](https://github.com/ishuar/tfskel/commit/6964e81fe859683b0d81b8b51a4cc6c8e752a00c))
+
+[Unreleased]: https://github.com/ishuar/tfskel/compare/v0.0.1...HEAD
+[0.0.1]: https://github.com/ishuar/tfskel/releases/tag/v0.0.1
