@@ -1,6 +1,5 @@
 ---
 applyTo: "**"
-excludeAgent: "coding-agent"
 ---
 
 # 🤖 Copilot Review Instructions – tfskel
