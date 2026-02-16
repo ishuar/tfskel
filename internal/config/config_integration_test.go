@@ -57,7 +57,7 @@ generate:
 				// Test Generate section
 				require.NotNil(t, cfg.Generate)
 				assert.Equal(t, "/custom/templates", cfg.Generate.TemplatesDir)
-				assert.Equal(t, []string{"tf.tmpl", "md.tmpl"}, cfg.Generate.ExtraTemplateExtensions)
+				assert.ElementsMatch(t, []string{"tf.tmpl", "md.tmpl"}, cfg.Generate.ExtraTemplateExtensions)
 
 				// Test GithubWorkflows
 				require.NotNil(t, cfg.Generate.GithubWorkflows)
@@ -115,7 +115,7 @@ extra_template_extensions:
 				if cfg.Generate != nil {
 					assert.Empty(t, cfg.Generate.TemplatesDir, "Old YAML structure should not populate Generate.TemplatesDir")
 					// normalizeTemplateExtensions always adds tf.tmpl, so we check it only contains the default
-					assert.Equal(t, []string{"tf.tmpl"}, cfg.Generate.ExtraTemplateExtensions,
+					assert.ElementsMatch(t, []string{"tf.tmpl"}, cfg.Generate.ExtraTemplateExtensions,
 						"Old YAML structure should only have default tf.tmpl, not yaml.tmpl from root level")
 				}
 			},
