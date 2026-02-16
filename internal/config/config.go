@@ -97,9 +97,7 @@ func applyTemplatesDirOverride(cmd *cobra.Command, cfg *Config) {
 	}
 	templatesDir, err := cmd.Flags().GetString("templates-dir")
 	if err == nil {
-		if cfg.Generate == nil {
-			cfg.Generate = &Generate{}
-		}
+		// No nil check needed - Generate is always initialized in setDefaults
 		cfg.Generate.TemplatesDir = templatesDir
 	}
 }
@@ -127,9 +125,7 @@ func applyExtraTemplateExtensionsOverride(cmd *cobra.Command, cfg *Config) {
 	}
 	extraExts, err := cmd.Flags().GetStringSlice("extra-template-extensions")
 	if err == nil {
-		if cfg.Generate == nil {
-			cfg.Generate = &Generate{}
-		}
+		// No nil check needed - Generate is always initialized in setDefaults
 		cfg.Generate.ExtraTemplateExtensions = extraExts
 	}
 }
@@ -142,9 +138,7 @@ func applyCreateGithubWorkflowsOverride(cmd *cobra.Command, cfg *Config) {
 	if err != nil {
 		return
 	}
-	if cfg.Generate == nil {
-		cfg.Generate = &Generate{}
-	}
+	// No nil check needed for Generate - always initialized in setDefaults
 	if cfg.Generate.GithubWorkflows == nil {
 		cfg.Generate.GithubWorkflows = &GithubWorkflows{}
 	}
@@ -153,6 +147,11 @@ func applyCreateGithubWorkflowsOverride(cmd *cobra.Command, cfg *Config) {
 
 // setDefaults initializes default values for unset configuration fields
 func setDefaults(cfg *Config) {
+	// Always initialize Generate to avoid nil checks throughout codebase
+	if cfg.Generate == nil {
+		cfg.Generate = &Generate{}
+	}
+
 	if cfg.TerraformVersion == "" {
 		cfg.TerraformVersion = "~> 1.13"
 	}
@@ -178,6 +177,7 @@ func setDefaults(cfg *Config) {
 
 // normalizeTemplateExtensions ensures tf.tmpl is always present and deduplicates extensions
 func normalizeTemplateExtensions(cfg *Config) {
+	// Defensive: initialize if nil (though setDefaults should have done this)
 	if cfg.Generate == nil {
 		cfg.Generate = &Generate{}
 	}
