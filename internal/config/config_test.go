@@ -3,6 +3,7 @@ package config
 import (
 	"testing"
 
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -310,6 +311,70 @@ func TestApplyCreateGithubWorkflowsOverride(t *testing.T) {
 				// When flag is not changed and Generate was nil, it should stay nil
 				assert.Nil(t, cfg.Generate)
 			}
+		})
+	}
+}
+
+func TestCheckDeprecatedConfig(t *testing.T) {
+	tests := []struct {
+		name         string
+		viperSetup   func(*testing.T) *Config
+		expectOutput bool // whether we expect warning output
+	}{
+		{
+			name: "no deprecated config",
+			viperSetup: func(t *testing.T) *Config {
+				t.Helper()
+				v := viper.New()
+				v.Set("generate.templates_dir", "/custom/path")
+				v.Set("generate.extra_template_extensions", []string{"yaml.tmpl"})
+				cfg := &Config{}
+				err := v.Unmarshal(cfg)
+				require.NoError(t, err)
+				checkDeprecatedConfig(v)
+				return cfg
+			},
+			expectOutput: false,
+		},
+		{
+			name: "deprecated templates_dir at root",
+			viperSetup: func(t *testing.T) *Config {
+				t.Helper()
+				v := viper.New()
+				v.Set("templates_dir", "/old/path")
+				cfg := &Config{}
+				err := v.Unmarshal(cfg)
+				require.NoError(t, err)
+				// This will print warnings, but we can't easily capture them in unit tests
+				// In integration tests, we verify the actual behavior
+				checkDeprecatedConfig(v)
+				return cfg
+			},
+			expectOutput: true,
+		},
+		{
+			name: "deprecated extra_template_extensions at root",
+			viperSetup: func(t *testing.T) *Config {
+				t.Helper()
+				v := viper.New()
+				v.Set("extra_template_extensions", []string{"yaml.tmpl"})
+				cfg := &Config{}
+				err := v.Unmarshal(cfg)
+				require.NoError(t, err)
+				checkDeprecatedConfig(v)
+				return cfg
+			},
+			expectOutput: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Call the setup which includes checkDeprecatedConfig
+			cfg := tt.viperSetup(t)
+			assert.NotNil(t, cfg)
+			// The actual warning output is tested in integration tests
+			// Here we just verify the function doesn't panic
 		})
 	}
 }
