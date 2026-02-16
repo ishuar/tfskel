@@ -109,11 +109,11 @@ func (g *Generator) Run(env, region, appDir string) error {
 	// Initialize template renderer with custom templates if provided
 	var renderer *templates.Renderer
 	var err error
-	if g.config.TemplatesDir != "" {
-		g.log.Infof("Using custom templates from: %s", g.config.TemplatesDir)
+	if g.config.Generate != nil && g.config.Generate.TemplatesDir != "" {
+		g.log.Infof("Using custom templates from: %s", g.config.Generate.TemplatesDir)
 		renderer, err = templates.NewRendererWithCustomTemplates(
-			g.config.TemplatesDir,
-			g.config.ExtraTemplateExtensions,
+			g.config.Generate.TemplatesDir,
+			g.config.Generate.ExtraTemplateExtensions,
 		)
 	} else {
 		g.log.Debug("Using default embedded templates")
