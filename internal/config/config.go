@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -199,6 +200,8 @@ func normalizeTemplateExtensions(cfg *Config) {
 	for ext := range extMap {
 		cfg.Generate.ExtraTemplateExtensions = append(cfg.Generate.ExtraTemplateExtensions, ext)
 	}
+	// Sort for deterministic ordering
+	slices.Sort(cfg.Generate.ExtraTemplateExtensions)
 }
 
 // Validate checks if the configuration is valid
