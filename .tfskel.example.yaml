@@ -1,5 +1,5 @@
 # tfskel configuration file
-# For more information, visit: https://github.com/ishuar/tfskel
+# For more information, visit: https://github.com/ishuar/tfskel/blob/main/docs/tfskel-book.md#configuration
 
 # Terraform version constraint, Required with default embedded templates
 terraform_version: terraform-version-constraint # e.g. ~> 1.13
@@ -13,11 +13,11 @@ backend:
 provider:
   aws:
     version: aws-provider-version-constraint # e.g. ~> 6.0
-    # Optional: Add a default tag to all resources
+    # Optional: Add default tags to all resources using AWS provider, applicable to versions.tf.tmpl templates
     default_tags: {}
       # Example:
-      # managedBy: tfskel
-      # environment: "{{ .Env }}"
+      # managed_by: tfskel
+      # github_repo: tfskel
     # Required: Update with the AWS regions where you deploy resources
     regions: []
       # Example:
@@ -52,13 +52,20 @@ top_n_count: 10
 # Generate command configuration
 generate:
   # Optional: Custom templates directory
+  # to override default embedded templates, create custom templates
+  # with the same name in the custom templates directory,
+  # e.g. custom-dir/versions.tf.tmpl will override the default embedded versions.tf.tmpl template
   templates_dir: /path/to/custom/templates
-  # Optional: Additional template file extensions to process
+  # Optional: Additional template file extensions to process.
   # by default .tf.tmpl templates are processed only
   extra_template_extensions: [] # e.g. ["tf.tmpl", "md.tmpl"]
   # Optional: GitHub Actions workflow generation configuration
   github_workflows:
-    create: false  # Enable GitHub Actions workflow generation
-    name_template: "{{.AppDir}}-{{.Env}}-{{.ShortRegion}}"  # Workflow name template using placeholders:
-    aws_role_arn: "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"  # Full ARN (takes priority, optional)
-    aws_role_name: "GitHubActionsRole"  # IAM role for workflows (optional)
+    # Enable GitHub Actions workflow generation
+    create: false
+    # Workflow name template using placeholders:
+    name_template: "{{.AppDir}}-{{.Env}}-{{.ShortRegion}}"
+    # Full ARN (takes priority, optional)
+    aws_role_arn: "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
+    # IAM role for workflows (optional)
+    aws_role_name: "GitHubActionsRole"
