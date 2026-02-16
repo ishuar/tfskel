@@ -615,7 +615,7 @@ terraform {
 		needsUpdate, changes, err := gen.shouldUpdateVersions("versions.tf", data)
 		assert.NoError(t, err)
 		assert.True(t, needsUpdate) // Should regenerate to add metadata
-		assert.Contains(t, changes[0], "metadata initialization")
+		assert.Contains(t, changes[0], "initialized configuration tracking")
 	})
 
 	t.Run("returns true when file has malformed tags metadata and config has no tags", func(t *testing.T) {
@@ -648,7 +648,7 @@ terraform {
 		needsUpdate, changes, err := gen.shouldUpdateVersions("versions.tf", data)
 		assert.NoError(t, err)
 		assert.True(t, needsUpdate)
-		assert.Contains(t, changes, "fixed malformed default_tags metadata",
+		assert.Contains(t, changes, "repaired metadata",
 			"Should detect and fix malformed tags metadata")
 	})
 
