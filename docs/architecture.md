@@ -1,0 +1,1049 @@
+# tfskel Architecture
+
+## Table of Contents
+
+1. [Overview](#overview)
+2. [Design Principles](#design-principles)
+3. [Architecture Layers](#architecture-layers)
+4. [Component Details](#component-details)
+5. [Data Flow](#data-flow)
+6. [Design Patterns](#design-patterns)
+7. [Extension Points](#extension-points)
+8. [Testing Strategy](#testing-strategy)
+
+---
+
+## Overview
+
+tfskel follows a layered, modular architecture that separates concerns and promotes testability. The application is structured into distinct layers, each with specific responsibilities.
+
+### Architecture Diagram
+
+```bash
+┌─────────────────────────────────────────────────────────────┐
+│                        CLI Layer                            │
+│                    (cmd/ package)                           │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐                   │
+│  │   init   │  │ generate │  │  version │                   │
+│  └──────────┘  └──────────┘  └──────────┘                   │
+└─────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  Application Layer                          │
+│                  (internal/app)                             │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │              Generator                               │   │
+│  │  - Orchestrates generation workflow                  │   │
+│  │  - Validates configuration                           │   │
+│  │  - Coordinates components                            │   │
+│  └──────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+                            │
+        ┌───────────────────┼───────────────────┐
+        ▼                   ▼                   ▼
+┌──────────────┐   ┌──────────────┐   ┌──────────────┐
+│  Config      │   │  Templates   │   │  File System │
+│  (internal/  │   │  (internal/  │   │  (internal/  │
+│   config)    │   │   templates) │   │   fs)        │
+│              │   │              │   │              │
+│ - Load YAML  │   │ - Render     │   │ - Abstraction│
+│ - Validate   │   │   templates  │   │ - Os/Memory  │
+│ - Defaults   │   │ - Functions  │   │   impl       │
+└──────────────┘   └──────────────┘   └──────────────┘
+        │                   │                   │
+        └───────────────────┴───────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│                   Support Layer                             │
+│  ┌──────────────┐   ┌──────────────┐                        │
+│  │   Logger     │   │   Utilities  │                        │
+│  │ (internal/   │   │ (internal/   │                        │
+│  │  logger)     │   │  util)       │                        │
+│  │              │   │              │                        │
+│  │ - Structured │   │ - Transform  │                        │
+│  │   logging    │   │ - Validation │                        │
+│  └──────────────┘   └──────────────┘                        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Design Principles
+
+### 1. Separation of Concerns
+
+Each package has a single, well-defined responsibility:
+- `cmd/`: CLI interface and command handling
+- `internal/app`: Business logic orchestration
+- `internal/config`: Configuration management
+- `internal/templates`: Template rendering
+- `internal/fs`: File system operations
+- `internal/logger`: Logging infrastructure
+- `internal/util`: Shared utilities
+
+### 2. Dependency Inversion
+
+High-level modules don't depend on low-level modules. Both depend on abstractions:
+
+```go
+// High-level module (Generator) depends on interface
+type Generator struct {
+    fs fs.FileSystem  // Interface, not concrete type
+}
+
+// Low-level module implements interface
+type OsFS struct {}
+func (o *OsFS) WriteFile(path, content string) error { ... }
+
+type MemoryFS struct {}
+func (m *MemoryFS) WriteFile(path, content string) error { ... }
+```
+
+### 3. Testability First
+
+Every component is designed to be testable in isolation:
+- Interfaces allow for mocking
+- Pure functions where possible
+- Dependency injection for external dependencies
+
+### 4. Explicit Error Handling
+
+Errors are never ignored. They're wrapped with context and propagated:
+
+```go
+if err := fs.WriteFile(path, content); err != nil {
+    return fmt.Errorf("failed to write file %s: %w", path, err)
+}
+```
+
+### 5. Configuration Over Code
+
+Behavior is driven by configuration, not hardcoded:
+- Project structure from config
+- Templates from config
+- All options configurable
+
+---
+
+## Architecture Layers
+
+### Layer 1: CLI Layer (cmd/)
+
+**Responsibility**: Handle user interaction and command-line interface.
+
+**Components**:
+- `root.go`: Root command and global flags
+- `init.go`: Initialize new project command
+- `generate.go`: Generate project command
+- `version.go`: Version constant
+- `drift.go`: Parent drift command
+- `drift_version.go`: Version drift detection command
+- `drift_plan.go`: Plan analysis command
+- `drift_all.go`: Combined drift analysis command
+- `errors.go`: Custom exit error handling
+
+**Dependencies**:
+- Cobra framework for CLI
+- Viper for configuration management
+- Application layer (internal/app)
+- Drift layer (internal/drift)
+
+**Key Functions**:
+```go
+// root.go
+const Version = "0.0.1"  // Updated by release-please
+var Commit, Date, BuildTime string  // Build metadata
+func Execute() error
+func initConfig()
+
+// init.go
+func runInit(cmd *cobra.Command, _ []string) error
+
+// generate.go
+func runGenerate(cmd *cobra.Command, args []string) error
+
+// drift_version.go
+func runDriftVersions(cmd *cobra.Command, _ []string) error
+
+// drift_plan.go
+func runDriftPlan(cmd *cobra.Command, _ []string) error
+
+// drift_all.go
+func runDriftAll(cmd *cobra.Command, _ []string) error
+
+// errors.go
+type ExitError struct {
+    Code    int
+    Message string
+}
+func NewExitError(code int, message string) *ExitError
+```
+
+### Layer 2: Application Layer (internal/app)
+
+**Responsibility**: Orchestrate the generation workflow.
+
+**Components**:
+- `generator.go`: Main orchestrator
+
+**API**:
+```go
+// NewGenerator creates a configured generator
+func NewGenerator(
+    cfg *config.Config,
+    filesystem fs.FileSystem,
+    log *logger.Logger,
+) *Generator
+
+// Run executes the complete generation workflow with generation parameters
+func (g *Generator) Run(env, region, appDir string) error
+
+// Private methods for workflow steps
+func (g *Generator) generateFiles(appPath, env, region, appDir string) error
+func (g *Generator) determineOutputPath(tmplPath, appPath string, data *templates.Data) (string, bool)
+func (g *Generator) shouldRegenerateFile(filePath string, data map[string]string) (bool, []string, error)
+```
+
+**Workflow**:
+1. Validate configuration
+2. Create directory structure
+3. Render templates with configuration data
+4. Write rendered files to file system
+5. Log progress and results
+
+### Layer 3: Domain Layer (internal/config, internal/templates, internal/fs)
+
+#### Config Package (internal/config)
+
+**Responsibility**: Load, validate, and provide configuration.
+
+**API**:
+```go
+// Load reads and parses YAML config file
+func Load(path string) (*Config, error)
+
+// Validate checks configuration correctness
+func (c *Config) Validate() error
+
+// GetBackendConfig returns backend-specific config
+func (c *Config) GetBackendConfig() map[string]string
+
+// SetDefaults applies default values
+func (c *Config) SetDefaults()
+```
+
+**Data Structures**:
+```go
+type Config struct {
+    TerraformVersion        string
+    Provider                *Provider
+    Backend                 *Backend
+    Generate                *Generate
+    TemplatesDir            string
+    ExtraTemplateExtensions []string
+}
+
+type Provider struct {
+    AWS *AWSProvider
+}
+
+type AWSProvider struct {
+    Version        string
+    AccountMapping map[string]string
+    DefaultTags    map[string]string
+    Regions        []string
+}
+
+type Backend struct {
+    S3 *S3Backend
+}
+
+type S3Backend struct {
+    BucketName string
+}
+
+type Generate struct {
+    GithubWorkflows *GithubWorkflows
+}
+
+type GithubWorkflows struct {
+    Create       bool
+    NameTemplate string
+    AWSRoleName  string
+    AWSRoleArn   string
+}
+```
+
+#### Templates Package (internal/templates)
+
+**Responsibility**: Render templates with configuration data.
+
+**API**:
+```go
+// NewRenderer creates a template renderer
+func NewRenderer() *Renderer
+
+// Render renders a template with data
+func (r *Renderer) Render(
+    templateName string,
+    data interface{},
+) (string, error)
+
+// RenderToFile renders template directly to file
+func (r *Renderer) RenderToFile(
+    templateName string,
+    data interface{},
+    outputPath string,
+    fs fs.FileSystem,
+) error
+```
+
+**Template Functions**:
+```go
+// Custom functions available in templates
+var funcMap = template.FuncMap{
+    "replace":         strings.ReplaceAll,
+    "toLower":         strings.ToLower,
+    "toUpper":         strings.ToUpper,
+    "trimSpace":       strings.TrimSpace,
+    "trimPrefix":      strings.TrimPrefix,
+    "trimSuffix":      strings.TrimSuffix,
+    "hasPrefix":       strings.HasPrefix,
+    "hasSuffix":       strings.HasSuffix,
+    "contains":        strings.Contains,
+    "join":            strings.Join,
+    "split":           strings.Split,
+    "stripConstraint": stripConstraint,  // Strips version constraint operators like ~>, >=, etc.
+}
+```
+
+#### File System Package (internal/fs)
+
+**Responsibility**: Abstract file system operations for testability.
+
+**Interface**:
+```go
+type FileSystem interface {
+    // WriteFile writes data to a file
+    WriteFile(path string, data []byte, perm os.FileMode) error
+
+    // ReadFile reads the contents of a file
+    ReadFile(path string) ([]byte, error)
+
+    // MkdirAll creates a directory path, creating parent directories as needed
+    MkdirAll(path string, perm os.FileMode) error
+
+    // FileExists checks if a file exists
+    FileExists(path string) bool
+
+    // DirExists checks if a directory exists
+    DirExists(path string) bool
+}
+```
+
+**Implementations**:
+
+1. **OSFileSystem**: Real file system operations
+```go
+type OSFileSystem struct{}
+
+func NewOSFileSystem() *OSFileSystem {
+    return &OSFileSystem{}
+}
+
+func (fs *OSFileSystem) WriteFile(path string, data []byte, perm os.FileMode) error {
+    // Ensure directory exists
+    dir := filepath.Dir(path)
+    if err := os.MkdirAll(dir, 0755); err != nil {
+        return err
+    }
+    return os.WriteFile(path, data, perm)
+}
+
+func (fs *OSFileSystem) DirExists(path string) bool {
+    info, err := os.Stat(path)
+    if os.IsNotExist(err) {
+        return false
+    }
+    return info.IsDir()
+}
+```
+
+2. **MemoryFileSystem**: In-memory file system for testing
+```go
+type MemoryFileSystem struct {
+    mu    sync.RWMutex
+    files map[string][]byte
+    dirs  map[string]bool
+    cwd   string
+}
+
+func NewMemoryFileSystem() *MemoryFileSystem {
+    return &MemoryFileSystem{
+        files: make(map[string][]byte),
+        dirs:  make(map[string]bool),
+        cwd:   "/",
+    }
+}
+
+func (fs *MemoryFileSystem) WriteFile(path string, data []byte, perm os.FileMode) error {
+    fs.mu.Lock()
+    defer fs.mu.Unlock()
+    fs.files[path] = data
+    return nil
+}
+```
+
+### Layer 4: Support Layer (internal/logger, internal/util)
+
+#### Logger Package (internal/logger)
+
+**Responsibility**: Provide structured logging with color output.
+
+**API**:
+```go
+// New creates a new logger instance
+// verbose flag enables DEBUG level and timestamps on all logs
+func New(verbose bool) *Logger
+
+// NewWithWriters creates a logger with custom writers (useful for testing)
+func NewWithWriters(verbose bool, out, errOut io.Writer) *Logger
+
+// Logging methods
+func (l *Logger) Debug(msg string)
+func (l *Logger) Debugf(format string, args ...interface{})
+func (l *Logger) Info(msg string)
+func (l *Logger) Infof(format string, args ...interface{})
+func (l *Logger) Warn(msg string)
+func (l *Logger) Warnf(format string, args ...interface{})
+func (l *Logger) Success(msg string)
+func (l *Logger) Successf(format string, args ...interface{})
+func (l *Logger) Error(msg string)
+func (l *Logger) Errorf(format string, args ...interface{})
+```
+
+**Features**:
+- Multiple log levels (DEBUG, INFO, WARN, SUCCESS, ERROR)
+- Color-coded terminal output
+- Environment variable support (TFSKEL_LOG_LEVEL)
+- Separate stdout and stderr writers
+- Test-friendly with custom writers
+
+#### Drift Package (internal/drift)
+
+**Responsibility**: Detect and analyze Terraform version drift and plan changes.
+
+**Components**:
+- `version_detector.go`: Scans directories for Terraform files and extracts version info
+- `version_analyzer.go`: Compares versions against expected configuration
+- `version_formatter.go`: Formats version drift results (table, JSON, CSV)
+- `plan_parser.go`: Parses Terraform plan JSON files
+- `plan_analyzer.go`: Analyzes plan changes and categorizes severity
+- `plan_formatter.go`: Formats plan analysis results
+- `config.go`: Drift-specific configuration
+- `critical_resources.go`: Defines critical AWS resources for severity analysis
+
+
+**API**:
+```go
+// Version Detection
+func NewDetector(rootPath string) *Detector
+func (d *Detector) ScanDirectory() ([]VersionInfo, error)
+
+// Version Analysis
+func NewVersionAnalyzer(cfg *config.Config) *VersionAnalyzer
+func (a *VersionAnalyzer) Analyze(versionInfo []VersionInfo) *VersionsAnalysis
+
+// Plan Parsing
+func ParsePlanFile(filename string) (*TerraformPlan, error)
+
+// Plan Analysis
+func NewPlanAnalyzer() *PlanAnalyzer
+func NewPlanAnalyzerWithConfig(v *viper.Viper) *PlanAnalyzer
+func (a *PlanAnalyzer) Analyze(plan *TerraformPlan) *PlanAnalysis
+
+// Critical Resources
+func DefaultCriticalResources() []string
+func MergeCriticalResources(defaults, userDefined []string) []string
+
+// Configuration
+func LoadDriftConfig(v *viper.Viper) *DriftConfig
+```
+
+**Features**:
+- HCL parsing for accurate version extraction
+- Multiple output formats (table, JSON, CSV)
+- Critical resource detection for risk assessment
+- Binary plan file detection and helpful error messages
+- Configurable critical resources via .tfskel.yaml
+- Auto-detection of terminal width for table formatting
+
+#### Utilities Package (internal/util)
+
+**Responsibility**: Provide shared utility functions for region transformations.
+
+**API**:
+```go
+// TransformRegionName converts AWS region names to shorter format
+// Examples: eu-central-1 -> euc1, us-west-2 -> usw2, eu-west-1 -> euw1
+func TransformRegionName(region string) string
+```
+
+**Features**:
+- Converts AWS region names to compact alphanumeric format
+- Preserves numbers (availability zones)
+- Takes first letter of direction parts (west -> w, north -> n)
+- Keeps short parts as-is (eu, us, ap)
+
+---
+
+## Data Flow
+
+### Generate Command Flow
+
+```
+User runs: tfskel generate --config tfskel.yaml
+
+1. CLI Layer (cmd/generate.go)
+   ├─ Parse flags
+   ├─ Create logger
+   └─ Load config file
+       │
+       ▼
+2. Config Layer (internal/config)
+   ├─ Parse YAML
+   ├─ Validate structure
+   ├─ Apply defaults
+   └─ Return Config object
+       │
+       ▼
+3. Application Layer (internal/app)
+   ├─ Create Generator
+   ├─ Validate config
+   ├─ Create directories
+   │   └─> FileSystem: MkdirAll()
+   ├─ Render templates
+   │   └─> Templates: Render()
+   └─ Write files
+       └─> FileSystem: WriteFile()
+           │
+           ▼
+4. File System Layer (internal/fs)
+   ├─ Create directories on disk
+   └─ Write files to disk
+       │
+       ▼
+5. Result
+   └─ Generated project structure
+```
+
+### Configuration Loading Flow
+
+```
+tfskel.yaml
+    │
+    ▼
+config.Load(path)
+    │
+    ├─ os.ReadFile()
+    ├─ yaml.Unmarshal()
+    ├─ SetDefaults()
+    └─ Validate()
+        │
+        ├─ Check required fields
+        ├─ Validate backend config
+        ├─ Validate providers
+        └─ Check paths
+            │
+            ▼
+        Config object
+```
+
+### Template Rendering Flow
+
+```
+Template Name + Data
+    │
+    ▼
+Renderer.Render()
+    │
+    ├─ Load embedded template
+    ├─ Parse template
+    ├─ Add custom functions
+    └─ Execute template
+        │
+        ├─ Access data fields
+        ├─ Apply functions
+        └─ Iterate collections
+            │
+            ▼
+        Rendered content
+```
+
+---
+
+## Design Patterns
+
+### 1. Strategy Pattern (File System)
+
+Different file system implementations (OS vs Memory) for different contexts:
+
+```go
+type FileSystem interface {
+    WriteFile(path, content string) error
+}
+
+// Production
+fs := &fs.OsFS{}
+
+// Testing
+fs := &fs.MemoryFS{}
+
+// Both work with same interface
+generator := app.NewGenerator(config, fs, logger)
+```
+
+### 2. Template Method Pattern (Generator)
+
+Generator orchestrates a fixed workflow, with customizable steps:
+
+```go
+func (g *Generator) Run() error {
+    // Fixed workflow
+    if err := g.validateConfig(); err != nil {
+        return err
+    }
+
+    if err := g.createDirectories(); err != nil {
+        return err
+    }
+
+    files, err := g.renderTemplates()
+    if err != nil {
+        return err
+    }
+
+    return g.writeFiles(files)
+}
+```
+
+### 3. Builder Pattern (Configuration)
+
+Configuration is built step by step with validation:
+
+```go
+config := &Config{}
+config.SetDefaults()
+config.Validate()
+config.ApplyOverrides(flags)
+```
+
+### 4. Dependency Injection
+
+Dependencies are injected, not created internally:
+
+```go
+// Bad: Creates dependencies internally
+func NewGenerator(cfg *Config) *Generator {
+    fs := &fs.OsFS{}  // Hardcoded dependency
+    log := logger.New("INFO")
+    return &Generator{config: cfg, fs: fs, log: log}
+}
+
+// Good: Accepts dependencies
+func NewGenerator(
+    cfg *Config,
+    filesystem fs.FileSystem,  // Injected
+    log *logger.Logger,        // Injected
+) *Generator {
+    return &Generator{
+        config: cfg,
+        fs:     filesystem,
+        log:    log,
+    }
+}
+```
+
+### 5. Facade Pattern (Generator)
+
+Generator provides a simple interface to a complex subsystem:
+
+```go
+// Simple interface
+generator := app.NewGenerator(config, fs, logger)
+err := generator.Run()
+
+// Hides complexity of:
+// - Config validation
+// - Directory creation
+// - Template rendering
+// - File writing
+// - Error handling
+```
+
+---
+
+## Extension Points
+
+### 1. Custom Templates
+
+Users can override default templates by:
+1. Creating `templates/` directory
+2. Adding `.tmpl` files with same names
+3. Templates are loaded with priority: user templates > embedded templates
+
+### 2. Custom Backends
+
+Add new backend support by:
+1. Adding backend type to config validation
+2. Creating backend-specific template
+3. Updating backend config validation
+
+```go
+// In config.go
+func (b *BackendConfig) Validate() error {
+    switch b.Type {
+    case "s3":
+        return b.validateS3()
+    case "azurerm":
+        return b.validateAzure()
+    case "custom":  // New backend
+        return b.validateCustom()
+    default:
+        return fmt.Errorf("unsupported backend: %s", b.Type)
+    }
+}
+```
+
+### 3. Custom Template Functions
+
+Add new template functions:
+
+```go
+// In renderer.go
+var templateFuncs = template.FuncMap{
+    "snakeCase":  util.ToSnakeCase,
+    "customFunc": myCustomFunction,  // New function
+}
+```
+
+### 4. Custom Workflows
+
+Extend generator workflow:
+
+```go
+// In generator.go
+func (g *Generator) Run() error {
+    // ... existing steps ...
+
+    if g.config.CustomWorkflow {
+        if err := g.runCustomWorkflow(); err != nil {
+            return err
+        }
+    }
+
+    return nil
+}
+```
+
+---
+
+## Testing Strategy
+
+### Unit Tests
+
+Each package has unit tests:
+
+```
+internal/
+├── config/
+│   ├── config.go
+│   └── config_test.go
+├── templates/
+│   ├── renderer.go
+│   └── renderer_test.go
+└── util/
+    ├── transform.go
+    └── transform_test.go
+```
+
+**Test Pattern**:
+```go
+func TestToSnakeCase(t *testing.T) {
+    tests := []struct {
+        name     string
+        input    string
+        expected string
+    }{
+        {"PascalCase", "MyProject", "my_project"},
+        {"camelCase", "myProject", "my_project"},
+        {"with spaces", "My Project", "my_project"},
+    }
+
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            result := ToSnakeCase(tt.input)
+            assert.Equal(t, tt.expected, result)
+        })
+    }
+}
+```
+
+### Integration Tests
+
+Test component integration using MemoryFS:
+
+```go
+func TestGeneratorIntegration(t *testing.T) {
+    // Arrange
+    cfg := &config.Config{
+        Project: config.ProjectConfig{Name: "test"},
+    }
+    fs := &fs.MemoryFS{}
+    log := logger.NewLogger("ERROR")
+
+    generator := app.NewGenerator(cfg, fs, log)
+
+    // Act
+    err := generator.Run()
+
+    // Assert
+    assert.NoError(t, err)
+    assert.True(t, fs.FileExists("main.tf"))
+}
+```
+
+### End-to-End Tests
+
+Test complete CLI commands:
+
+```go
+func TestGenerateCommand(t *testing.T) {
+    // Create temp directory
+    tmpDir := t.TempDir()
+
+    // Create config file
+    configPath := filepath.Join(tmpDir, "tfskel.yaml")
+    writeConfig(configPath, testConfig)
+
+    // Run command
+    cmd := exec.Command("tfskel", "generate", "--config", configPath)
+    output, err := cmd.CombinedOutput()
+
+    // Assert
+    assert.NoError(t, err)
+    assert.FileExists(t, filepath.Join(tmpDir, "main.tf"))
+}
+```
+
+### Test Coverage
+
+Maintain minimum 80% test coverage:
+
+```bash
+go test -coverprofile=coverage.out ./...
+go tool cover -html=coverage.out
+```
+
+---
+
+## Performance Considerations
+
+### 1. Template Caching
+
+Templates are parsed once and cached:
+
+```go
+type Renderer struct {
+    templates map[string]*template.Template
+}
+
+func (r *Renderer) Render(name string, data interface{}) (string, error) {
+    // Check cache first
+    if tmpl, ok := r.templates[name]; ok {
+        return r.execute(tmpl, data)
+    }
+
+    // Parse and cache
+    tmpl, err := r.parseTemplate(name)
+    if err != nil {
+        return "", err
+    }
+    r.templates[name] = tmpl
+
+    return r.execute(tmpl, data)
+}
+```
+
+### 2. Concurrent File Writing
+
+When writing many files, use goroutines:
+
+```go
+func (g *Generator) writeFiles(files map[string]string) error {
+    errCh := make(chan error, len(files))
+    var wg sync.WaitGroup
+
+    for path, content := range files {
+        wg.Add(1)
+        go func(p, c string) {
+            defer wg.Done()
+            if err := g.fs.WriteFile(p, c); err != nil {
+                errCh <- err
+            }
+        }(path, content)
+    }
+
+    wg.Wait()
+    close(errCh)
+
+    // Check for errors
+    for err := range errCh {
+        if err != nil {
+            return err
+        }
+    }
+
+    return nil
+}
+```
+
+### 3. Memory Efficiency
+
+Use streams for large files:
+
+```go
+func (r *Renderer) RenderToFile(
+    name string,
+    data interface{},
+    output string,
+    fs fs.FileSystem,
+) error {
+    var buf bytes.Buffer
+
+    if err := r.execute(tmpl, data, &buf); err != nil {
+        return err
+    }
+
+    return fs.WriteFile(output, buf.String())
+}
+```
+
+---
+
+## Security Considerations
+
+### 1. Path Validation
+
+Always validate and clean file paths:
+
+```go
+func (g *Generator) WriteFile(path, content string) error {
+    // Clean path
+    cleanPath := filepath.Clean(path)
+
+    // Ensure within project directory
+    if !strings.HasPrefix(cleanPath, g.config.BaseDir) {
+        return fmt.Errorf("path outside project: %s", path)
+    }
+
+    return g.fs.WriteFile(cleanPath, content)
+}
+```
+
+### 2. Input Sanitization
+
+Sanitize user input before using in templates:
+
+```go
+func (c *Config) Validate() error {
+    // Validate project name
+    if !regexp.MustCompile(`^[a-zA-Z0-9_-]+$`).MatchString(c.Project.Name) {
+        return fmt.Errorf("invalid project name: %s", c.Project.Name)
+    }
+
+    return nil
+}
+```
+
+### 3. Secret Management
+
+Never log or display sensitive data:
+
+```go
+func (g *Generator) Run() error {
+    // Mask sensitive backend config
+    maskedConfig := g.config.Backend.Mask()
+    g.log.Info("Using backend", "type", g.config.Backend.Type, "config", maskedConfig)
+}
+```
+
+---
+
+## Future Enhancements
+
+### 1. Plugin System
+
+Allow users to create custom plugins:
+
+```go
+type Plugin interface {
+    Name() string
+    Execute(ctx context.Context, cfg *Config) error
+}
+
+func (g *Generator) RunPlugins() error {
+    for _, plugin := range g.plugins {
+        if err := plugin.Execute(g.ctx, g.config); err != nil {
+            return err
+        }
+    }
+    return nil
+}
+```
+
+### 2. Remote Templates
+
+Support fetching templates from URLs:
+
+```go
+type TemplateSource interface {
+    Fetch() ([]byte, error)
+}
+
+type HTTPSource struct {
+    URL string
+}
+
+type GitSource struct {
+    Repo   string
+    Branch string
+}
+```
+
+### 3. Interactive Mode
+
+Add TUI for configuration:
+
+```go
+func (c *InitCommand) RunInteractive() error {
+    // Use bubbletea or similar for TUI
+    model := NewModel()
+    program := tea.NewProgram(model)
+    return program.Start()
+}
+```
+
+---
+
+## Conclusion
+
+tfskel's architecture prioritizes:
+- **Modularity**: Clear separation of concerns
+- **Testability**: Interfaces and dependency injection
+- **Extensibility**: Multiple extension points
+- **Maintainability**: Clear patterns and documentation
+
+This design allows the project to grow while maintaining code quality and developer productivity.

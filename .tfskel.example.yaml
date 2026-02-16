@@ -1,0 +1,66 @@
+# tfskel configuration file
+# For more information, visit: https://github.com/ishuar/tfskel
+
+# Terraform version constraint, Required with default embedded templates
+terraform_version: terraform-version-constraint # e.g. ~> 1.13
+
+# Optional: Custom templates directory
+templates_dir: /path/to/custom/templates
+
+# Optional: Additional template file extensions to process
+# by default .tf.tmpl templates are processed only
+extra_template_extensions: [] # e.g. ["tf.tmpl", "md.tmpl"]
+
+# AWS provider and backend configuration
+backend:
+  s3:
+    # Required with default embedded templates:
+    # Update with your globally unique S3 bucket name for Terraform state storage
+    bucket_name: CHANGE_ME_WITH_YOUR_GLOBALLY_UNIQUE_S3_BUCKET_NAME
+provider:
+  aws:
+    version: aws-provider-version-constraint # e.g. ~> 6.0
+    # Optional: Add a default tag to all resources
+    default_tags: {}
+      # Example:
+      # managedBy: tfskel
+      # environment: "{{ .Env }}"
+    # Required: Update with the AWS regions where you deploy resources
+    regions: []
+      # Example:
+      # - eu-central-1
+    # Required: Update with your actual AWS account IDs for each environment
+    account_mapping: {}
+      # Example:
+      # dev: "123456789012"
+      # prd: "210987654321"
+      # stg: "109876543210"
+
+# Critical resources for drift analysis
+# These resources will be added to the default AWS critical resources list
+# Updates to these resources will be flagged as HIGH severity in drift analysis
+# Optional: Customize this list based on the resources that are most critical to your infrastructure
+critical_resources: []
+  # Example: Add compute resources as critical
+  # - aws_lambda_function
+  # - aws_ecs_cluster
+  # - aws_eks_cluster
+  # Example: Add API Gateway as critical
+  # - aws_api_gateway_rest_api
+  # - aws_apigatewayv2_api
+  # Example: Add CloudFront as critical
+  # - aws_cloudfront_distribution
+
+# Top N count for summary tables (optional, default: 10)
+# Controls how many items to show in "Changes by Resource Type" and "Changes by Module" tables
+# Set to 0 to show all items (not recommended for large projects)
+top_n_count: 10
+
+# Generate command configuration
+generate:
+  # Optional: GitHub Actions workflow generation configuration
+  github_workflows:
+    create: false  # Enable GitHub Actions workflow generation
+    name_template: "{{.AppDir}}-{{.Env}}-{{.ShortRegion}}"  # Workflow name template using placeholders:
+    aws_role_arn: "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"  # Full ARN (takes priority, optional)
+    aws_role_name: "GitHubActionsRole"  # IAM role for workflows (optional)

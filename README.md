@@ -16,7 +16,7 @@ _Opinionated Terraform scaffolding for teams. No vendor lock-in, just better pro
 ## What It Does
 
 - **Scaffolds production-ready Terraform monorepos** organized by environment (dev/stg/prd) and region.
-- **Generates AWS backend & provider configs** using reusable Go templates with smart defaults.
+- **Generates AWS backend, provider configs** & terraform configs using reusable Go templates.
 - **Detects version drift** across Terraform and provider versions in entire repositories—catch inconsistencies before they cause production issues.
 - **Analyzes Terraform plans** to surface resource changes, impact severity, and compliance risks at a glance.
 - **Safe and idempotent** creates new files without overwriting existing infrastructure code.
@@ -55,27 +55,8 @@ Make sure `$HOME/go/bin` is in your PATH.
 
 Create a `.tfskel.yaml` in your project root to customize defaults:
 
-```yaml
-terraform_version: ~> 1.13
-templates_dir: "/path/to/your/templates-directory" # Custom templates_dir
-extra_template_extensions: ["md.tmpl"] # by default .tf.tmpl templates are processed only
-backend:
-  s3:
-    bucket_name: CHANGE_ME_WITH_YOUR_GLOBALLY_UNIQUE_S3_BUCKET_NAME
-provider:
-  aws:
-    version: ~> 6.0
-    default_tags:
-      - generated_by: tfskel
-    regions:
-      - eu-central-1
-    account_mapping:
-      dev: "123456789012"
-      prd: "210987654321"
-      stg: "109876543210"
-```
 > [!TIP]
-> Use [.tfskel.yaml.example](.tfskel.yaml.example) for reference.
+> Use [.tfskel.example.yaml.example](.tfskel.example.yaml) for reference.
 > Configuration precedence: CLI flags → config file → defaults
 
 ## Quick Start

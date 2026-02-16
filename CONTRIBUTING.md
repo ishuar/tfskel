@@ -113,14 +113,26 @@ make help           # Show all available commands
    git commit -m "feat: add new feature"
    ```
 
-   We use [Conventional Commits](https://www.conventionalcommits.org/):
-   - `feat:` - New feature
-   - `fix:` - Bug fix
+   We use [Conventional Commits](https://www.conventionalcommits.org/) for automated changelog generation and releases:
+   - `feat:` - New feature (bumps minor version)
+   - `fix:` - Bug fix (bumps patch version)
+   - `perf:` - Performance improvement (bumps patch version)
    - `docs:` - Documentation changes
    - `test:` - Test additions or changes
-   - `refactor:` - Code refactoring
+   - `refactor:` - Code refactoring (bumps patch version)
+   - `build:` - Build system changes
+   - `ci:` - CI/CD changes
    - `chore:` - Maintenance tasks
    - `style:` - Code style changes
+
+   For breaking changes, add `!` after the type or include `BREAKING CHANGE:` in the footer:
+   ```bash
+   git commit -m "feat!: redesign CLI interface
+
+   BREAKING CHANGE: The --output flag has been renamed to --format"
+   ```
+
+   **See [Release System](docs/release-system.md) for complete details on automated releases.**
 
 5. **Push to your fork**
    ```bash
