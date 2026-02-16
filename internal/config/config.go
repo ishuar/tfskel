@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/ishuar/tfskel/internal/logger"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -70,6 +71,9 @@ func Load(cmd *cobra.Command, v *viper.Viper) (*Config, error) {
 	if err := v.Unmarshal(cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
+
+	// Check for deprecated root-level configuration
+	checkDeprecatedConfig(v)
 
 	// Override with command line flags if provided
 	applyFlagOverrides(cmd, cfg)
@@ -200,7 +204,9 @@ func normalizeTemplateExtensions(cfg *Config) {
 	for ext := range extMap {
 		cfg.Generate.ExtraTemplateExtensions = append(cfg.Generate.ExtraTemplateExtensions, ext)
 	}
-	// Sort for deterministic ordering
+	// Sort for deterministic ordering (map iteration is random in Go)
+	// This ensures consistent output across runs and doesn't affect processing
+	// since template extensions are matched by pattern, not order
 	slices.Sort(cfg.Generate.ExtraTemplateExtensions)
 }
 
@@ -234,4 +240,25 @@ func (c *Config) GetRegions() []string {
 		return c.Provider.AWS.Regions
 	}
 	return []string{}
+}
+
+// checkDeprecatedConfig checks for deprecated root-level configuration and logs warnings
+func checkDeprecatedConfig(v *viper.Viper) {
+	// Create a minimal logger for warnings (non-verbose mode)
+	log := logger.New(false)
+
+	// Check for old root-level templates_dir (moved to generate.templates_dir)
+	if v.IsSet("templates_dir") && !v.IsSet("generate.templates_dir") {
+		log.Warnf("'templates_dir' is deprecated at root level, use 'generate.templates_dir' instead (current value: %s)",
+			v.GetString("templates_dir"))
+		log.Warn("This configuration will be ignored. Update your .tfskel.yaml to use the new structure.")
+		log.Warn("See: https://github.com/ishuar/tfskel/blob/main/docs/tfskel-book.md#configuration")
+	}
+
+	// Check for old root-level extra_template_extensions (moved to generate.extra_template_extensions)
+	if v.IsSet("extra_template_extensions") && !v.IsSet("generate.extra_template_extensions") {
+		log.Warn("'extra_template_extensions' is deprecated at root level, use 'generate.extra_template_extensions' instead")
+		log.Warn("This configuration will be ignored. Update your .tfskel.yaml to use the new structure.")
+		log.Warn("See: https://github.com/ishuar/tfskel/blob/main/docs/tfskel-book.md#configuration")
+	}
 }

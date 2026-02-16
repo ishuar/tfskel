@@ -58,6 +58,7 @@ generate:
   templates_dir: /path/to/custom/templates
   # Optional: Additional template file extensions to process.
   # by default .tf.tmpl templates are processed only
+  # NOTE: 'tf.tmpl' is always included, even if not listed here
   extra_template_extensions: [] # e.g. ["tf.tmpl", "md.tmpl"]
   # Optional: GitHub Actions workflow generation configuration
   github_workflows:
