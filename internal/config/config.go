@@ -48,17 +48,17 @@ type GithubWorkflows struct {
 
 // Generate holds generate command specific configuration
 type Generate struct {
-	GithubWorkflows *GithubWorkflows `mapstructure:"github_workflows"`
+	GithubWorkflows         *GithubWorkflows `mapstructure:"github_workflows"`
+	TemplatesDir            string           `mapstructure:"templates_dir"`
+	ExtraTemplateExtensions []string         `mapstructure:"extra_template_extensions"`
 }
 
 // Config holds the application configuration
 type Config struct {
-	TerraformVersion        string    `mapstructure:"terraform_version"`
-	Provider                *Provider `mapstructure:"provider"`
-	Backend                 *Backend  `mapstructure:"backend"`
-	Generate                *Generate `mapstructure:"generate"`
-	TemplatesDir            string    `mapstructure:"templates_dir"`
-	ExtraTemplateExtensions []string  `mapstructure:"extra_template_extensions"`
+	TerraformVersion string    `mapstructure:"terraform_version"`
+	Provider         *Provider `mapstructure:"provider"`
+	Backend          *Backend  `mapstructure:"backend"`
+	Generate         *Generate `mapstructure:"generate"`
 }
 
 // Load reads configuration from viper and command line flags
@@ -96,7 +96,10 @@ func applyTemplatesDirOverride(cmd *cobra.Command, cfg *Config) {
 	}
 	templatesDir, err := cmd.Flags().GetString("templates-dir")
 	if err == nil {
-		cfg.TemplatesDir = templatesDir
+		if cfg.Generate == nil {
+			cfg.Generate = &Generate{}
+		}
+		cfg.Generate.TemplatesDir = templatesDir
 	}
 }
 
@@ -123,7 +126,10 @@ func applyExtraTemplateExtensionsOverride(cmd *cobra.Command, cfg *Config) {
 	}
 	extraExts, err := cmd.Flags().GetStringSlice("extra-template-extensions")
 	if err == nil {
-		cfg.ExtraTemplateExtensions = extraExts
+		if cfg.Generate == nil {
+			cfg.Generate = &Generate{}
+		}
+		cfg.Generate.ExtraTemplateExtensions = extraExts
 	}
 }
 
@@ -171,23 +177,27 @@ func setDefaults(cfg *Config) {
 
 // normalizeTemplateExtensions ensures tf.tmpl is always present and deduplicates extensions
 func normalizeTemplateExtensions(cfg *Config) {
-	if len(cfg.ExtraTemplateExtensions) == 0 {
-		cfg.ExtraTemplateExtensions = []string{"tf.tmpl"}
+	if cfg.Generate == nil {
+		cfg.Generate = &Generate{}
+	}
+
+	if len(cfg.Generate.ExtraTemplateExtensions) == 0 {
+		cfg.Generate.ExtraTemplateExtensions = []string{"tf.tmpl"}
 		return
 	}
 
 	// Deduplicate and ensure tf.tmpl is always present
 	extMap := make(map[string]bool)
 	extMap["tf.tmpl"] = true // Always include tf.tmpl
-	for _, ext := range cfg.ExtraTemplateExtensions {
+	for _, ext := range cfg.Generate.ExtraTemplateExtensions {
 		if ext != "" {
 			extMap[ext] = true
 		}
 	}
 	// Convert back to slice
-	cfg.ExtraTemplateExtensions = make([]string, 0, len(extMap))
+	cfg.Generate.ExtraTemplateExtensions = make([]string, 0, len(extMap))
 	for ext := range extMap {
-		cfg.ExtraTemplateExtensions = append(cfg.ExtraTemplateExtensions, ext)
+		cfg.Generate.ExtraTemplateExtensions = append(cfg.Generate.ExtraTemplateExtensions, ext)
 	}
 }
 

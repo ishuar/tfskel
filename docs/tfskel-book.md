@@ -209,8 +209,8 @@ Defines AWS provider configuration:
 
 #### Custom Templates
 
-- `templates_dir`: Path to custom template directory
-- `extra_template_extensions`: File extensions to process (default: ["tf.tmpl"])
+- `generate.templates_dir`: Path to custom template directory
+- `generate.extra_template_extensions`: File extensions to process (default: ["tf.tmpl"])
 - Custom templates override embedded defaults
 - Useful for adding main.tf, variables.tf, outputs.tf, etc.
 

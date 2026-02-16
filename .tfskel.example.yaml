@@ -4,13 +4,6 @@
 # Terraform version constraint, Required with default embedded templates
 terraform_version: terraform-version-constraint # e.g. ~> 1.13
 
-# Optional: Custom templates directory
-templates_dir: /path/to/custom/templates
-
-# Optional: Additional template file extensions to process
-# by default .tf.tmpl templates are processed only
-extra_template_extensions: [] # e.g. ["tf.tmpl", "md.tmpl"]
-
 # AWS provider and backend configuration
 backend:
   s3:
@@ -58,6 +51,11 @@ top_n_count: 10
 
 # Generate command configuration
 generate:
+  # Optional: Custom templates directory
+  templates_dir: /path/to/custom/templates
+  # Optional: Additional template file extensions to process
+  # by default .tf.tmpl templates are processed only
+  extra_template_extensions: [] # e.g. ["tf.tmpl", "md.tmpl"]
   # Optional: GitHub Actions workflow generation configuration
   github_workflows:
     create: false  # Enable GitHub Actions workflow generation
