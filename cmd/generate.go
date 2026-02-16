@@ -3,7 +3,6 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"os"
 
 	"github.com/ishuar/tfskel/internal/app"
 	"github.com/ishuar/tfskel/internal/config"
@@ -84,19 +83,15 @@ func init() {
 	generateCmd.Flags().BoolVar(&createGithubWorkflows, "create-github-workflows", false, "create GitHub workflow files from default templates (disabled by default)")
 
 	// Bind flags to viper for config file support (only for optional flags that can come from config)
-	// These bindings are non-critical, errors are logged but not fatal
-	if err := viper.BindPFlag("generate.templates_dir", generateCmd.Flags().Lookup("templates-dir")); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: failed to bind templates_dir flag: %v\n", err)
-	}
-	if err := viper.BindPFlag("backend.s3.bucket_name", generateCmd.Flags().Lookup("s3-bucket-name")); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: failed to bind s3-bucket-name flag: %v\n", err)
-	}
-	if err := viper.BindPFlag("generate.extra_template_extensions", generateCmd.Flags().Lookup("extra-template-extensions")); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: failed to bind extra-template-extensions flag: %v\n", err)
-	}
-	if err := viper.BindPFlag("generate.github_workflows.create", generateCmd.Flags().Lookup("create-github-workflows")); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: failed to bind create-github-workflows flag: %v\n", err)
-	}
+	// Binding errors are extremely rare and non-critical - if binding fails, config just won't be set from flag
+	//nolint:errcheck // BindPFlag errors are non-critical; flag values simply won't override config
+	_ = viper.BindPFlag("generate.templates_dir", generateCmd.Flags().Lookup("templates-dir"))
+	//nolint:errcheck // BindPFlag errors are non-critical; flag values simply won't override config
+	_ = viper.BindPFlag("backend.s3.bucket_name", generateCmd.Flags().Lookup("s3-bucket-name"))
+	//nolint:errcheck // BindPFlag errors are non-critical; flag values simply won't override config
+	_ = viper.BindPFlag("generate.extra_template_extensions", generateCmd.Flags().Lookup("extra-template-extensions"))
+	//nolint:errcheck // BindPFlag errors are non-critical; flag values simply won't override config
+	_ = viper.BindPFlag("generate.github_workflows.create", generateCmd.Flags().Lookup("create-github-workflows"))
 }
 
 func runGenerate(cmd *cobra.Command, args []string) error {
