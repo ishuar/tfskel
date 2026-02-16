@@ -85,13 +85,13 @@ func init() {
 
 	// Bind flags to viper for config file support (only for optional flags that can come from config)
 	// These bindings are non-critical, errors are logged but not fatal
-	if err := viper.BindPFlag("templates_dir", generateCmd.Flags().Lookup("templates-dir")); err != nil {
+	if err := viper.BindPFlag("generate.templates_dir", generateCmd.Flags().Lookup("templates-dir")); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: failed to bind templates_dir flag: %v\n", err)
 	}
 	if err := viper.BindPFlag("backend.s3.bucket_name", generateCmd.Flags().Lookup("s3-bucket-name")); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: failed to bind s3-bucket-name flag: %v\n", err)
 	}
-	if err := viper.BindPFlag("extra_template_extensions", generateCmd.Flags().Lookup("extra-template-extensions")); err != nil {
+	if err := viper.BindPFlag("generate.extra_template_extensions", generateCmd.Flags().Lookup("extra-template-extensions")); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: failed to bind extra-template-extensions flag: %v\n", err)
 	}
 	if err := viper.BindPFlag("generate.github_workflows.create", generateCmd.Flags().Lookup("create-github-workflows")); err != nil {
