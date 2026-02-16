@@ -73,6 +73,7 @@ type Data struct {
 	TerraformVersion   string
 	AWSProviderVersion string
 	DefaultTags        map[string]string
+	DefaultTagsJSON    string // JSON string of DefaultTags for metadata comments
 	AWSRoleArn         string // AWS role ARN for terraform workflows
 	WorkflowFileName   string // Generated workflow filename for self-reference in triggers
 }
