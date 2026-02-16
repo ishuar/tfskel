@@ -378,7 +378,7 @@ func TestNormalizeTemplateExtensions(t *testing.T) {
 					ExtraTemplateExtensions: []string{"yaml.tmpl", "md.tmpl"},
 				},
 			},
-			expected: []string{"tf.tmpl", "yaml.tmpl", "md.tmpl"},
+			expected: []string{"md.tmpl", "tf.tmpl", "yaml.tmpl"},
 		},
 		{
 			name: "tf.tmpl is not duplicated",
