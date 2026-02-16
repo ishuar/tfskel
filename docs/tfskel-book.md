@@ -205,7 +205,7 @@ Defines AWS provider configuration:
 - `provider.aws.version`: AWS provider version constraint (default: ~> 6.0)
 - `provider.aws.regions`: List of AWS regions for the project
 - `provider.aws.account_mapping`: Maps environment names to AWS account IDs
-- `provider.aws.default_tags`: Default tags applied to all AWS resources
+- `provider.aws.default_tags`: Default tags applied to all AWS resources. Tag keys are automatically normalized to lowercase for Terraform compatibility.
 
 #### Custom Templates
 
