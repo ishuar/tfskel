@@ -175,6 +175,9 @@ make check  # Run all quality checks
 
 MIT License - see [LICENSE](LICENSE) file for details.
 
+> [!CAUTION] DISCLAIMER
+> This project was developed with the assistance of AI tools. Please review the code carefully and perform your own due diligence.
+
 [go-version-img]: https://img.shields.io/badge/Go-1.24%2B-blue.svg
 [go-version]: https://golang.org
 [test]: https://github.com/ishuar/tfskel/actions/workflows/test.yaml
