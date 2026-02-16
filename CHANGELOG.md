@@ -28,3 +28,20 @@
 
 [Unreleased]: https://github.com/ishuar/tfskel/compare/v0.0.1...HEAD
 [0.0.1]: https://github.com/ishuar/tfskel/releases/tag/v0.0.1
+
+
+
+## [Unreleased]
+
+### Features
+
+* CLI framework with init, generate, and drift commands for Terraform project management
+  * **init**: Project initialization with pre-commit hooks, TFLint, Trivy, and terraform .gitignore configuration
+  * **drift**: Drift detection for Terraform and provider version inconsistencies
+  * **drift**: Multiple output formats (table, JSON, CSV) with color-coded status and terminal-aware formatting
+  * **generate**: Rich template function library for string manipulation and version utilities
+  * **generate**: Template-driven file generation with embedded templates and custom template override support
+  * **generate**: AWS provider `default_tags` management with metadata-based change detection and idempotent operations
+  * **generate**: Multi-region AWS support with environment-specific account mapping
+* YAML-based configuration (.tfskel.yaml) with CLI flags, config file, and interactive prompt precedence
+* Structured logging with multiple levels and verbose mode support
