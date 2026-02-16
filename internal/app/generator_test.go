@@ -547,7 +547,7 @@ provider "aws" {
 		needsUpdate, changes, err := gen.shouldUpdateVersions("versions.tf", data)
 		assert.NoError(t, err)
 		assert.True(t, needsUpdate)
-		assert.Contains(t, changes[0], "team added: platform")
+		assert.Contains(t, changes[0], "added tag - team: platform")
 	})
 
 	t.Run("returns false when all values match", func(t *testing.T) {
@@ -1055,21 +1055,21 @@ func TestCompareTags(t *testing.T) {
 			fileTags:      map[string]string{"managed_by": "terraform"},
 			configTags:    map[string]string{"managed_by": "terraform", "team": "platform"},
 			expectChanges: true,
-			expectedMsgs:  []string{"team added: platform"},
+			expectedMsgs:  []string{"added tag - team: platform"},
 		},
 		{
 			name:          "tag removed",
 			fileTags:      map[string]string{"managed_by": "terraform", "team": "platform"},
 			configTags:    map[string]string{"managed_by": "terraform"},
 			expectChanges: true,
-			expectedMsgs:  []string{"team removed (was: platform)"},
+			expectedMsgs:  []string{"removed tag - team (was: platform)"},
 		},
 		{
 			name:          "tag value changed",
 			fileTags:      map[string]string{"managed_by": "terraform", "team": "platform"},
 			configTags:    map[string]string{"managed_by": "terraform", "team": "devops"},
 			expectChanges: true,
-			expectedMsgs:  []string{"team changed: platform -> devops"},
+			expectedMsgs:  []string{"changed tag - team: platform -> devops"},
 		},
 	}
 

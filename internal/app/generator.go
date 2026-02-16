@@ -41,6 +41,15 @@ func extractMetadata(content, metadataKey string) (map[string]string, error) {
 		return nil, fmt.Errorf("failed to parse metadata JSON: %w", err)
 	}
 
+	// Normalize keys to lowercase for tags metadata (Terraform convention)
+	if metadataKey == "tags" {
+		normalized := make(map[string]string, len(metadata))
+		for k, v := range metadata {
+			normalized[strings.ToLower(k)] = v
+		}
+		return normalized, nil
+	}
+
 	return metadata, nil
 }
 
@@ -83,8 +92,27 @@ func compareMetadata(fileMetadata, configMetadata map[string]string) (bool, []st
 }
 
 // compareTags returns true if tag maps differ, along with list of changes
+// Uses tag-specific messaging format for better UX
 func compareTags(fileTags, configTags map[string]string) (bool, []string) {
-	return compareMetadata(fileTags, configTags)
+	var changes []string
+
+	// Check for added or changed tags
+	for key, configValue := range configTags {
+		if fileValue, exists := fileTags[key]; !exists {
+			changes = append(changes, fmt.Sprintf("added tag - %s: %s", key, configValue))
+		} else if fileValue != configValue {
+			changes = append(changes, fmt.Sprintf("changed tag - %s: %s -> %s", key, fileValue, configValue))
+		}
+	}
+
+	// Check for removed tags
+	for key, fileValue := range fileTags {
+		if _, exists := configTags[key]; !exists {
+			changes = append(changes, fmt.Sprintf("removed tag - %s (was: %s)", key, fileValue))
+		}
+	}
+
+	return len(changes) > 0, changes
 }
 
 // Generator orchestrates the Terraform project generation
@@ -347,8 +375,21 @@ func (g *Generator) prepareTemplateData(env, region, appDir string) (*templates.
 			awsProviderVersion = g.config.Provider.AWS.Version
 		}
 		if g.config.Provider.AWS.DefaultTags != nil {
-			defaultTags = g.config.Provider.AWS.DefaultTags
+			// Normalize tag keys to lowercase for Terraform compatibility
+			for k, v := range g.config.Provider.AWS.DefaultTags {
+				defaultTags[strings.ToLower(k)] = v
+			}
 		}
+	}
+
+	// Marshal defaultTags to JSON for metadata comment
+	defaultTagsJSON := "{}"
+	if len(defaultTags) > 0 {
+		tagsBytes, err := json.Marshal(defaultTags)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal default_tags to JSON: %w", err)
+		}
+		defaultTagsJSON = string(tagsBytes)
 	}
 
 	if g.config.Backend != nil && g.config.Backend.S3 != nil && g.config.Backend.S3.BucketName != "" {
@@ -369,6 +410,7 @@ func (g *Generator) prepareTemplateData(env, region, appDir string) (*templates.
 		TerraformVersion:   g.config.TerraformVersion,
 		AWSProviderVersion: awsProviderVersion,
 		DefaultTags:        defaultTags,
+		DefaultTagsJSON:    defaultTagsJSON,
 		AWSRoleArn:         awsRoleArn,
 	}
 
@@ -613,12 +655,22 @@ func (g *Generator) shouldUpdateVersions(versionsPath string, data *templates.Da
 	// Extract and compare tags
 	fileTags, err := extractMetadata(contentStr, "tags")
 	if err != nil {
-		// No tags metadata found, check if config has tags
+		// Tags metadata not found or parsing failed
+		// Treat as empty tags and compare with config to show specific changes
 		if len(data.DefaultTags) > 0 {
-			allChanges = append(allChanges, "default_tags added")
+			// Config has tags but file doesn't (or has malformed tags)
+			// Show specific tags being added
+			_, tagChanges := compareTags(make(map[string]string), data.DefaultTags)
+			allChanges = append(allChanges, tagChanges...)
+		} else if strings.Contains(contentStr, "tfskel-tags:") {
+			// File has malformed tags metadata but config has no tags
+			// Need to fix metadata to ensure valid empty JSON
+			g.log.Debug("Found malformed tags metadata, will regenerate to fix")
+			allChanges = append(allChanges, "fixed malformed default_tags metadata")
 		}
+		// If no tags in config AND no tags metadata in file, no update needed
 	} else {
-		// Compare tags
+		// Tags metadata successfully parsed, compare with config
 		tagsChanged, tagChanges := compareTags(fileTags, data.DefaultTags)
 		if tagsChanged {
 			// Add all tag change messages
