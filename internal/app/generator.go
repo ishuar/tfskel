@@ -137,6 +137,7 @@ func (g *Generator) Run(env, region, appDir string) error {
 	// Initialize template renderer with custom templates if provided
 	var renderer *templates.Renderer
 	var err error
+	// Defensive: check Generate is initialized (always true from config.Load, but defensive for direct usage)
 	if g.config.Generate != nil && g.config.Generate.TemplatesDir != "" {
 		g.log.Infof("Using custom templates from: %s", g.config.Generate.TemplatesDir)
 		renderer, err = templates.NewRendererWithCustomTemplates(
@@ -268,6 +269,7 @@ func sanitizeWorkflowFileName(filename string) (string, bool) {
 // If name_template is provided in config, it uses that template instead
 func (g *Generator) generateWorkflowFileName(originalFileName string, data *templates.Data) string {
 	// Check if custom name template is not provided
+	// Defensive: check Generate and GithubWorkflows are initialized
 	if g.config.Generate == nil || g.config.Generate.GithubWorkflows == nil || g.config.Generate.GithubWorkflows.NameTemplate == "" {
 		return g.generateDefaultWorkflowFileName(originalFileName, data)
 	}
@@ -429,6 +431,7 @@ func (g *Generator) prepareTemplateData(env, region, appDir string) (*templates.
 // buildAWSRoleArn constructs AWS role ARN from config or returns explicit ARN
 // Priority: aws_role_arn > aws_role_name > default placeholder
 func (g *Generator) buildAWSRoleArn(env string) string {
+	// Defensive: check Generate and GithubWorkflows are initialized
 	if g.config.Generate == nil || g.config.Generate.GithubWorkflows == nil {
 		// Return default placeholder
 		return fmt.Sprintf("arn:aws:iam::%s:role/REPLACE_WITH_ROLE_TO_ASSUME", g.config.GetAccountID(env))
@@ -523,6 +526,7 @@ func (g *Generator) processTemplate(tmplPath, appPath string, data *templates.Da
 
 	// Skip github templates if create_github_workflows is not enabled
 	if len(parts) > 0 && parts[0] == categoryGithub {
+		// Defensive: check Generate and GithubWorkflows are initialized
 		if g.config.Generate == nil || g.config.Generate.GithubWorkflows == nil || !g.config.Generate.GithubWorkflows.Create {
 			g.log.Debugf("Skipping github template (create-github-workflows not enabled): %s", tmplPath)
 			return nil

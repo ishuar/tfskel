@@ -332,7 +332,7 @@ func createFileFromTemplate(targetPath string, templateName string, data any, lo
 		defer func() {
 			if closeErr := file.Close(); closeErr != nil {
 				// Log the error but don't override the main error
-				fmt.Fprintf(os.Stderr, "Warning: failed to close file %s: %v\n", targetPath, closeErr)
+				log.Warnf("failed to close file %s: %v", targetPath, closeErr)
 			}
 		}()
 
