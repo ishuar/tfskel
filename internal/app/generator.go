@@ -42,6 +42,8 @@ func extractMetadata(content, metadataKey string) (map[string]string, error) {
 	}
 
 	// Normalize keys to lowercase for tags metadata (Terraform convention)
+	// This is needed when READING from files to ensure consistent comparison
+	// with tags from config (which are also normalized in prepareTemplateData)
 	if metadataKey == "tags" {
 		normalized := make(map[string]string, len(metadata))
 		for k, v := range metadata {
@@ -116,6 +118,11 @@ func compareTags(fileTags, configTags map[string]string) (bool, []string) {
 }
 
 // Generator orchestrates the Terraform project generation
+//
+// Thread-safety: Generator is designed for single-threaded CLI usage.
+// The config field is read-only after initialization via NewGenerator.
+// The renderer field is set once during Run() and then only read.
+// Concurrent use of the same Generator instance is not supported.
 type Generator struct {
 	config   *config.Config
 	fs       fs.FileSystem
@@ -378,6 +385,8 @@ func (g *Generator) prepareTemplateData(env, region, appDir string) (*templates.
 		}
 		if g.config.Provider.AWS.DefaultTags != nil {
 			// Normalize tag keys to lowercase for Terraform compatibility
+			// This is needed when WRITING to files to ensure consistent tag format
+			// (matches the normalization in extractMetadata for comparison)
 			for k, v := range g.config.Provider.AWS.DefaultTags {
 				defaultTags[strings.ToLower(k)] = v
 			}
