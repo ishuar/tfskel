@@ -118,6 +118,22 @@ if err := fs.WriteFile(path, content); err != nil {
 }
 ```
 
+**Init-time vs Runtime Errors**: Developer errors during initialization (like flag binding mismatches) use panic to fail fast, while runtime errors are handled gracefully:
+
+```go
+// Developer error - panic during init
+mustBindPFlag := func(key string, flagName string) {
+    if err := viper.BindPFlag(key, generateCmd.Flags().Lookup(flagName)); err != nil {
+        panic(fmt.Sprintf("failed to bind flag %s to config key %s: %v", flagName, key, err))
+    }
+}
+
+// Runtime error - return with context
+if err := generator.Run(env, region, appDir); err != nil {
+    return fmt.Errorf("generation failed: %w", err)
+}
+```
+
 ### 5. Configuration Over Code
 
 Behavior is driven by configuration, not hardcoded:
@@ -149,6 +165,27 @@ Behavior is driven by configuration, not hardcoded:
 - Viper for configuration management
 - Application layer (internal/app)
 - Drift layer (internal/drift)
+
+**Error Handling**:
+- **Init-time errors**: Flag binding failures panic (developer errors)
+- **Runtime errors**: Returned with context wrapping
+- **Consistent approach**: All commands use same error handling pattern
+
+**Flag Binding Pattern** (in `generate.go`):
+```go
+// Fail-fast helper for flag binding - panics on developer errors
+mustBindPFlag := func(key string, flagName string) {
+    if err := viper.BindPFlag(key, generateCmd.Flags().Lookup(flagName)); err != nil {
+        panic(fmt.Sprintf("failed to bind flag %s to config key %s: %v", flagName, key, err))
+    }
+}
+
+// Bind flags to viper with strict validation
+mustBindPFlag("generate.templates_dir", "templates-dir")
+mustBindPFlag("backend.s3.bucket_name", "s3-bucket-name")
+mustBindPFlag("generate.extra_template_extensions", "extra-template-extensions")
+mustBindPFlag("generate.github_workflows.create", "create-github-workflows")
+```
 
 **Key Functions**:
 ```go
@@ -221,8 +258,9 @@ func (g *Generator) shouldRegenerateFile(filePath string, data map[string]string
 
 **API**:
 ```go
-// Load reads and parses YAML config file
-func Load(path string) (*Config, error)
+// Load reads configuration from viper and command line flags
+// Handles deprecation warnings, flag overrides, and defaults
+func Load(cmd *cobra.Command, v *viper.Viper) (*Config, error)
 
 // Validate checks configuration correctness
 func (c *Config) Validate() error
@@ -230,49 +268,57 @@ func (c *Config) Validate() error
 // GetBackendConfig returns backend-specific config
 func (c *Config) GetBackendConfig() map[string]string
 
-// SetDefaults applies default values
-func (c *Config) SetDefaults()
+// GetAccountID retrieves the AWS account ID for a given environment
+func (c *Config) GetAccountID(env string) string
 ```
+
+**Configuration Loading Process**:
+1. **Unmarshal**: Viper config unmarshaled into Config struct
+2. **Deprecation Check**: Warns about old root-level `templates_dir` and `extra_template_extensions`
+3. **Flag Overrides**: Command-line flags override config file values
+4. **Defaults**: Apply sensible defaults for optional fields
+5. **Normalization**: Normalize template extensions (always includes "tf.tmpl")
 
 **Data Structures**:
 ```go
 type Config struct {
-    TerraformVersion        string
-    Provider                *Provider
-    Backend                 *Backend
-    Generate                *Generate
-    TemplatesDir            string
-    ExtraTemplateExtensions []string
+    TerraformVersion string    `mapstructure:"terraform_version"`
+    Provider         *Provider `mapstructure:"provider"`
+    Backend          *Backend  `mapstructure:"backend"`
+    Generate         *Generate `mapstructure:"generate"`
 }
 
 type Provider struct {
-    AWS *AWSProvider
+    AWS *AWSProvider `mapstructure:"aws"`
 }
 
 type AWSProvider struct {
-    Version        string
-    AccountMapping map[string]string
-    DefaultTags    map[string]string
-    Regions        []string
+    Version        string            `mapstructure:"version"`
+    AccountMapping map[string]string `mapstructure:"account_mapping"`
+    DefaultTags    map[string]string `mapstructure:"default_tags"`
+    Regions        []string          `mapstructure:"regions"`
 }
 
 type Backend struct {
-    S3 *S3Backend
+    S3 *S3Backend `mapstructure:"s3"`
 }
 
 type S3Backend struct {
-    BucketName string
+    BucketName string `mapstructure:"bucket_name"`
 }
 
+// Generate holds generate command specific configuration
 type Generate struct {
-    GithubWorkflows *GithubWorkflows
+    GithubWorkflows         *GithubWorkflows `mapstructure:"github_workflows"`
+    TemplatesDir            string           `mapstructure:"templates_dir"`
+    ExtraTemplateExtensions []string         `mapstructure:"extra_template_extensions"`
 }
 
 type GithubWorkflows struct {
-    Create       bool
-    NameTemplate string
-    AWSRoleName  string
-    AWSRoleArn   string
+    Create       bool   `mapstructure:"create"`
+    NameTemplate string `mapstructure:"name_template"`
+    AWSRoleName  string `mapstructure:"aws_role_name"`
+    AWSRoleArn   string `mapstructure:"aws_role_arn"`
 }
 ```
 
@@ -542,24 +588,44 @@ User runs: tfskel generate --config tfskel.yaml
 ### Configuration Loading Flow
 
 ```
-tfskel.yaml
+Command Line + .tfskel.yaml
     │
     ▼
-config.Load(path)
+config.Load(cmd, viper)
     │
-    ├─ os.ReadFile()
-    ├─ yaml.Unmarshal()
-    ├─ SetDefaults()
-    └─ Validate()
-        │
-        ├─ Check required fields
-        ├─ Validate backend config
-        ├─ Validate providers
-        └─ Check paths
+    ├─ 1. Viper Unmarshal (YAML → Struct)
+    │   └─ Uses mapstructure tags
+    │
+    ├─ 2. Check Deprecated Config
+    │   ├─ Detect old root-level templates_dir
+    │   ├─ Detect old root-level extra_template_extensions
+    │   └─ Log warnings with migration guidance
+    │
+    ├─ 3. Apply Flag Overrides
+    │   ├─ --templates-dir → Generate.TemplatesDir
+    │   ├─ --s3-bucket-name → Backend.S3.BucketName
+    │   ├─ --extra-template-extensions → Generate.ExtraTemplateExtensions
+    │   └─ --create-github-workflows → Generate.GithubWorkflows.Create
+    │
+    ├─ 4. Set Defaults
+    │   ├─ Initialize nil pointers (Provider, Backend, Generate)
+    │   ├─ Set default template extensions
+    │   └─ Set default GitHub workflow patterns
+    │
+    └─ 5. Normalize Extensions
+        ├─ Remove duplicates via map
+        ├─ Always include "tf.tmpl"
+        └─ Sort for deterministic order
             │
             ▼
-        Config object
+        Config object ready for validation
 ```
+
+**Key Features**:
+- **Backward Compatibility**: Warns about deprecated config structure
+- **Flag Priority**: Command-line flags override config file
+- **Fail-Fast Init**: Flag binding errors panic (developer errors)
+- **Deterministic**: Sorted extensions prevent flaky behavior
 
 ### Template Rendering Flow
 
