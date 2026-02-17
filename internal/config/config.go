@@ -101,7 +101,9 @@ func applyTemplatesDirOverride(cmd *cobra.Command, cfg *Config) {
 	}
 	templatesDir, err := cmd.Flags().GetString("templates-dir")
 	if err == nil {
-		// No nil check needed - Generate is always initialized in setDefaults
+		if cfg.Generate == nil {
+			cfg.Generate = &Generate{}
+		}
 		cfg.Generate.TemplatesDir = templatesDir
 	}
 }
@@ -129,7 +131,9 @@ func applyExtraTemplateExtensionsOverride(cmd *cobra.Command, cfg *Config) {
 	}
 	extraExts, err := cmd.Flags().GetStringSlice("extra-template-extensions")
 	if err == nil {
-		// No nil check needed - Generate is always initialized in setDefaults
+		if cfg.Generate == nil {
+			cfg.Generate = &Generate{}
+		}
 		cfg.Generate.ExtraTemplateExtensions = extraExts
 	}
 }
