@@ -1,17 +1,28 @@
+<div align="center">
+<img src="assets/tfskel-logo-more-width.png" alt="tfskel logo" width="500" />
+
 [![Go Version][go-version-img]][go-version]
 [![GitHub Release][release-img]][release]
 [![Test][test-img]][test]
 [![Go Report Card][go-report-img]][go-report]
 [![License: MIT][license-img]][license]
+[![Stargazers][stars-shield]][stars-url]
+</div>
 
 # tfskel
 _Opinionated Terraform scaffolding for teams. No vendor lock-in, just better project structure_
 
 `tfskel` is a CLI tool that scaffolds Terraform monorepos with an **opinionated**, **scalable** and **consistent** way by using environment-based directory structure across multiple regions. No wrappers, no complexity, just vanilla Terraform with consistent backend configs, version **drift detection**, **terraform plan analysis**, and sensible defaults. Spend less time on project setup and more time writing infrastructure code.
 
+**⭐️ For Latest updates Don't forget to star the repo! ⭐️**
+
 <p align="left">
   <img src="assets/tfskel-init.gif" alt="tfskel init demo" width="600" />
 </p>
+
+<div>
+    <a href="https://github.com/ishuar/tfskel/issues"><strong>Report Bug</a></strong> or <a href="https://github.com/ishuar/tfskel/issues"><strong>Request Feature</a></strong>
+</div>
 
 ## What It Does
 
@@ -38,6 +49,9 @@ _Opinionated Terraform scaffolding for teams. No vendor lock-in, just better pro
 <p align="left">
 <img src="assets/tfskel-generate.gif" alt="tfskel drift plan demo" width="600" />
 </p>
+
+> [!CAUTION]
+> This project is being developed with the assistance of AI tools. Please review the code carefully and perform your own due diligence. Thank you :pray:
 
 ## Installation
 
@@ -131,7 +145,7 @@ tfskel drift version --format json > drift-report.json
 ```
 
 > [!Tip]
-> ref to [tfskel-in-action](#terraform-and-aws-provider-version-drift)
+> reference to [tfskel-in-action](#terraform-and-aws-provider-version-drift)
 
 **Terraform Plan Analysis**
 ```bash
@@ -145,7 +159,7 @@ tfskel drift plan --plan-file plan.json --format csv
 ```
 
 > [!Tip]
-> ref to [tfskel-in-action](#terraform-plan-analysis)
+> reference to [tfskel-in-action](#terraform-plan-analysis)
 
 **Combined Analysis**
 ```bash
@@ -154,7 +168,14 @@ tfskel drift all --plan-file plan.json
 ```
 
 ## Contributing
-Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+Contributions are what make the open source community such an amazing place to learn, inspire, and create. Any contributions you make are greatly appreciated.
+
+If you have any suggestion that would make this project better, feel free to fork the repo and create a pull request. You can also simply open an issue with the tag "enhancement" with your suggestion.
+
+> [!Tip]
+> See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
 1) Fork the repository on GitHub
 2) Clone your fork and create a new branch
 3) Make your changes
@@ -168,15 +189,26 @@ git checkout -b my-feature-branch
 make test   # Run tests
 make check  # Run all quality checks
 ```
+
 > [!Important]
 > Please keep your pull requests small and focused. This will make it easier to review and merge.
 
 ## License
+Released under [MIT LICENSE](/LICENSE) by [@ishuar](https://github.com/ishuar).
 
-MIT License - see [LICENSE](LICENSE) file for details.
+_Copyright (c) 2026 Ishan Sharma_
 
-> [!CAUTION] DISCLAIMER
-> This project was developed with the assistance of AI tools. Please review the code carefully and perform your own due diligence.
+<!-- CONTACT -->
+## Contact
+
+- :dart: [Contact Profile](https://linktr.ee/ishuar)
+- 👯 [LinkedIn](https://linkedin.com/in/ishuar)
+
+
+<p align="right"><a href="#top">Back To Top ⬆️</a></p>
+
+<!-- MARKDOWN LINKS & IMAGES -->
+<!-- https://www.markdownguide.org/basic-syntax/#reference-style-links -->
 
 [go-version-img]: https://img.shields.io/badge/Go-1.24%2B-blue.svg
 [go-version]: https://golang.org
@@ -188,3 +220,5 @@ MIT License - see [LICENSE](LICENSE) file for details.
 [release-img]: https://img.shields.io/github/release/ishuar/tfskel.svg?logo=github
 [license]: https://github.com/ishuar/tfskel/blob/main/LICENSE
 [license-img]: https://img.shields.io/badge/MIT-blue.svg
+[stars-url]: https://github.com/ishuar/tfskel/stargazers
+[stars-shield]: https://img.shields.io/github/stars/ishuar/tfskel
