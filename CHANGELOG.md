@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.1.0](https://github.com/ishuar/tfskel/compare/v0.0.1...v0.1.0) (2026-02-17)
+
+
+### ⚠ BREAKING CHANGES
+
+* **generate:** Configuration structure has changed. The `templates_dir` and `extra_template_extensions` settings must now be nested under the `generate` configuration block in .tfskel.yaml.
+
+### Features
+
+* **generate:** moved `templates_dir` & `extra_template_extensions` under generate config block ([672d7fc](https://github.com/ishuar/tfskel/commit/672d7fc8f8d9c127a767313787a258453afd9d06))
+
+
+### Bug Fixes
+
+* **generate:** `default_tags` metadata based generation and improved logging ([5515511](https://github.com/ishuar/tfskel/commit/5515511f8857aca0101998b65218ce7adf5239d9))
+
 ## [0.0.1](https://github.com/ishuar/tfskel/releases/tag/v0.0.1) (2026-02-15)
 
 
