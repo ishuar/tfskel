@@ -14,6 +14,7 @@
 
 ### Bug Fixes
 
+* add release-please annotation to have correct release ([58fa71a](https://github.com/ishuar/tfskel/commit/58fa71a759f8f78e579f0bdb063a5eeae0a4296b))
 * **generate:** `default_tags` metadata based generation and improved logging ([5515511](https://github.com/ishuar/tfskel/commit/5515511f8857aca0101998b65218ce7adf5239d9))
 
 ## [0.0.1](https://github.com/ishuar/tfskel/releases/tag/v0.0.1) (2026-02-15)
