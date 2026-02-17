@@ -206,7 +206,14 @@ Defines AWS provider configuration:
 - `provider.aws.regions`: List of AWS regions for the project
 - `provider.aws.account_mapping`: Maps environment names to AWS account IDs
 - `provider.aws.default_tags`: Default tags applied to all AWS resources. Tag keys are automatically normalized to lowercase for Terraform compatibility.
-
+    ```yaml
+    provider:
+      aws:
+        default_tags:
+          Managed_By: terraform   # Becomes: managed_by
+          Team: platform          # Becomes: team
+          Cost_Center: eng        # Becomes: cost_center
+    ```
 #### Custom Templates
 
 - `generate.templates_dir`: Path to custom template directory

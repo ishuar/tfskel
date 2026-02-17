@@ -1077,20 +1077,20 @@ func processFile() error {
     return nil
 }
 
-// Panic: Unrecoverable error
-func mustLoad(path string) *Config {
-    cfg, err := Load(path)
-    if err != nil {
-        panic(err)  // Stop execution
+// Panic: Use for developer errors (not user errors)
+// Example from cmd/generate.go - flag binding errors are developer mistakes
+mustBindPFlag := func(key string, flagName string) {
+    if err := viper.BindPFlag(key, generateCmd.Flags().Lookup(flagName)); err != nil {
+        // This should never happen unless code has a bug
+        panic(fmt.Sprintf("failed to bind flag %s to config key %s: %v", flagName, key, err))
     }
-    return cfg
 }
 
-// Recover: Catch panics
+// Recover: Catch panics (use sparingly)
 func safeExecute(fn func()) (err error) {
     defer func() {
         if r := recover(); r != nil {
-            err = fmt.Errorf("panic: %v", r)
+            err = fmt.Errorf("panic recovered: %v", r)
         }
     }()
 
@@ -1112,8 +1112,19 @@ if err != nil {
     return fmt.Errorf("operation failed: %w", err)
 }
 
-// ❌ Bad: Ignore errors
+// ❌ Bad: Ignore errors with blank identifier
 result, _ := doSomething()
+
+// ❌ Bad: Silent error swallowing with nolint
+//nolint:errcheck
+_ = viper.BindPFlag("key", flag)
+
+// ✅ Good: Panic for developer errors during initialization
+mustBindPFlag := func(key string, flagName string) {
+    if err := viper.BindPFlag(key, generateCmd.Flags().Lookup(flagName)); err != nil {
+        panic(fmt.Sprintf("failed to bind flag %s to config key %s: %v", flagName, key, err))
+    }
+}
 ```
 
 ### 2. Variable Naming
