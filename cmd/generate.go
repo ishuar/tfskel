@@ -82,16 +82,18 @@ func init() {
 	generateCmd.Flags().StringSliceVar(&extraTemplateExtensions, "extra-template-extensions", []string{"tf.tmpl"}, "template file extensions to process from templates-dir (tf.tmpl always included)")
 	generateCmd.Flags().BoolVar(&createGithubWorkflows, "create-github-workflows", false, "create GitHub workflow files from default templates (disabled by default)")
 
-	// Bind flags to viper for config file support (only for optional flags that can come from config)
-	// Binding errors are extremely rare and non-critical - if binding fails, config just won't be set from flag
-	//nolint:errcheck // BindPFlag errors are non-critical; flag values simply won't override config
-	_ = viper.BindPFlag("generate.templates_dir", generateCmd.Flags().Lookup("templates-dir"))
-	//nolint:errcheck // BindPFlag errors are non-critical; flag values simply won't override config
-	_ = viper.BindPFlag("backend.s3.bucket_name", generateCmd.Flags().Lookup("s3-bucket-name"))
-	//nolint:errcheck // BindPFlag errors are non-critical; flag values simply won't override config
-	_ = viper.BindPFlag("generate.extra_template_extensions", generateCmd.Flags().Lookup("extra-template-extensions"))
-	//nolint:errcheck // BindPFlag errors are non-critical; flag values simply won't override config
-	_ = viper.BindPFlag("generate.github_workflows.create", generateCmd.Flags().Lookup("create-github-workflows"))
+	// Bind flags to viper - these should never fail unless there's a developer error
+	// (flag name mismatch, missing flag, etc.) so we fail fast with panic
+	mustBindPFlag := func(key string, flagName string) {
+		if err := viper.BindPFlag(key, generateCmd.Flags().Lookup(flagName)); err != nil {
+			panic(fmt.Sprintf("failed to bind flag %s to config key %s: %v", flagName, key, err))
+		}
+	}
+
+	mustBindPFlag("generate.templates_dir", "templates-dir")
+	mustBindPFlag("backend.s3.bucket_name", "s3-bucket-name")
+	mustBindPFlag("generate.extra_template_extensions", "extra-template-extensions")
+	mustBindPFlag("generate.github_workflows.create", "create-github-workflows")
 }
 
 func runGenerate(cmd *cobra.Command, args []string) error {

@@ -249,7 +249,7 @@ func checkDeprecatedConfig(v *viper.Viper) {
 
 	// Check for old root-level templates_dir (moved to generate.templates_dir)
 	if v.IsSet("templates_dir") && !v.IsSet("generate.templates_dir") {
-		log.Warnf("'templates_dir' is deprecated at root level, use 'generate.templates_dir' instead (current value: %s)",
+		log.Warnf("DEPRECATION WARNING: 'templates_dir' is deprecated at root level, use 'generate.templates_dir' instead (current value: %s)",
 			v.GetString("templates_dir"))
 		log.Warn("This configuration will be ignored. Update your .tfskel.yaml to use the new structure.")
 		log.Warn("See: https://github.com/ishuar/tfskel/blob/main/docs/tfskel-book.md#configuration")
@@ -257,7 +257,7 @@ func checkDeprecatedConfig(v *viper.Viper) {
 
 	// Check for old root-level extra_template_extensions (moved to generate.extra_template_extensions)
 	if v.IsSet("extra_template_extensions") && !v.IsSet("generate.extra_template_extensions") {
-		log.Warn("'extra_template_extensions' is deprecated at root level, use 'generate.extra_template_extensions' instead")
+		log.Warn("DEPRECATION WARNING: 'extra_template_extensions' is deprecated at root level, use 'generate.extra_template_extensions' instead")
 		log.Warn("This configuration will be ignored. Update your .tfskel.yaml to use the new structure.")
 		log.Warn("See: https://github.com/ishuar/tfskel/blob/main/docs/tfskel-book.md#configuration")
 	}
