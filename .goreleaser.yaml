@@ -36,6 +36,9 @@ builds:
     flags:
       - -trimpath
 
+changelog:
+  disable: true
+
 archives:
   - id: tfskel-archive
     formats: ['tar.gz']
@@ -72,13 +75,9 @@ release:
   mode: append
   name_template: "{{.ProjectName}} v{{.Version}}"
   header: |
-    ## 🎉 tfskel {{ .Tag }} ({{ .Date }})
-
     Welcome to this new release of tfskel!
 
-    ### Installation
-
-    - Using [Go](https://go.dev/doc/install):
+    - Installation using [Go](https://go.dev/doc/install):
 
     ```bash
     go install github.com/ishuar/tfskel@{{ .Tag }}
