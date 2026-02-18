@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.1 (2026-02-18)
+
+## Breaking Change
+* **generate**: namespaced configs for generate block & fixed metadata based default_tags by @ishuar in https://github.com/ishuar/tfskel/pull/12
+  * moved `templates_dir` & `extra_template_extensions` under generate config block
+## What's Changed
+* docs: added docs , updated example config and changelog showing unreleased changes before 0.0.1 by @ishuar in https://github.com/ishuar/tfskel/pull/11
+* chore: Create review instructions for Copilot role by @ishuar in https://github.com/ishuar/tfskel/pull/13
+* fix: add release-please annotation to have correct release in [07efcf9](https://github.com/ishuar/tfskel/commit/07efcf97502ecb06f8d4b95c68a40ddc17aa584f)
+
+**Full Changelog**: https://github.com/ishuar/tfskel/compare/v0.0.1...v0.1.1
+
 ## [0.0.1](https://github.com/ishuar/tfskel/releases/tag/v0.0.1) (2026-02-15)
 
 
