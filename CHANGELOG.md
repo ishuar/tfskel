@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.2 (2026-02-19)
+
+## What's Changed
+* feat!(generate): explicit allow all files as templates with .tmpl extension by @ishuar in https://github.com/ishuar/tfskel/pull/20
+
+
+**Full Changelog**: https://github.com/ishuar/tfskel/compare/v0.1.1...v0.1.2
+
 ## 0.1.1 (2026-02-18)
 
 ## Breaking Change
