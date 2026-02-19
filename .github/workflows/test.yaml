@@ -52,6 +52,8 @@ jobs:
         cache: true
         cache-dependency-path: go.sum
 
+    - run: go mod tidy -diff
+
     - name: Download dependencies
       run: go mod download
 
