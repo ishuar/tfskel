@@ -1,5 +1,6 @@
 # GoReleaser configuration
 # https://goreleaser.com/customization/
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
 version: 2
 project_name: tfskel
 
@@ -67,21 +68,10 @@ snapshot:
   version_template: "{{ incpatch .Version }}-next"
 
 release:
-  github:
-    owner: ishuar
-    name: tfskel
   draft: false
-  prerelease: auto
-  mode: append
-  name_template: "{{.ProjectName}} v{{.Version}}"
-  header: |
-    Welcome to this new release of tfskel!
+  skip_upload: false
+  mode: keep-existing
 
-    - Installation using [Go](https://go.dev/doc/install):
-
-    ```bash
-    go install github.com/ishuar/tfskel@{{ .Tag }}
-    ```
 # Validate configuration
 gomod:
   proxy: true
