@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.2.0](https://github.com/ishuar/tfskel/compare/v0.1.1...v0.2.0) (2026-02-19)
+
+
+### ⚠ BREAKING CHANGES
+
+* **generate:** explicit allow all files as templates with .tmpl extension ([#20](https://github.com/ishuar/tfskel/issues/20))
+* **generate:** removed extra_template_extensions config ; added warning log message regarding removal of extra_template_extensions
+
+### ✨ Features
+
+* **generate:** accept templated strings for aws role name & arn values ([d88a915](https://github.com/ishuar/tfskel/commit/d88a9151251871e6415afac89284967b8d922adf))
+* **generate:** explicit allow all files as templates with .tmpl extension ([#20](https://github.com/ishuar/tfskel/issues/20)) ([d88a915](https://github.com/ishuar/tfskel/commit/d88a9151251871e6415afac89284967b8d922adf))
+* **generate:** removed extra_template_extensions config ([d88a915](https://github.com/ishuar/tfskel/commit/d88a9151251871e6415afac89284967b8d922adf))
+* **generate:** the renderer accepts .tmpl exclusively only for templated files ([d88a915](https://github.com/ishuar/tfskel/commit/d88a9151251871e6415afac89284967b8d922adf))
+
+
+### 🐞 Bug Fixes
+
+* **generate:** correct upload-artifact action version in re-usable tf workflow ([d88a915](https://github.com/ishuar/tfskel/commit/d88a9151251871e6415afac89284967b8d922adf))
+
 ## 0.1.1 (2026-02-18)
 
 ## Breaking Change
