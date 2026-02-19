@@ -205,19 +205,19 @@ Defines AWS provider configuration:
 - `provider.aws.version`: AWS provider version constraint (default: ~> 6.0)
 - `provider.aws.regions`: List of AWS regions for the project
 - `provider.aws.account_mapping`: Maps environment names to AWS account IDs
-- `provider.aws.default_tags`: Default tags applied to all AWS resources. Tag keys are automatically normalized to lowercase for Terraform compatibility.
+- `provider.aws.default_tags`: Default tags applied to all AWS resources. Tag keys are automatically normalized to lowercase (but NOT converted to snake_case).
     ```yaml
     provider:
       aws:
         default_tags:
-          Managed_By: terraform   # Becomes: managed_by
-          Team: platform          # Becomes: team
-          Cost_Center: eng        # Becomes: cost_center
+          Team: platform          # Becomes: team (lowercase)
+          ManagedBy: terraform    # Becomes: managedby (lowercase, no underscore added)
+          Cost_Center: eng        # Becomes: cost_center (lowercase, keeps existing underscore)
     ```
 #### Custom Templates
 
 - `generate.templates_dir`: Path to custom template directory
-- `generate.extra_template_extensions`: File extensions to process (default: ["tf.tmpl"])
+- All files ending with `.tmpl` extension are processed as Go templates
 - Custom templates override embedded defaults
 - Useful for adding main.tf, variables.tf, outputs.tf, etc.
 
@@ -676,10 +676,9 @@ custom-templates/
 └── readme.md.tmpl
 ```
 
-
-**Supported File Extensions**:
-- `.tf.tmpl` (default, always processed)
-- Configure additional extensions with `--extra-template-extensions` or `generate.extra_template_extensions` in `.tfskel.yaml`
+**Template Processing**:
+- All files ending with `.tmpl` extension are processed as Go templates
+- Non-`.tmpl` files are copied as static content (e.g., reusable workflows)
 
 ### Metadata Comments and Automatic Updates
 
@@ -788,8 +787,8 @@ terraform {
 
 **For tags** (separate comment):
 - Use `## tfskel-tags: {{.DefaultTagsJSON}}` to track `provider.aws.default_tags`
-- Tag keys are automatically normalized to lowercase
-- Output JSON format: `{"team": "platform", "cost_center": "engineering"}`
+- Tag keys are automatically normalized to lowercase only (not snake_case)
+- Output JSON format: `{"team": "platform", "managedby": "terraform"}`
 
 #### User Experience
 
@@ -824,49 +823,316 @@ When configuration changes are detected, tfskel provides clear feedback:
 
 ### Template Data Structure
 
-All templates receive a `Data` struct with these fields:
+All templates (both embedded and custom) receive a `Data` struct containing all necessary context for rendering. This struct provides information about the environment, region, application, versions, and configuration.
 
-```go
-type Data struct {
-    Env                string            // Environment (dev, stg, prd)
-    Region             string            // AWS region (eu-central-1)
-    AppDir             string            // Application directory name
-    AccountID          string            // AWS account ID
-    ShortRegion        string            // Short region (euc1, usw2)
-    S3BucketName       string            // S3 bucket name
-    TerraformVersion   string            // Terraform version constraint
-    AWSProviderVersion string            // AWS provider version
-    DefaultTags        map[string]string // Default tags
-}
-```
+#### Available Template Variables
 
-### Custom Template Functions
+| Variable | Type | Description | Example |
+|----------|------|-------------|---------|
+| `Env` | `string` | Environment name from config | `dev`, `stg`, `prd` |
+| `Region` | `string` | Full AWS region name | `eu-central-1`, `us-east-1` |
+| `AppDir` | `string` | Application directory name | `myapp`, `web-service` |
+| `AccountID` | `string` | AWS account ID from environment mapping | `123456789012` |
+| `ShortRegion` | `string` | Abbreviated region name | `euc1`, `use1` |
+| `S3BucketName` | `string` | S3 bucket name for Terraform state | `terraform-state-dev` |
+| `TerraformVersion` | `string` | Terraform version constraint | `~> 1.13` |
+| `AWSProviderVersion` | `string` | AWS provider version constraint | `~> 6.0` |
+| `DefaultTags` | `map[string]string` | Map of default AWS tags | `{"team": "platform", "managedby": "terraform"}` |
+| `DefaultTagsJSON` | `string` | JSON representation of DefaultTags | `{"team":"platform","managedby":"terraform"}` |
+| `AWSRoleArn` | `string` | AWS IAM role ARN for GitHub workflows | `arn:aws:iam::123456789012:role/...` |
+| `WorkflowFileName` | `string` | Generated workflow filename (GitHub workflows only) | `myapp-dev-euc1-lint.yaml` |
 
-tfskel provides these template functions:
+#### Variable Details and Use Cases
 
-- `replace`: Replace all occurrences in string
-- `toLower`: Convert string to lowercase
-- `toUpper`: Convert string to uppercase
-- `trimSpace`: Trim whitespace
-- `trimPrefix`: Remove prefix from string
-- `trimSuffix`: Remove suffix from string
-- `hasPrefix`: Check if string has prefix
-- `hasSuffix`: Check if string has suffix
-- `contains`: Check if string contains substring
-- `join`: Join string array
-- `split`: Split string
-- `stripConstraint`: Remove version operators (~>, >=, etc.)
+**`Env` (Environment)**
+- Source: Command line flag `--env` or inferred from directory path
+- Used in: Backend keys, tags, workflow names, resource naming
+- Example usage:
+  ```hcl
+  # In templates
+  env = "{{.Env}}"
 
-**Usage Example**:
+  # In S3 state key
+  key = "{{.Env}}/{{.Region}}/{{.AppDir}}/terraform.tfstate"
+  ```
+
+**`Region` (AWS Region)**
+- Source: Command line flag `--region` or inferred from directory path
+- Format: Standard AWS region format (kebab-case)
+- Used in: Backend configuration, provider region, resource naming
+- Example usage:
+  ```hcl
+  # Provider configuration
+  region = "{{.Region}}"
+
+  # Dynamic region from directory path
+  region = basename(dirname(path.cwd))
+  ```
+
+**`AppDir` (Application Directory)**
+- Source: First positional argument to `tfskel generate <app-dir>`
+- Used in: Backend state keys, tags, resource naming
+- Example usage:
+  ```hcl
+  # In backend key
+  key = "{{.Env}}/{{.Region}}/{{.AppDir}}/terraform.tfstate"
+
+  # In tags
+  app = "{{.AppDir}}"
+  ```
+
+**`AccountID` (AWS Account ID)**
+- Source: Mapped from `provider.aws.account_mapping` in `.tfskel.yaml`
+- Required: Must be defined for the environment
+- Used in: Backend configuration, IAM role ARNs, AWS resource identifiers
+- Example usage:
+  ```hcl
+  # AWS account ID for resources
+  account_id = "{{.AccountID}}"
+  ```
+
+**`ShortRegion` (Short Region Name)**
+- Source: Automatically derived from `Region` using transformation
+- Format: Abbreviated format (e.g., `eu-central-1` → `euc1`, `us-east-1` → `use1`)
+- Used in: Resource naming, workflow names, short identifiers
+- Transformation rules:
+  - `eu-central-1` → `euc1`
+  - `us-east-1` → `use1`
+  - `us-west-2` → `usw2`
+  - `ap-southeast-1` → `apse1`
+- Example usage:
+  ```hcl
+  # Short region in resource names
+  name_prefix = "{{.AppDir}}-{{.Env}}-{{.ShortRegion}}"
+  ```
+
+**`S3BucketName` (S3 Backend Bucket)**
+- Source: `backend.s3.bucket_name` in `.tfskel.yaml` or `--s3-bucket-name` flag
+- Supports Go template syntax for dynamic values
+- Used in: Backend configuration
+- **Exception**: Can contain template variables itself (e.g., `terraform-state-{{.Env}}`)
+- Example usage:
+  ```hcl
+  # Backend configuration
+  bucket = "{{.S3BucketName}}"
+  ```
+- Advanced example with dynamic bucket names:
+  ```yaml
+  # In .tfskel.yaml
+  backend:
+    s3:
+      bucket_name: "terraform-state-{{.Env}}-{{.Region}}"
+  ```
+  Results in: `terraform-state-dev-eu-central-1`
+
+**`TerraformVersion` (Terraform Version Constraint)**
+- Source: `terraform_version` in `.tfskel.yaml`
+- Format: Terraform version constraint syntax (~>, >=, <=, =)
+- Used in: Required version blocks, version drift detection
+- Example usage:
+  ```hcl
+  terraform {
+    required_version = "{{.TerraformVersion}}"
+  }
+  ```
+
+**`AWSProviderVersion` (AWS Provider Version Constraint)**
+- Source: `provider.aws.version` in `.tfskel.yaml`
+- Format: Terraform version constraint syntax
+- Used in: Required providers blocks, version drift detection
+- Example usage:
+  ```hcl
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "{{.AWSProviderVersion}}"
+    }
+  }
+  ```
+
+**`DefaultTags` (Default Tags Map)**
+- Source: `provider.aws.default_tags` in `.tfskel.yaml`
+- Type: `map[string]string` (Go map)
+- **Important**: Tag keys are automatically normalized to lowercase
+- Used in: Provider default_tags block
+- Example usage:
+  ```hcl
+  default_tags {
+    tags = {
+  {{- range $key, $value := .DefaultTags}}
+      {{$key}} = "{{$value}}"
+  {{- end}}
+      env = "{{.Env}}"
+      app = "{{.AppDir}}"
+    }
+  }
+  ```
+
+**`DefaultTagsJSON` (Default Tags JSON String)**
+- Source: JSON representation of `provider.aws.default_tags`
+- Type: `string` (JSON formatted)
+- **Purpose**: Used exclusively in metadata comments for change detection
+- Used in: Metadata comments (`## tfskel-tags: {{.DefaultTagsJSON}}`)
+- Example usage:
+  ```hcl
+  ## tfskel-tags: {{.DefaultTagsJSON}}
+  ```
+  Results in: `## tfskel-tags: {"team":"platform","managedby":"terraform"}`
+
+**`AWSRoleArn` (GitHub Workflow AWS Role ARN)**
+- Source: Derived from `generate.github_workflows.aws_role_arn` or `aws_role_name` in `.tfskel.yaml`
+- Format: Full ARN format or constructed from role name
+- Used in: GitHub Actions workflow AWS authentication
+- Priority order:
+  1. Explicit `aws_role_arn` if specified
+  2. Constructed from `aws_role_name`: `arn:aws:iam::{{.AccountID}}:role/<role-name>`
+  3. Default placeholder: `arn:aws:iam::<account-id>:role/REPLACE_WITH_ROLE_TO_ASSUME`
+- Example usage:
+  ```yaml
+  # In GitHub workflow
+  aws-role-to-assume: {{.AWSRoleArn}}
+  ```
+
+**`WorkflowFileName` (GitHub Workflow Self-Reference)**
+- Source: Auto-generated based on `generate.github_workflows.name_template` or default pattern
+- Default pattern: `{{.AppDir}}-{{.Env}}-{{.ShortRegion}}`
+- **Purpose**: Enables workflows to self-reference for path-based triggers
+- Used in: GitHub workflow trigger paths
+- Example usage:
+  ```yaml
+  # Workflow triggers on changes to itself
+  paths:
+    - '.github/workflows/{{.WorkflowFileName}}-lint.yaml'
+  ```
+
+#### Special Considerations
+
+**Tag Key Normalization**:
+- All tag keys in `DefaultTags` are automatically converted to lowercase
+- This follows Terraform AWS provider conventions
+- **Important**: Only converts to lowercase, does NOT add underscores (not snake_case)
+- Examples:
+  - `Team` → `team`
+  - `CostCenter` → `costcenter` (NOT `cost_center`)
+  - `ManagedBy` → `managedby` (NOT `managed_by`)
+  - `environment` → `environment` (unchanged)
+
+**Template Rendering in Config Values**:
+- `S3BucketName`, `AWSRoleArn`, `AWSRoleName`, and `WorkflowFileName` support Go template expressions
+- Allows dynamic values: `bucket_name: "terraform-state-{{.Env}}"`
+- **Exception**: Plain strings (no `{{`) are returned unchanged without parsing overhead
+
+**Empty Values**:
+- If `DefaultTags` is empty or nil, tag iteration produces no output
+- If `AccountID` is missing for environment, generation fails with error
+- `AWSRoleArn` defaults to placeholder if not configured
+
+### Template Functions Reference
+
+tfskel provides a comprehensive set of template functions available in all templates (both embedded and custom). These functions are part of Go's `text/template` package with custom additions specific to tfskel.
+
+#### String Manipulation Functions
+
+| Function | Signature | Description | Example |
+|----------|-----------|-------------|---------|
+| `replace` | `replace(old, new, s string) string` | Replace all occurrences of `old` with `new` in string `s` | `{{.AppDir \| replace "-" "_"}}` |
+| `toLower` | `toLower(s string) string` | Convert string to lowercase | `{{.Env \| toLower}}` |
+| `toUpper` | `toUpper(s string) string` | Convert string to uppercase | `{{.Region \| toUpper}}` |
+| `trimSpace` | `trimSpace(s string) string` | Trim leading and trailing whitespace | `{{.AppDir \| trimSpace}}` |
+| `trimPrefix` | `trimPrefix(prefix, s string) string` | Remove prefix from string if present | `{{.Region \| trimPrefix "us-"}}` |
+| `trimSuffix` | `trimSuffix(suffix, s string) string` | Remove suffix from string if present | `{{.AppDir \| trimSuffix "-api"}}` |
+
+#### String Checking Functions
+
+| Function | Signature | Description | Example |
+|----------|-----------|-------------|---------|
+| `hasPrefix` | `hasPrefix(prefix, s string) bool` | Check if string starts with prefix | `{{if hasPrefix "prod" .Env}}...{{end}}` |
+| `hasSuffix` | `hasSuffix(suffix, s string) bool` | Check if string ends with suffix | `{{if hasSuffix "-1" .Region}}...{{end}}` |
+| `contains` | `contains(substr, s string) bool` | Check if string contains substring | `{{if contains "central" .Region}}...{{end}}` |
+
+#### Array/Slice Functions
+
+| Function | Signature | Description | Example |
+|----------|-----------|-------------|---------|
+| `join` | `join(sep string, elems []string) string` | Join string array with separator | `{{join "," .Regions}}` |
+| `split` | `split(s, sep string) []string` | Split string by separator | `{{range split .Region "-"}}{{.}}{{end}}` |
+
+#### Version Constraint Functions
+
+| Function | Signature | Description | Example |
+|----------|-----------|-------------|---------|
+| `stripConstraint` | `stripConstraint(version string) string` | Remove version operators (~>, >=, <=, >, <, =) and return clean version | `{{.TerraformVersion \| stripConstraint}}` |
+
+**`stripConstraint` Details**:
+- **Purpose**: Extract clean version numbers from Terraform version constraints
+- **Use case**: Creating `.terraform-version` files, version tags, resource naming
+- **Transformation examples**:
+  - `~> 1.14.3` → `1.14.3`
+  - `>= 1.10.0` → `1.10.0`
+  - `<= 2.0.0` → `2.0.0`
+  - `1.13` → `1.13` (unchanged if no operator)
+- **Example usage**:
+  ```plaintext
+  # .terraform-version file (needs clean version)
+  {{.TerraformVersion | stripConstraint}}
+  ```
+  Results in: `1.13.0` instead of `~> 1.13.0`
+
+#### Complete Template Example
+
+Here's a comprehensive example using multiple functions:
+
 ```hcl
-# Convert region to uppercase
-region = "{{.Region | toUpper}}"
+## Custom Terraform configuration
+## Environment: {{.Env | toUpper}}
+## Region: {{.Region}}
+## tfskel-metadata: {"tf_ver": "{{.TerraformVersion}}", "aws_provider_ver": "{{.AWSProviderVersion}}"}
 
-# Strip version constraint
-version = "{{.TerraformVersion | stripConstraint}}"
+terraform {
+  required_version = "{{.TerraformVersion}}"
 
-# Replace dashes with underscores
-name = "{{.AppDir | replace "-" "_"}}"
+  backend "s3" {
+    bucket = "{{.S3BucketName}}"
+    key    = "{{.Env}}/{{.Region}}/{{.AppDir}}/terraform.tfstate"
+    {{- if contains "eu" .Region}}
+    region = "{{.Region}}"
+    {{- else}}
+    region = "us-east-1"
+    {{- end}}
+  }
+}
+
+provider "aws" {
+  region = "{{.Region}}"
+
+  default_tags {
+    tags = {
+{{- range $key, $value := .DefaultTags}}
+      {{$key}} = "{{$value}}"
+{{- end}}
+      environment     = "{{.Env | toLower}}"
+      application     = "{{.AppDir | replace "-" "_"}}"
+      terraform_version = "{{.TerraformVersion | stripConstraint}}"
+      {{- if hasPrefix "prd" .Env}}
+      criticality     = "high"
+      {{- else}}
+      criticality     = "low"
+      {{- end}}
+    }
+  }
+}
+
+# Resource naming convention
+locals {
+  name_prefix = "{{.AppDir}}-{{.Env}}-{{.ShortRegion}}"
+  name_prefix_uppercase = "{{.AppDir | toUpper}}_{{.Env | toUpper}}_{{.ShortRegion | toUpper}}"
+
+  {{- if eq .Env "prd"}}
+  retention_days = 90
+  {{- else}}
+  retention_days = 7
+  {{- end}}
+}
 ```
 
 ---

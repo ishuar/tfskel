@@ -8,7 +8,7 @@ terraform_version: terraform-version-constraint # e.g. ~> 1.13
 backend:
   s3:
     # Required with default embedded templates:
-    # Update with your globally unique S3 bucket name for Terraform state storage
+    # Update with your globally unique S3 bucket name for Terraform state storage. accepts templated values
     bucket_name: CHANGE_ME_WITH_YOUR_GLOBALLY_UNIQUE_S3_BUCKET_NAME
 provider:
   aws:
@@ -55,18 +55,15 @@ generate:
   # to override default embedded templates, create custom templates
   # with the same name in the custom templates directory,
   # e.g. custom-dir/versions.tf.tmpl will override the default embedded versions.tf.tmpl template
+  # NOTE: All files ending with .tmpl extension will be processed as Go templates
   templates_dir: /path/to/custom/templates
-  # Optional: Additional template file extensions to process.
-  # by default .tf.tmpl templates are processed only
-  # NOTE: 'tf.tmpl' is always included, even if not listed here
-  extra_template_extensions: [] # e.g. ["tf.tmpl", "md.tmpl"]
   # Optional: GitHub Actions workflow generation configuration
   github_workflows:
     # Enable GitHub Actions workflow generation
     create: false
     # Workflow name template using placeholders:
     name_template: "{{.AppDir}}-{{.Env}}-{{.ShortRegion}}"
-    # Full ARN (takes priority, optional)
-    aws_role_arn: "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
-    # IAM role for workflows (optional)
-    aws_role_name: "GitHubActionsRole"
+    # Full ARN (takes priority, optional), accepts templated values
+    aws_role_arn: "arn:aws:iam::{{.AccountID}}:role/{{.Env}}-githubactionsrole"
+    # IAM role for workflows (optional), accepts templated values
+    aws_role_name: "{{.Env}}-githubactionsrole"
