@@ -249,3 +249,35 @@ func (r *Renderer) GetTemplateSource(templateName string) string {
 	}
 	return ""
 }
+
+// RenderConfigValue renders a config string that may optionally contain Go template
+// syntax. Plain strings (no "{{") are returned unchanged without any parsing overhead.
+//
+// Unlike Render(), this method does not require a pre-registered template name —
+// it parses the raw string inline. This is intended for user-supplied config values
+// such as bucket_name, aws_role_name, aws_role_arn, and name_template.
+//
+// The funcMap registered on this Renderer is applied, so template functions like
+// toLower, replace, and stripConstraint are available.
+//
+// Example:
+//
+//	r.RenderConfigValue("deploy-{{.Env | toUpper}}", "aws_role_name", data)
+//	// → "deploy-DEV", nil
+func (r *Renderer) RenderConfigValue(value, name string, data *Data) (string, error) {
+	if !strings.Contains(value, "{{") {
+		return value, nil
+	}
+
+	tmpl, err := template.New(name).Funcs(funcMap).Parse(value)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse %s template: %w", name, err)
+	}
+
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return "", fmt.Errorf("failed to execute %s template: %w", name, err)
+	}
+
+	return buf.String(), nil
+}

@@ -188,60 +188,150 @@ func TestGenerator_Run_Integration(t *testing.T) {
 	})
 }
 
-func TestGenerator_renderBucketName(t *testing.T) {
+func TestGenerator_prepareTemplateData_BucketNameRendering(t *testing.T) {
 	t.Run("render simple bucket name template with Env", func(t *testing.T) {
-		cfg := &config.Config{}
-		gen := NewGenerator(cfg, fs.NewMemoryFileSystem(), logger.New(false))
-
-		data := &templates.Data{
-			Env:    "dev",
-			Region: "us-east-1",
-			AppDir: "myapp",
+		cfg := &config.Config{
+			TerraformVersion: "~> 1.13",
+			Provider: &config.Provider{
+				AWS: &config.AWSProvider{
+					AccountMapping: map[string]string{
+						"dev": "123456789012",
+					},
+				},
+			},
+			Backend: &config.Backend{
+				S3: &config.S3Backend{
+					BucketName: "{{.Env}}-terraform-state",
+				},
+			},
 		}
+		filesystem := fs.NewMemoryFileSystem()
+		log := logger.New(false)
+		gen := NewGenerator(cfg, filesystem, log)
 
-		result, err := gen.renderBucketName("{{.Env}}-terraform-state", data)
+		renderer, err := templates.NewRenderer()
+		require.NoError(t, err)
+		gen.renderer = renderer
+
+		data, err := gen.prepareTemplateData("dev", "us-east-1", "myapp")
 		assert.NoError(t, err)
-		assert.Equal(t, "dev-terraform-state", result)
+		assert.Equal(t, "dev-terraform-state", data.S3BucketName)
 	})
 
 	t.Run("render bucket name template with multiple variables", func(t *testing.T) {
-		cfg := &config.Config{}
-		gen := NewGenerator(cfg, fs.NewMemoryFileSystem(), logger.New(false))
-
-		data := &templates.Data{
-			Env:    "prd",
-			Region: "eu-central-1",
-			AppDir: "webapp",
+		cfg := &config.Config{
+			TerraformVersion: "~> 1.13",
+			Provider: &config.Provider{
+				AWS: &config.AWSProvider{
+					AccountMapping: map[string]string{
+						"prd": "987654321098",
+					},
+				},
+			},
+			Backend: &config.Backend{
+				S3: &config.S3Backend{
+					BucketName: "{{.AppDir}}-{{.Env}}-{{.Region}}-tfstate",
+				},
+			},
 		}
+		filesystem := fs.NewMemoryFileSystem()
+		log := logger.New(false)
+		gen := NewGenerator(cfg, filesystem, log)
 
-		result, err := gen.renderBucketName("{{.AppDir}}-{{.Env}}-{{.Region}}-tfstate", data)
+		renderer, err := templates.NewRenderer()
+		require.NoError(t, err)
+		gen.renderer = renderer
+
+		data, err := gen.prepareTemplateData("prd", "eu-central-1", "webapp")
 		assert.NoError(t, err)
-		assert.Equal(t, "webapp-prd-eu-central-1-tfstate", result)
+		assert.Equal(t, "webapp-prd-eu-central-1-tfstate", data.S3BucketName)
 	})
 
 	t.Run("render bucket name without template syntax", func(t *testing.T) {
-		cfg := &config.Config{}
-		gen := NewGenerator(cfg, fs.NewMemoryFileSystem(), logger.New(false))
-
-		data := &templates.Data{
-			Env:    "dev",
-			Region: "us-east-1",
+		cfg := &config.Config{
+			TerraformVersion: "~> 1.13",
+			Provider: &config.Provider{
+				AWS: &config.AWSProvider{
+					AccountMapping: map[string]string{
+						"dev": "123456789012",
+					},
+				},
+			},
+			Backend: &config.Backend{
+				S3: &config.S3Backend{
+					BucketName: "static-bucket-name",
+				},
+			},
 		}
+		filesystem := fs.NewMemoryFileSystem()
+		log := logger.New(false)
+		gen := NewGenerator(cfg, filesystem, log)
 
-		result, err := gen.renderBucketName("static-bucket-name", data)
+		renderer, err := templates.NewRenderer()
+		require.NoError(t, err)
+		gen.renderer = renderer
+
+		data, err := gen.prepareTemplateData("dev", "us-east-1", "myapp")
 		assert.NoError(t, err)
-		assert.Equal(t, "static-bucket-name", result)
+		assert.Equal(t, "static-bucket-name", data.S3BucketName)
 	})
 
 	t.Run("error on invalid template syntax", func(t *testing.T) {
-		cfg := &config.Config{}
-		gen := NewGenerator(cfg, fs.NewMemoryFileSystem(), logger.New(false))
+		cfg := &config.Config{
+			TerraformVersion: "~> 1.13",
+			Provider: &config.Provider{
+				AWS: &config.AWSProvider{
+					AccountMapping: map[string]string{
+						"dev": "123456789012",
+					},
+				},
+			},
+			Backend: &config.Backend{
+				S3: &config.S3Backend{
+					BucketName: "{{.Env",
+				},
+			},
+		}
+		filesystem := fs.NewMemoryFileSystem()
+		log := logger.New(false)
+		gen := NewGenerator(cfg, filesystem, log)
 
-		data := &templates.Data{Env: "dev"}
+		renderer, err := templates.NewRenderer()
+		require.NoError(t, err)
+		gen.renderer = renderer
 
-		_, err := gen.renderBucketName("{{.Env", data)
+		_, err = gen.prepareTemplateData("dev", "us-east-1", "myapp")
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to parse bucket_name template")
+		assert.Contains(t, err.Error(), "failed to render bucket_name template")
+	})
+
+	t.Run("bucket name with template functions", func(t *testing.T) {
+		cfg := &config.Config{
+			TerraformVersion: "~> 1.13",
+			Provider: &config.Provider{
+				AWS: &config.AWSProvider{
+					AccountMapping: map[string]string{
+						"dev": "123456789012",
+					},
+				},
+			},
+			Backend: &config.Backend{
+				S3: &config.S3Backend{
+					BucketName: "{{.Env | toUpper}}-terraform-state",
+				},
+			},
+		}
+		filesystem := fs.NewMemoryFileSystem()
+		log := logger.New(false)
+		gen := NewGenerator(cfg, filesystem, log)
+
+		renderer, err := templates.NewRenderer()
+		require.NoError(t, err)
+		gen.renderer = renderer
+
+		data, err := gen.prepareTemplateData("dev", "us-east-1", "myapp")
+		assert.NoError(t, err)
+		assert.Equal(t, "DEV-terraform-state", data.S3BucketName)
 	})
 }
 
@@ -1694,7 +1784,9 @@ func TestGenerator_generateWorkflowFileName(t *testing.T) {
 		name             string
 		originalFileName string
 		data             *templates.Data
+		config           *config.Config
 		expectedOutput   string
+		expectError      bool
 	}{
 		{
 			name:             "lint workflow with standard data",
@@ -1704,7 +1796,9 @@ func TestGenerator_generateWorkflowFileName(t *testing.T) {
 				Env:         "dev",
 				ShortRegion: "euc1",
 			},
+			config:         &config.Config{},
 			expectedOutput: "myapp-dev-euc1-lint.yaml",
+			expectError:    false,
 		},
 		{
 			name:             "terraform workflow with standard data",
@@ -1714,7 +1808,9 @@ func TestGenerator_generateWorkflowFileName(t *testing.T) {
 				Env:         "prd",
 				ShortRegion: "use1",
 			},
+			config:         &config.Config{},
 			expectedOutput: "backend-api-prd-use1-terraform.yaml",
+			expectError:    false,
 		},
 		{
 			name:             "workflow with hyphenated app name",
@@ -1724,7 +1820,9 @@ func TestGenerator_generateWorkflowFileName(t *testing.T) {
 				Env:         "stg",
 				ShortRegion: "euw1",
 			},
+			config:         &config.Config{},
 			expectedOutput: "my-complex-app-stg-euw1-lint.yaml",
+			expectError:    false,
 		},
 		{
 			name:             "workflow with underscore app name",
@@ -1734,19 +1832,63 @@ func TestGenerator_generateWorkflowFileName(t *testing.T) {
 				Env:         "dev",
 				ShortRegion: "apse2",
 			},
+			config:         &config.Config{},
 			expectedOutput: "test_app-dev-apse2-terraform.yaml",
+			expectError:    false,
+		},
+		{
+			name:             "custom name template renders correctly",
+			originalFileName: "lint.yaml",
+			data: &templates.Data{
+				AppDir:      "myapp",
+				Env:         "dev",
+				Region:      "us-east-1",
+				ShortRegion: "use1",
+			},
+			config: &config.Config{
+				Generate: &config.Generate{
+					GithubWorkflows: &config.GithubWorkflows{
+						NameTemplate: "{{.AppDir}}-{{.Env}}",
+					},
+				},
+			},
+			expectedOutput: "myapp-dev-lint.yaml",
+			expectError:    false,
+		},
+		{
+			name:             "invalid custom template returns error",
+			originalFileName: "lint.yaml",
+			data: &templates.Data{
+				AppDir:      "myapp",
+				Env:         "dev",
+				ShortRegion: "use1",
+			},
+			config: &config.Config{
+				Generate: &config.Generate{
+					GithubWorkflows: &config.GithubWorkflows{
+						NameTemplate: "{{.AppDir",
+					},
+				},
+			},
+			expectedOutput: "",
+			expectError:    true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := &config.Config{}
 			filesystem := fs.NewMemoryFileSystem()
 			log := logger.New(false)
-			gen := NewGenerator(cfg, filesystem, log)
+			gen := NewGenerator(tt.config, filesystem, log)
 
-			result := gen.generateWorkflowFileName(tt.originalFileName, tt.data)
-			assert.Equal(t, tt.expectedOutput, result)
+			result, err := gen.generateWorkflowFileName(tt.originalFileName, tt.data)
+
+			if tt.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expectedOutput, result)
+			}
 		})
 	}
 }
@@ -2111,8 +2253,9 @@ func TestGenerator_buildAWSRoleArn(t *testing.T) {
 	tests := []struct {
 		name        string
 		config      *config.Config
-		env         string
+		data        *templates.Data
 		expectedArn string
+		expectError bool
 	}{
 		{
 			name: "explicit ARN takes precedence over role name",
@@ -2131,8 +2274,15 @@ func TestGenerator_buildAWSRoleArn(t *testing.T) {
 					},
 				},
 			},
-			env:         "dev",
+			data: &templates.Data{
+				Env:         "dev",
+				Region:      "us-east-1",
+				AppDir:      "myapp",
+				AccountID:   "123456789012",
+				ShortRegion: "use1",
+			},
 			expectedArn: "arn:aws:iam::999999999999:role/CustomRole",
+			expectError: false,
 		},
 		{
 			name: "role name constructs ARN when no explicit ARN provided",
@@ -2150,8 +2300,15 @@ func TestGenerator_buildAWSRoleArn(t *testing.T) {
 					},
 				},
 			},
-			env:         "dev",
+			data: &templates.Data{
+				Env:         "dev",
+				Region:      "us-east-1",
+				AppDir:      "myapp",
+				AccountID:   "123456789012",
+				ShortRegion: "use1",
+			},
 			expectedArn: "arn:aws:iam::123456789012:role/TerraformDeployRole",
+			expectError: false,
 		},
 		{
 			name: "returns placeholder when no ARN or role name provided",
@@ -2167,8 +2324,15 @@ func TestGenerator_buildAWSRoleArn(t *testing.T) {
 					GithubWorkflows: &config.GithubWorkflows{},
 				},
 			},
-			env:         "dev",
+			data: &templates.Data{
+				Env:         "dev",
+				Region:      "us-east-1",
+				AppDir:      "myapp",
+				AccountID:   "123456789012",
+				ShortRegion: "use1",
+			},
 			expectedArn: "arn:aws:iam::123456789012:role/REPLACE_WITH_ROLE_TO_ASSUME",
+			expectError: false,
 		},
 		{
 			name: "returns placeholder when GithubWorkflows is nil",
@@ -2184,8 +2348,15 @@ func TestGenerator_buildAWSRoleArn(t *testing.T) {
 					GithubWorkflows: nil,
 				},
 			},
-			env:         "dev",
+			data: &templates.Data{
+				Env:         "dev",
+				Region:      "us-east-1",
+				AppDir:      "myapp",
+				AccountID:   "123456789012",
+				ShortRegion: "use1",
+			},
 			expectedArn: "arn:aws:iam::123456789012:role/REPLACE_WITH_ROLE_TO_ASSUME",
+			expectError: false,
 		},
 		{
 			name: "returns placeholder when Generate is nil",
@@ -2199,8 +2370,15 @@ func TestGenerator_buildAWSRoleArn(t *testing.T) {
 				},
 				Generate: nil,
 			},
-			env:         "dev",
+			data: &templates.Data{
+				Env:         "dev",
+				Region:      "us-east-1",
+				AppDir:      "myapp",
+				AccountID:   "123456789012",
+				ShortRegion: "use1",
+			},
 			expectedArn: "arn:aws:iam::123456789012:role/REPLACE_WITH_ROLE_TO_ASSUME",
+			expectError: false,
 		},
 		{
 			name: "works with different environment",
@@ -2219,8 +2397,223 @@ func TestGenerator_buildAWSRoleArn(t *testing.T) {
 					},
 				},
 			},
-			env:         "prd",
+			data: &templates.Data{
+				Env:         "prd",
+				Region:      "eu-west-1",
+				AppDir:      "webapp",
+				AccountID:   "987654321098",
+				ShortRegion: "euw1",
+			},
 			expectedArn: "arn:aws:iam::987654321098:role/TerraformDeployRole",
+			expectError: false,
+		},
+		{
+			name: "ARN with template syntax renders correctly",
+			config: &config.Config{
+				Provider: &config.Provider{
+					AWS: &config.AWSProvider{
+						AccountMapping: map[string]string{
+							"dev": "123456789012",
+						},
+					},
+				},
+				Generate: &config.Generate{
+					GithubWorkflows: &config.GithubWorkflows{
+						AWSRoleArn: "arn:aws:iam::{{.AccountID}}:role/terraform-{{.Env | toUpper}}-role",
+					},
+				},
+			},
+			data: &templates.Data{
+				Env:         "dev",
+				Region:      "us-east-1",
+				AppDir:      "myapp",
+				AccountID:   "123456789012",
+				ShortRegion: "use1",
+			},
+			expectedArn: "arn:aws:iam::123456789012:role/terraform-DEV-role",
+			expectError: false,
+		},
+		{
+			name: "role name with template syntax renders correctly",
+			config: &config.Config{
+				Provider: &config.Provider{
+					AWS: &config.AWSProvider{
+						AccountMapping: map[string]string{
+							"dev": "123456789012",
+						},
+					},
+				},
+				Generate: &config.Generate{
+					GithubWorkflows: &config.GithubWorkflows{
+						AWSRoleName: "terraform-{{.Env}}-deploy-role",
+					},
+				},
+			},
+			data: &templates.Data{
+				Env:         "dev",
+				Region:      "us-east-1",
+				AppDir:      "myapp",
+				AccountID:   "123456789012",
+				ShortRegion: "use1",
+			},
+			expectedArn: "arn:aws:iam::123456789012:role/terraform-dev-deploy-role",
+			expectError: false,
+		},
+		{
+			name: "role name with uppercase template function",
+			config: &config.Config{
+				Provider: &config.Provider{
+					AWS: &config.AWSProvider{
+						AccountMapping: map[string]string{
+							"prd": "987654321098",
+						},
+					},
+				},
+				Generate: &config.Generate{
+					GithubWorkflows: &config.GithubWorkflows{
+						AWSRoleName: "TERRAFORM-{{.Env | toUpper}}-ROLE",
+					},
+				},
+			},
+			data: &templates.Data{
+				Env:         "prd",
+				Region:      "eu-west-1",
+				AppDir:      "webapp",
+				AccountID:   "987654321098",
+				ShortRegion: "euw1",
+			},
+			expectedArn: "arn:aws:iam::987654321098:role/TERRAFORM-PRD-ROLE",
+			expectError: false,
+		},
+		{
+			name: "role name with region template variable",
+			config: &config.Config{
+				Provider: &config.Provider{
+					AWS: &config.AWSProvider{
+						AccountMapping: map[string]string{
+							"dev": "123456789012",
+						},
+					},
+				},
+				Generate: &config.Generate{
+					GithubWorkflows: &config.GithubWorkflows{
+						AWSRoleName: "terraform-{{.Env}}-{{.ShortRegion}}-role",
+					},
+				},
+			},
+			data: &templates.Data{
+				Env:         "dev",
+				Region:      "eu-central-1",
+				AppDir:      "myapp",
+				AccountID:   "123456789012",
+				ShortRegion: "euc1",
+			},
+			expectedArn: "arn:aws:iam::123456789012:role/terraform-dev-euc1-role",
+			expectError: false,
+		},
+		{
+			name: "role name with AppDir template variable",
+			config: &config.Config{
+				Provider: &config.Provider{
+					AWS: &config.AWSProvider{
+						AccountMapping: map[string]string{
+							"dev": "123456789012",
+						},
+					},
+				},
+				Generate: &config.Generate{
+					GithubWorkflows: &config.GithubWorkflows{
+						AWSRoleName: "{{.AppDir}}-{{.Env}}-deploy",
+					},
+				},
+			},
+			data: &templates.Data{
+				Env:         "dev",
+				Region:      "us-east-1",
+				AppDir:      "webapp",
+				AccountID:   "123456789012",
+				ShortRegion: "use1",
+			},
+			expectedArn: "arn:aws:iam::123456789012:role/webapp-dev-deploy",
+			expectError: false,
+		},
+		{
+			name: "invalid ARN template returns error",
+			config: &config.Config{
+				Provider: &config.Provider{
+					AWS: &config.AWSProvider{
+						AccountMapping: map[string]string{
+							"dev": "123456789012",
+						},
+					},
+				},
+				Generate: &config.Generate{
+					GithubWorkflows: &config.GithubWorkflows{
+						AWSRoleArn: "arn:aws:iam::{{.AccountID:role/invalid",
+					},
+				},
+			},
+			data: &templates.Data{
+				Env:         "dev",
+				Region:      "us-east-1",
+				AppDir:      "myapp",
+				AccountID:   "123456789012",
+				ShortRegion: "use1",
+			},
+			expectedArn: "",
+			expectError: true,
+		},
+		{
+			name: "invalid role name template returns error",
+			config: &config.Config{
+				Provider: &config.Provider{
+					AWS: &config.AWSProvider{
+						AccountMapping: map[string]string{
+							"dev": "123456789012",
+						},
+					},
+				},
+				Generate: &config.Generate{
+					GithubWorkflows: &config.GithubWorkflows{
+						AWSRoleName: "terraform-{{.Env",
+					},
+				},
+			},
+			data: &templates.Data{
+				Env:         "dev",
+				Region:      "us-east-1",
+				AppDir:      "myapp",
+				AccountID:   "123456789012",
+				ShortRegion: "use1",
+			},
+			expectedArn: "",
+			expectError: true,
+		},
+		{
+			name: "plain ARN without template syntax",
+			config: &config.Config{
+				Provider: &config.Provider{
+					AWS: &config.AWSProvider{
+						AccountMapping: map[string]string{
+							"dev": "123456789012",
+						},
+					},
+				},
+				Generate: &config.Generate{
+					GithubWorkflows: &config.GithubWorkflows{
+						AWSRoleArn: "arn:aws:iam::999999999999:role/StaticRole",
+					},
+				},
+			},
+			data: &templates.Data{
+				Env:         "dev",
+				Region:      "us-east-1",
+				AppDir:      "myapp",
+				AccountID:   "123456789012",
+				ShortRegion: "use1",
+			},
+			expectedArn: "arn:aws:iam::999999999999:role/StaticRole",
+			expectError: false,
 		},
 	}
 
@@ -2230,8 +2623,20 @@ func TestGenerator_buildAWSRoleArn(t *testing.T) {
 			log := logger.New(false)
 			gen := NewGenerator(tt.config, filesystem, log)
 
-			result := gen.buildAWSRoleArn(tt.env)
-			assert.Equal(t, tt.expectedArn, result)
+			// Initialize renderer for template rendering
+			renderer, err := templates.NewRenderer()
+			require.NoError(t, err)
+			gen.renderer = renderer
+
+			result, err := gen.buildAWSRoleArn(tt.data)
+
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), "invalid template syntax")
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expectedArn, result)
+			}
 		})
 	}
 }
