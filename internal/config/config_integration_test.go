@@ -57,38 +57,12 @@ generate:
 				// Test Generate section
 				require.NotNil(t, cfg.Generate)
 				assert.Equal(t, "/custom/templates", cfg.Generate.TemplatesDir)
-				assert.ElementsMatch(t, []string{"tf.tmpl", "md.tmpl"}, cfg.Generate.ExtraTemplateExtensions)
 
 				// Test GithubWorkflows
 				require.NotNil(t, cfg.Generate.GithubWorkflows)
 				assert.True(t, cfg.Generate.GithubWorkflows.Create)
 				assert.Equal(t, "{{.AppDir}}-{{.Env}}", cfg.Generate.GithubWorkflows.NameTemplate)
 				assert.Equal(t, "GitHubActionsRole", cfg.Generate.GithubWorkflows.AWSRoleName)
-			},
-		},
-		{
-			name: "templates_dir and extra_template_extensions under generate",
-			yamlContent: `
-terraform_version: "~> 1.13"
-provider:
-  aws:
-    version: "~> 6.0"
-    account_mapping:
-      dev: "123456789012"
-backend:
-  s3:
-    bucket_name: test-bucket
-generate:
-  templates_dir: /custom/path
-  extra_template_extensions:
-    - yaml.tmpl
-`,
-			expectError: false,
-			validateFunc: func(t *testing.T, cfg *Config) {
-				t.Helper()
-				require.NotNil(t, cfg.Generate)
-				assert.Equal(t, "/custom/path", cfg.Generate.TemplatesDir)
-				assert.Contains(t, cfg.Generate.ExtraTemplateExtensions, "yaml.tmpl")
 			},
 		},
 		{
@@ -114,9 +88,6 @@ extra_template_extensions:
 				// This validates the breaking change - old configs won't work
 				if cfg.Generate != nil {
 					assert.Empty(t, cfg.Generate.TemplatesDir, "Old YAML structure should not populate Generate.TemplatesDir")
-					// normalizeTemplateExtensions always adds tf.tmpl, so we check it only contains the default
-					assert.ElementsMatch(t, []string{"tf.tmpl"}, cfg.Generate.ExtraTemplateExtensions,
-						"Old YAML structure should only have default tf.tmpl, not yaml.tmpl from root level")
 				}
 			},
 		},
@@ -248,9 +219,6 @@ func TestLoadExampleConfigFile(t *testing.T) {
 		// templates_dir should be under generate
 		assert.NotEmpty(t, cfg.Generate.TemplatesDir, "generate.templates_dir should be set in example")
 
-		// extra_template_extensions should be under generate
-		assert.NotNil(t, cfg.Generate.ExtraTemplateExtensions, "generate.extra_template_extensions should exist")
-
 		// github_workflows should be under generate
 		require.NotNil(t, cfg.Generate.GithubWorkflows, "generate.github_workflows should exist")
 	})
@@ -272,13 +240,6 @@ func TestViperBindings(t *testing.T) {
 			testValue:      "/test/path",
 			expectedStruct: "Generate.TemplatesDir",
 			description:    "templates-dir flag should bind to generate.templates_dir",
-		},
-		{
-			name:           "extra_template_extensions binding",
-			viperKey:       "generate.extra_template_extensions",
-			testValue:      []string{"test.tmpl", "yaml.tmpl"},
-			expectedStruct: "Generate.ExtraTemplateExtensions",
-			description:    "extra-template-extensions flag should bind to generate.extra_template_extensions",
 		},
 		{
 			name:           "github_workflows.create binding",
@@ -335,76 +296,6 @@ backend:
 				"Viper should have the test value at key %s", tt.viperKey)
 
 			t.Logf("✓ Viper binding %s -> %s works correctly", tt.viperKey, tt.expectedStruct)
-		})
-	}
-}
-
-// TestNormalizeTemplateExtensions ensures tf.tmpl is always included
-func TestNormalizeTemplateExtensions(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    *Config
-		expected []string
-	}{
-		{
-			name: "nil Generate creates it with tf.tmpl",
-			input: &Config{
-				Generate: nil,
-			},
-			expected: []string{"tf.tmpl"},
-		},
-		{
-			name: "nil ExtraTemplateExtensions gets tf.tmpl",
-			input: &Config{
-				Generate: &Generate{
-					ExtraTemplateExtensions: nil,
-				},
-			},
-			expected: []string{"tf.tmpl"},
-		},
-		{
-			name: "empty ExtraTemplateExtensions gets tf.tmpl",
-			input: &Config{
-				Generate: &Generate{
-					ExtraTemplateExtensions: []string{},
-				},
-			},
-			expected: []string{"tf.tmpl"},
-		},
-		{
-			name: "custom extensions include tf.tmpl",
-			input: &Config{
-				Generate: &Generate{
-					ExtraTemplateExtensions: []string{"yaml.tmpl", "md.tmpl"},
-				},
-			},
-			expected: []string{"md.tmpl", "tf.tmpl", "yaml.tmpl"},
-		},
-		{
-			name: "tf.tmpl is not duplicated",
-			input: &Config{
-				Generate: &Generate{
-					ExtraTemplateExtensions: []string{"tf.tmpl", "yaml.tmpl", "tf.tmpl"},
-				},
-			},
-			expected: []string{"tf.tmpl", "yaml.tmpl"},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			normalizeTemplateExtensions(tt.input)
-
-			require.NotNil(t, tt.input.Generate)
-			require.NotNil(t, tt.input.Generate.ExtraTemplateExtensions)
-
-			// Check that all expected extensions are present
-			for _, expected := range tt.expected {
-				assert.Contains(t, tt.input.Generate.ExtraTemplateExtensions, expected)
-			}
-
-			// Check the count matches (accounting for map-based deduplication)
-			assert.Len(t, tt.input.Generate.ExtraTemplateExtensions, len(tt.expected))
 		})
 	}
 }

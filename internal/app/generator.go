@@ -21,6 +21,9 @@ var (
 	// ErrMetadataKeyNotFound indicates the requested metadata key was not found in template metadata
 	ErrMetadataKeyNotFound = errors.New("metadata key not found")
 
+	// ErrInvalidWorkflowFileName indicates the name_template produced an invalid filename
+	ErrInvalidWorkflowFileName = errors.New("name_template produced invalid filename")
+
 	// Template category constants
 	categoryGithub = "github"
 )
@@ -149,7 +152,6 @@ func (g *Generator) Run(env, region, appDir string) error {
 		g.log.Infof("Using custom templates from: %s", g.config.Generate.TemplatesDir)
 		renderer, err = templates.NewRendererWithCustomTemplates(
 			g.config.Generate.TemplatesDir,
-			g.config.Generate.ExtraTemplateExtensions,
 		)
 	} else {
 		g.log.Debug("Using default embedded templates")
@@ -240,7 +242,11 @@ func (g *Generator) determineOutputPath(tmplPath, appPath string, data *template
 		}
 
 		// Generate dynamic workflow name: {{.AppDir}}-{{.Env}}-{{.ShortRegion}}-{lint|terraform}.yaml
-		dynamicFileName := g.generateWorkflowFileName(fileName, data)
+		dynamicFileName, err := g.generateWorkflowFileName(fileName, data)
+		if err != nil {
+			g.log.Errorf("Failed to generate workflow filename: %v", err)
+			return "", false
+		}
 		return filepath.Join(projectRoot, ".github", "workflows", dynamicFileName), true
 	default:
 		// Unknown category
@@ -274,11 +280,12 @@ func sanitizeWorkflowFileName(filename string) (string, bool) {
 // Pattern: {{.AppDir}}-{{.Env}}-{{.ShortRegion}}-{lint|terraform}.yaml
 // Example: myapp-dev-euc1-lint.yaml, myapp-dev-euc1-terraform.yaml
 // If name_template is provided in config, it uses that template instead
-func (g *Generator) generateWorkflowFileName(originalFileName string, data *templates.Data) string {
+// Returns error if custom template rendering fails or produces invalid filename
+func (g *Generator) generateWorkflowFileName(originalFileName string, data *templates.Data) (string, error) {
 	// Check if custom name template is not provided
 	// Defensive: check Generate and GithubWorkflows are initialized
 	if g.config.Generate == nil || g.config.Generate.GithubWorkflows == nil || g.config.Generate.GithubWorkflows.NameTemplate == "" {
-		return g.generateDefaultWorkflowFileName(originalFileName, data)
+		return g.generateDefaultWorkflowFileName(originalFileName, data), nil
 	}
 
 	// Use custom template
@@ -288,8 +295,7 @@ func (g *Generator) generateWorkflowFileName(originalFileName string, data *temp
 	// Parse and execute the custom template
 	rendered, err := g.renderCustomWorkflowName(nameTemplate, data)
 	if err != nil {
-		g.log.Warnf("Failed to render name_template, using default naming: %v", err)
-		return g.generateDefaultWorkflowFileName(originalFileName, data)
+		return "", fmt.Errorf("failed to render name_template: %w", err)
 	}
 
 	// Normalize: strip trailing .yaml if user included it
@@ -304,11 +310,10 @@ func (g *Generator) generateWorkflowFileName(originalFileName string, data *temp
 	// Validate and sanitize the filename to prevent path traversal
 	sanitized, valid := sanitizeWorkflowFileName(baseFileName)
 	if !valid {
-		g.log.Warnf("name_template produced invalid filename (potential path traversal), using default naming")
-		return g.generateDefaultWorkflowFileName(originalFileName, data)
+		return "", fmt.Errorf("%w (potential path traversal): %s", ErrInvalidWorkflowFileName, baseFileName)
 	}
 
-	return sanitized
+	return sanitized, nil
 }
 
 // renderCustomWorkflowName renders a custom workflow name template
@@ -407,9 +412,6 @@ func (g *Generator) prepareTemplateData(env, region, appDir string) (*templates.
 		s3BucketName = g.config.Backend.S3.BucketName
 	}
 
-	// Build AWS role ARN for terraform workflows
-	awsRoleArn := g.buildAWSRoleArn(env)
-
 	// Create initial data for template rendering
 	data := &templates.Data{
 		Env:                env,
@@ -422,44 +424,67 @@ func (g *Generator) prepareTemplateData(env, region, appDir string) (*templates.
 		AWSProviderVersion: awsProviderVersion,
 		DefaultTags:        defaultTags,
 		DefaultTagsJSON:    defaultTagsJSON,
-		AWSRoleArn:         awsRoleArn,
 	}
 
-	// Render bucket_name as a template if it contains Go template syntax
-	if strings.Contains(s3BucketName, "{{") {
-		renderedBucketName, err := g.renderBucketName(s3BucketName, data)
-		if err != nil {
-			return nil, fmt.Errorf("failed to render bucket_name template: %w", err)
-		}
-		data.S3BucketName = renderedBucketName
+	// Build AWS role ARN for terraform workflows (needs full context for templates)
+	awsRoleArn, err := g.buildAWSRoleArn(data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build AWS role ARN: %w", err)
 	}
+	data.AWSRoleArn = awsRoleArn
+
+	// Render bucket_name as a template if it contains Go template syntax
+	renderedBucketName, err := g.renderer.RenderConfigValue(s3BucketName, "bucket_name", data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to render bucket_name template: %w", err)
+	}
+	data.S3BucketName = renderedBucketName
 
 	return data, nil
 }
 
 // buildAWSRoleArn constructs AWS role ARN from config or returns explicit ARN
 // Priority: aws_role_arn > aws_role_name > default placeholder
-func (g *Generator) buildAWSRoleArn(env string) string {
+// Accepts full template data to allow flexible template variables in role names/ARNs
+func (g *Generator) buildAWSRoleArn(data *templates.Data) (string, error) {
 	// Defensive: check Generate and GithubWorkflows are initialized
 	if g.config.Generate == nil || g.config.Generate.GithubWorkflows == nil {
 		// Return default placeholder
-		return fmt.Sprintf("arn:aws:iam::%s:role/REPLACE_WITH_ROLE_TO_ASSUME", g.config.GetAccountID(env))
+		return fmt.Sprintf("arn:aws:iam::%s:role/REPLACE_WITH_ROLE_TO_ASSUME", data.AccountID), nil
 	}
 
 	workflows := g.config.Generate.GithubWorkflows
 
-	// If explicit ARN is provided, use it
-	if workflows.AWSRoleArn != "" {
-		return workflows.AWSRoleArn
+	// Create template data once for reuse in both ARN and role name rendering
+	// This provides all available fields for maximum flexibility in templates
+	templateData := &templates.Data{
+		Env:         data.Env,
+		Region:      data.Region,
+		AppDir:      data.AppDir,
+		AccountID:   data.AccountID,
+		ShortRegion: data.ShortRegion,
 	}
 
-	// If role name is provided, construct ARN
+	// If explicit ARN is provided, render it as a template and use it
+	if workflows.AWSRoleArn != "" {
+		renderedArn, err := g.renderer.RenderConfigValue(workflows.AWSRoleArn, "aws_role_arn", templateData)
+		if err != nil {
+			return "", fmt.Errorf("invalid template syntax in aws_role_arn: %w", err)
+		}
+		return renderedArn, nil
+	}
+
+	// If role name is provided, render it as a template and construct ARN
 	if workflows.AWSRoleName != "" {
-		return fmt.Sprintf("arn:aws:iam::%s:role/%s", g.config.GetAccountID(env), workflows.AWSRoleName)
+		renderedRoleName, err := g.renderer.RenderConfigValue(workflows.AWSRoleName, "aws_role_name", templateData)
+		if err != nil {
+			return "", fmt.Errorf("invalid template syntax in aws_role_name: %w", err)
+		}
+		return fmt.Sprintf("arn:aws:iam::%s:role/%s", data.AccountID, renderedRoleName), nil
 	}
 
 	// Return default placeholder
-	return fmt.Sprintf("arn:aws:iam::%s:role/REPLACE_WITH_ROLE_TO_ASSUME", g.config.GetAccountID(env))
+	return fmt.Sprintf("arn:aws:iam::%s:role/REPLACE_WITH_ROLE_TO_ASSUME", data.AccountID), nil
 }
 
 // updateBackendIfNeeded checks and updates backend.tf if bucket_name changed
@@ -521,43 +546,114 @@ func (g *Generator) processTemplates(appPath string, data *templates.Data) error
 	return nil
 }
 
-// processTemplate handles generation of a single template file
-func (g *Generator) processTemplate(tmplPath, appPath string, data *templates.Data) error {
-	// Normalize path and check if it's a root template
+// shouldSkipTemplate determines if a template should be skipped during generation
+// Returns true if template should be skipped, along with the reason
+func (g *Generator) shouldSkipTemplate(tmplPath string) (bool, string) {
 	normalizedPath := filepath.ToSlash(tmplPath)
 	parts := strings.Split(normalizedPath, "/")
 
+	if len(parts) == 0 {
+		return true, "invalid path format"
+	}
+
+	category := parts[0]
+
 	// Skip root templates - they are only handled by init command
-	if len(parts) > 0 && parts[0] == "root" {
-		g.log.Debugf("Skipping root template (init only): %s", tmplPath)
-		return nil
+	if category == "root" {
+		return true, "root template (init only)"
 	}
 
 	// Skip github templates if create_github_workflows is not enabled
-	if len(parts) > 0 && parts[0] == categoryGithub {
+	if category == categoryGithub {
 		// Defensive: check Generate and GithubWorkflows are initialized
 		if g.config.Generate == nil || g.config.Generate.GithubWorkflows == nil || !g.config.Generate.GithubWorkflows.Create {
-			g.log.Debugf("Skipping github template (create-github-workflows not enabled): %s", tmplPath)
-			return nil
+			return true, "github template (create-github-workflows not enabled)"
 		}
 	}
 
-	// Create a copy of data for this template to avoid modifying shared data
+	return false, ""
+}
+
+// enrichTemplateDataForWorkflow adds workflow-specific data to template context
+// For github workflow templates, computes and injects the workflow filename
+func (g *Generator) enrichTemplateDataForWorkflow(tmplPath string, data *templates.Data) error {
+	normalizedPath := filepath.ToSlash(tmplPath)
+	parts := strings.Split(normalizedPath, "/")
+
+	if len(parts) == 0 {
+		return nil
+	}
+
+	// Only process github workflow templates (.tmpl files)
+	if parts[0] != categoryGithub || !strings.HasSuffix(tmplPath, ".tmpl") {
+		return nil
+	}
+
+	// Extract the original filename
+	fileName := parts[len(parts)-1]
+	fileName = strings.TrimSuffix(fileName, ".tmpl")
+
+	// Skip reusable workflows
+	if strings.HasPrefix(fileName, "reusable-") {
+		return nil
+	}
+
+	// Generate and inject workflow filename
+	workflowFileName, err := g.generateWorkflowFileName(fileName, data)
+	if err != nil {
+		return fmt.Errorf("failed to generate workflow filename: %w", err)
+	}
+
+	data.WorkflowFileName = workflowFileName
+	return nil
+}
+
+// writeTemplateFile creates the directory structure and writes the rendered template
+func (g *Generator) writeTemplateFile(tmplPath, outputPath, outputName string, data *templates.Data) error {
+	// Ensure parent directory exists
+	outputDir := filepath.Dir(outputPath)
+	if err := g.fs.MkdirAll(outputDir, 0755); err != nil {
+		return fmt.Errorf("failed to create directory for %s: %w", outputName, err)
+	}
+
+	// Render template
+	content, err := g.renderer.Render(tmplPath, data)
+	if err != nil {
+		g.log.Infof("Skipping %s: failed to render: %v", outputName, err)
+		return nil
+	}
+
+	// Write file
+	if err := g.fs.WriteFile(outputPath, []byte(content), 0644); err != nil {
+		return fmt.Errorf("failed to write %s: %w", outputName, err)
+	}
+
+	// Log success
+	templateSource := g.renderer.GetTemplateSource(tmplPath)
+	if templateSource == "" {
+		templateSource = tmplPath
+	}
+	g.log.Successf("Created %s from %s", outputName, templateSource)
+
+	return nil
+}
+
+// processTemplate handles generation of a single template file
+func (g *Generator) processTemplate(tmplPath, appPath string, data *templates.Data) error {
+	// Check if template should be skipped
+	shouldSkip, reason := g.shouldSkipTemplate(tmplPath)
+	if shouldSkip {
+		g.log.Debugf("Skipping %s: %s", tmplPath, reason)
+		return nil
+	}
+
+	// Create a copy of data for this template
 	templateData := *data
 
-	// For github workflow templates (.tmpl files), compute and inject the workflow filename
-	if len(parts) > 0 && parts[0] == categoryGithub && strings.HasSuffix(tmplPath, ".tmpl") {
-		// Extract the original filename (e.g., "lint.yaml.tmpl" -> "lint.yaml")
-		fileName := parts[len(parts)-1]
-		fileName = strings.TrimSuffix(fileName, ".tmpl")
-
-		// Check if this is NOT a reusable workflow
-		if !strings.HasPrefix(fileName, "reusable-") {
-			// Generate the workflow filename that will be created
-			workflowFileName := g.generateWorkflowFileName(fileName, &templateData)
-			// Inject it into template data for self-reference
-			templateData.WorkflowFileName = workflowFileName
-		}
+	// Enrich data for workflow templates
+	if err := g.enrichTemplateDataForWorkflow(tmplPath, &templateData); err != nil {
+		g.log.Errorf("Failed to enrich template data for %s: %v", tmplPath, err)
+		return err
 	}
 
 	// Determine output path
@@ -574,46 +670,8 @@ func (g *Generator) processTemplate(tmplPath, appPath string, data *templates.Da
 		return nil
 	}
 
-	// Ensure parent directory exists
-	outputDir := filepath.Dir(outputPath)
-	if err := g.fs.MkdirAll(outputDir, 0755); err != nil {
-		return fmt.Errorf("failed to create directory for %s: %w", outputName, err)
-	}
-
-	// Render and write template (use templateData which contains computed values)
-	content, err := g.renderer.Render(tmplPath, &templateData)
-	if err != nil {
-		g.log.Infof("Skipping %s: failed to render: %v", outputName, err)
-		return nil
-	}
-
-	if err := g.fs.WriteFile(outputPath, []byte(content), 0644); err != nil {
-		return fmt.Errorf("failed to write %s: %w", outputName, err)
-	}
-
-	// Log success
-	templateSource := g.renderer.GetTemplateSource(tmplPath)
-	if templateSource == "" {
-		templateSource = tmplPath
-	}
-	g.log.Successf("Created %s from %s", outputName, templateSource)
-
-	return nil
-}
-
-// renderBucketName renders a bucket name template with context variables
-func (g *Generator) renderBucketName(bucketTemplate string, data *templates.Data) (string, error) {
-	tmpl, err := template.New("bucket_name").Parse(bucketTemplate)
-	if err != nil {
-		return "", fmt.Errorf("failed to parse bucket_name template: %w", err)
-	}
-
-	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, data); err != nil {
-		return "", fmt.Errorf("failed to execute bucket_name template: %w", err)
-	}
-
-	return buf.String(), nil
+	// Create output directory and write file
+	return g.writeTemplateFile(tmplPath, outputPath, outputName, &templateData)
 }
 
 // shouldUpdateBackend checks if the backend.tf needs updating due to bucket_name changes
