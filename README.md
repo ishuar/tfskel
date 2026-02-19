@@ -194,16 +194,7 @@ make check  # Run all quality checks
 > Please keep your pull requests small and focused. This will make it easier to review and merge.
 
 ## License
-Released under [MIT LICENSE](/LICENSE) by [@ishuar](https://github.com/ishuar).
-
-_Copyright (c) 2026 Ishan Sharma_
-
-<!-- CONTACT -->
-## Contact
-
-- :dart: [Contact Profile](https://linktr.ee/ishuar)
-- 👯 [LinkedIn](https://linkedin.com/in/ishuar)
-
+Released under [MIT LICENSE](/LICENSE)
 
 <p align="right"><a href="#top">Back To Top ⬆️</a></p>
 
