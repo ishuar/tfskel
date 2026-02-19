@@ -183,7 +183,6 @@ mustBindPFlag := func(key string, flagName string) {
 // Bind flags to viper with strict validation
 mustBindPFlag("generate.templates_dir", "templates-dir")
 mustBindPFlag("backend.s3.bucket_name", "s3-bucket-name")
-mustBindPFlag("generate.extra_template_extensions", "extra-template-extensions")
 mustBindPFlag("generate.github_workflows.create", "create-github-workflows")
 ```
 
@@ -274,10 +273,9 @@ func (c *Config) GetAccountID(env string) string
 
 **Configuration Loading Process**:
 1. **Unmarshal**: Viper config unmarshaled into Config struct
-2. **Deprecation Check**: Warns about old root-level `templates_dir` and `extra_template_extensions`
+2. **Deprecation Check**: Warns about old root-level `templates_dir`
 3. **Flag Overrides**: Command-line flags override config file values
 4. **Defaults**: Apply sensible defaults for optional fields
-5. **Normalization**: Normalize template extensions (always includes "tf.tmpl")
 
 **Data Structures**:
 ```go
@@ -309,9 +307,8 @@ type S3Backend struct {
 
 // Generate holds generate command specific configuration
 type Generate struct {
-    GithubWorkflows         *GithubWorkflows `mapstructure:"github_workflows"`
-    TemplatesDir            string           `mapstructure:"templates_dir"`
-    ExtraTemplateExtensions []string         `mapstructure:"extra_template_extensions"`
+    GithubWorkflows *GithubWorkflows `mapstructure:"github_workflows"`
+    TemplatesDir    string           `mapstructure:"templates_dir"`
 }
 
 type GithubWorkflows struct {
@@ -598,13 +595,12 @@ config.Load(cmd, viper)
     │
     ├─ 2. Check Deprecated Config
     │   ├─ Detect old root-level templates_dir
-    │   ├─ Detect old root-level extra_template_extensions
+    │   ├─ Detect extra_template_extensions
     │   └─ Log warnings with migration guidance
     │
     ├─ 3. Apply Flag Overrides
     │   ├─ --templates-dir → Generate.TemplatesDir
     │   ├─ --s3-bucket-name → Backend.S3.BucketName
-    │   ├─ --extra-template-extensions → Generate.ExtraTemplateExtensions
     │   └─ --create-github-workflows → Generate.GithubWorkflows.Create
     │
     ├─ 4. Set Defaults

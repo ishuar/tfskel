@@ -3,7 +3,6 @@ package config
 import (
 	"errors"
 	"fmt"
-	"slices"
 
 	"github.com/ishuar/tfskel/internal/logger"
 	"github.com/spf13/cobra"
@@ -50,9 +49,8 @@ type GithubWorkflows struct {
 
 // Generate holds generate command specific configuration
 type Generate struct {
-	GithubWorkflows         *GithubWorkflows `mapstructure:"github_workflows"`
-	TemplatesDir            string           `mapstructure:"templates_dir"`
-	ExtraTemplateExtensions []string         `mapstructure:"extra_template_extensions"`
+	GithubWorkflows *GithubWorkflows `mapstructure:"github_workflows"`
+	TemplatesDir    string           `mapstructure:"templates_dir"`
 }
 
 // Config holds the application configuration
@@ -81,9 +79,6 @@ func Load(cmd *cobra.Command, v *viper.Viper) (*Config, error) {
 	// Set defaults
 	setDefaults(cfg)
 
-	// Normalize template extensions
-	normalizeTemplateExtensions(cfg)
-
 	return cfg, nil
 }
 
@@ -91,7 +86,6 @@ func Load(cmd *cobra.Command, v *viper.Viper) (*Config, error) {
 func applyFlagOverrides(cmd *cobra.Command, cfg *Config) {
 	applyTemplatesDirOverride(cmd, cfg)
 	applyS3BucketNameOverride(cmd, cfg)
-	applyExtraTemplateExtensionsOverride(cmd, cfg)
 	applyCreateGithubWorkflowsOverride(cmd, cfg)
 }
 
@@ -123,19 +117,6 @@ func applyS3BucketNameOverride(cmd *cobra.Command, cfg *Config) {
 		cfg.Backend.S3 = &S3Backend{}
 	}
 	cfg.Backend.S3.BucketName = bucketName
-}
-
-func applyExtraTemplateExtensionsOverride(cmd *cobra.Command, cfg *Config) {
-	if !cmd.Flags().Changed("extra-template-extensions") {
-		return
-	}
-	extraExts, err := cmd.Flags().GetStringSlice("extra-template-extensions")
-	if err == nil {
-		if cfg.Generate == nil {
-			cfg.Generate = &Generate{}
-		}
-		cfg.Generate.ExtraTemplateExtensions = extraExts
-	}
 }
 
 func applyCreateGithubWorkflowsOverride(cmd *cobra.Command, cfg *Config) {
@@ -183,37 +164,6 @@ func setDefaults(cfg *Config) {
 	}
 }
 
-// normalizeTemplateExtensions ensures tf.tmpl is always present and deduplicates extensions
-func normalizeTemplateExtensions(cfg *Config) {
-	// Defensive: initialize if nil (though setDefaults should have done this)
-	if cfg.Generate == nil {
-		cfg.Generate = &Generate{}
-	}
-
-	if len(cfg.Generate.ExtraTemplateExtensions) == 0 {
-		cfg.Generate.ExtraTemplateExtensions = []string{"tf.tmpl"}
-		return
-	}
-
-	// Deduplicate and ensure tf.tmpl is always present
-	extMap := make(map[string]bool)
-	extMap["tf.tmpl"] = true // Always include tf.tmpl
-	for _, ext := range cfg.Generate.ExtraTemplateExtensions {
-		if ext != "" {
-			extMap[ext] = true
-		}
-	}
-	// Convert back to slice
-	cfg.Generate.ExtraTemplateExtensions = make([]string, 0, len(extMap))
-	for ext := range extMap {
-		cfg.Generate.ExtraTemplateExtensions = append(cfg.Generate.ExtraTemplateExtensions, ext)
-	}
-	// Sort for deterministic ordering (map iteration is random in Go)
-	// This ensures consistent output across runs and doesn't affect processing
-	// since template extensions are matched by pattern, not order
-	slices.Sort(cfg.Generate.ExtraTemplateExtensions)
-}
-
 // Validate checks if the configuration is valid
 func (c *Config) Validate() error {
 	// Validate that required configuration sections exist
@@ -253,16 +203,12 @@ func checkDeprecatedConfig(v *viper.Viper) {
 
 	// Check for old root-level templates_dir (moved to generate.templates_dir)
 	if v.IsSet("templates_dir") && !v.IsSet("generate.templates_dir") {
-		log.Warnf("DEPRECATION WARNING: 'templates_dir' is deprecated at root level, use 'generate.templates_dir' instead (current value: %s)",
+		log.Warnf("DEPRECATION: 'templates_dir' at root level is deprecated, use 'generate.templates_dir' instead (current: %s) - this will be ignored",
 			v.GetString("templates_dir"))
-		log.Warn("This configuration will be ignored. Update your .tfskel.yaml to use the new structure.")
-		log.Warn("See: https://github.com/ishuar/tfskel/blob/main/docs/tfskel-book.md#configuration")
 	}
 
 	// Check for old root-level extra_template_extensions (moved to generate.extra_template_extensions)
-	if v.IsSet("extra_template_extensions") && !v.IsSet("generate.extra_template_extensions") {
-		log.Warn("DEPRECATION WARNING: 'extra_template_extensions' is deprecated at root level, use 'generate.extra_template_extensions' instead")
-		log.Warn("This configuration will be ignored. Update your .tfskel.yaml to use the new structure.")
-		log.Warn("See: https://github.com/ishuar/tfskel/blob/main/docs/tfskel-book.md#configuration")
+	if v.IsSet("extra_template_extensions") || v.IsSet("generate.extra_template_extensions") {
+		log.Warn("DEPRECATION: 'extra_template_extensions' is no longer supported - all .tmpl files are now processed as templates")
 	}
 }

@@ -327,7 +327,6 @@ func TestCheckDeprecatedConfig(t *testing.T) {
 				t.Helper()
 				v := viper.New()
 				v.Set("generate.templates_dir", "/custom/path")
-				v.Set("generate.extra_template_extensions", []string{"yaml.tmpl"})
 				cfg := &Config{}
 				err := v.Unmarshal(cfg)
 				require.NoError(t, err)
@@ -347,20 +346,6 @@ func TestCheckDeprecatedConfig(t *testing.T) {
 				require.NoError(t, err)
 				// This will print warnings, but we can't easily capture them in unit tests
 				// In integration tests, we verify the actual behavior
-				checkDeprecatedConfig(v)
-				return cfg
-			},
-			expectOutput: true,
-		},
-		{
-			name: "deprecated extra_template_extensions at root",
-			viperSetup: func(t *testing.T) *Config {
-				t.Helper()
-				v := viper.New()
-				v.Set("extra_template_extensions", []string{"yaml.tmpl"})
-				cfg := &Config{}
-				err := v.Unmarshal(cfg)
-				require.NoError(t, err)
 				checkDeprecatedConfig(v)
 				return cfg
 			},

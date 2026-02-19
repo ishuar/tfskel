@@ -149,7 +149,7 @@ func TestRenderNonExistentTemplate(t *testing.T) {
 
 func TestNewRendererWithCustomTemplates(t *testing.T) {
 	t.Run("with empty custom dir uses defaults", func(t *testing.T) {
-		renderer, err := NewRendererWithCustomTemplates("", []string{"tf.tmpl"})
+		renderer, err := NewRendererWithCustomTemplates("")
 		require.NoError(t, err)
 		assert.NotNil(t, renderer)
 
@@ -158,7 +158,7 @@ func TestNewRendererWithCustomTemplates(t *testing.T) {
 	})
 
 	t.Run("with non-existent custom dir returns error", func(t *testing.T) {
-		_, err := NewRendererWithCustomTemplates("/nonexistent/path", []string{"tf.tmpl"})
+		_, err := NewRendererWithCustomTemplates("/nonexistent/path")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "does not exist")
 	})
