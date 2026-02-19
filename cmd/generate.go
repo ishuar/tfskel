@@ -54,12 +54,11 @@ Arguments:
 }
 
 var (
-	env                     string
-	region                  string
-	templatesDir            string
-	s3BucketName            string
-	extraTemplateExtensions []string
-	createGithubWorkflows   bool
+	env                   string
+	region                string
+	templatesDir          string
+	s3BucketName          string
+	createGithubWorkflows bool
 )
 
 func init() {
@@ -77,9 +76,8 @@ func init() {
 	}
 
 	// Optional flags
-	generateCmd.Flags().StringVar(&templatesDir, "templates-dir", "", "directory containing custom template files (overrides defaults)")
+	generateCmd.Flags().StringVar(&templatesDir, "templates-dir", "", "directory containing custom template files (all .tmpl files will be processed)")
 	generateCmd.Flags().StringVar(&s3BucketName, "s3-bucket-name", "", "S3 bucket name for Terraform state")
-	generateCmd.Flags().StringSliceVar(&extraTemplateExtensions, "extra-template-extensions", []string{"tf.tmpl"}, "template file extensions to process from templates-dir (tf.tmpl always included)")
 	generateCmd.Flags().BoolVar(&createGithubWorkflows, "create-github-workflows", false, "create GitHub workflow files from default templates (disabled by default)")
 
 	// Bind flags to viper - these should never fail unless there's a developer error
@@ -92,7 +90,6 @@ func init() {
 
 	mustBindPFlag("generate.templates_dir", "templates-dir")
 	mustBindPFlag("backend.s3.bucket_name", "s3-bucket-name")
-	mustBindPFlag("generate.extra_template_extensions", "extra-template-extensions")
 	mustBindPFlag("generate.github_workflows.create", "create-github-workflows")
 }
 

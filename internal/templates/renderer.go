@@ -87,12 +87,12 @@ type Renderer struct {
 
 // NewRenderer creates a new template renderer with default embedded templates
 func NewRenderer() (*Renderer, error) {
-	return NewRendererWithCustomTemplates("", []string{"tf.tmpl"})
+	return NewRendererWithCustomTemplates("")
 }
 
 // NewRendererWithCustomTemplates creates a renderer that supports custom template directory
-// allowedExtensions specifies which file extensions to load from custom directory (e.g., ["tf.tmpl", "md.tmpl"])
-func NewRendererWithCustomTemplates(customTemplateDir string, allowedExtensions []string) (*Renderer, error) {
+// All files ending with .tmpl extension will be parsed as Go templates
+func NewRendererWithCustomTemplates(customTemplateDir string) (*Renderer, error) {
 	r := &Renderer{
 		templates:     make(map[string]*template.Template),
 		staticContent: make(map[string]string),
@@ -106,7 +106,7 @@ func NewRendererWithCustomTemplates(customTemplateDir string, allowedExtensions 
 
 	// Load custom templates if directory provided
 	if customTemplateDir != "" {
-		if err := r.loadCustomTemplates(customTemplateDir, allowedExtensions); err != nil {
+		if err := r.loadCustomTemplates(customTemplateDir); err != nil {
 			return nil, fmt.Errorf("failed to load custom templates: %w", err)
 		}
 	}
@@ -124,43 +124,38 @@ func (r *Renderer) loadTemplatesFromFS(fsys fs.FS) error {
 			return nil
 		}
 
-		// Only process .tmpl and .yaml files
-		if !strings.HasSuffix(path, ".tmpl") && !strings.HasSuffix(path, ".yaml") {
-			return nil
-		}
-
 		content, err := fs.ReadFile(fsys, path)
 		if err != nil {
 			return fmt.Errorf("failed to read template %s: %w", path, err)
 		}
 
-		// For .yaml files (reusable workflows), store as raw content (no template parsing)
-		// These files contain GitHub Actions syntax like ${{ inputs.foo }} which conflicts with Go templates
-		if strings.HasSuffix(path, ".yaml") {
-			r.staticContent[path] = string(content)
+		// Files ending with .tmpl are parsed as Go templates
+		if strings.HasSuffix(path, ".tmpl") {
+			tmpl, err := template.New(path).Funcs(funcMap).Parse(string(content))
+			if err != nil {
+				return fmt.Errorf("failed to parse template %s: %w", path, err)
+			}
+			r.templates[path] = tmpl
 			r.sources[path] = "embedded:" + path
 			return nil
 		}
 
-		// For .tmpl files, parse as Go templates
-		tmpl, err := template.New(path).Funcs(funcMap).Parse(string(content))
-		if err != nil {
-			return fmt.Errorf("failed to parse template %s: %w", path, err)
-		}
-
-		r.templates[path] = tmpl
+		// Everything else is treated as static content
+		// (e.g., .yaml files contain GitHub Actions syntax like ${{ inputs.foo }} which conflicts with Go templates)
+		r.staticContent[path] = string(content)
 		r.sources[path] = "embedded:" + path
 		return nil
 	})
 }
 
 // loadCustomTemplates loads templates from a custom directory
-// Only processes files with extensions in allowedExtensions list
-// Example with ["tf.tmpl", "md.tmpl"]:
+// All files ending with .tmpl extension are parsed as Go templates
+// Custom templates override default embedded templates with the same name
+// Example:
 //
 //	backend.tf.tmpl -> tf/backend.tf.tmpl (overrides default)
 //	readme.md.tmpl  -> tf/readme.md.tmpl (new template)
-func (r *Renderer) loadCustomTemplates(customDir string, allowedExtensions []string) error {
+func (r *Renderer) loadCustomTemplates(customDir string) error {
 	if _, err := os.Stat(customDir); os.IsNotExist(err) {
 		return fmt.Errorf("%w: %s", ErrCustomTemplateDirNotExist, customDir)
 	}
@@ -175,15 +170,8 @@ func (r *Renderer) loadCustomTemplates(customDir string, allowedExtensions []str
 
 		filename := filepath.Base(path)
 
-		// Check if file matches any allowed extension
-		allowed := false
-		for _, ext := range allowedExtensions {
-			if strings.HasSuffix(filename, "."+ext) {
-				allowed = true
-				break
-			}
-		}
-		if !allowed {
+		// Only process .tmpl files
+		if !strings.HasSuffix(filename, ".tmpl") {
 			return nil
 		}
 

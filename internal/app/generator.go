@@ -152,7 +152,6 @@ func (g *Generator) Run(env, region, appDir string) error {
 		g.log.Infof("Using custom templates from: %s", g.config.Generate.TemplatesDir)
 		renderer, err = templates.NewRendererWithCustomTemplates(
 			g.config.Generate.TemplatesDir,
-			g.config.Generate.ExtraTemplateExtensions,
 		)
 	} else {
 		g.log.Debug("Using default embedded templates")
