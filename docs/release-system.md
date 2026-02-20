@@ -103,6 +103,7 @@ git commit -m "fix(generator,templates): handle edge cases in template rendering
                              ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │  Release Please Workflow (.github/workflows/release-please.yml) │
+│  Job 1: Release Please                                          │
 │  • Analyzes commits since last release                          │
 │  • Calculates next version (SemVer)                             │
 │  • Creates/Updates Release PR with:                             │
@@ -121,12 +122,14 @@ git commit -m "fix(generator,templates): handle edge cases in template rendering
 │  Release Please: Creates GitHub Release with Tag                 │
 │  • Tag format: v0.2.0                                           │
 │  • Release notes from CHANGELOG.md                              │
+│  • Sets release_created=true output                             │
 └────────────────────────────┬────────────────────────────────────┘
                              │
                              ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  Release Workflow (.github/workflows/release.yml)               │
-│  • Triggered by release publication                             │
+│  Release Please Workflow (.github/workflows/release-please.yml) │
+│  Job 2: GoReleaser (conditional: if release_created == true)    │
+│  • Checks out code at the release tag                           │
 │  • Runs GoReleaser to build binaries for:                       │
 │    - Linux: amd64, arm64, 386                                   │
 │    - macOS: amd64, arm64                                        │
@@ -139,13 +142,12 @@ git commit -m "fix(generator,templates): handle edge cases in template rendering
 ## Configuration Files
 
 ### `cmd/version.go` - Version Source of Truth
-```go
-package cmd
 
-// Version is the semantic version of tfskel
-// This value is automatically updated by release-please during releases
-const Version = "0.0.1"
-```
+**File**: [cmd/version.go](../cmd/version.go)
+
+**Current version**: `0.2.0`
+
+**Purpose**: Embeds the semantic version as a constant that is automatically updated by release-please during releases.
 
 **Why in source code**:
 - Go best practice: version embedded in binary
@@ -154,107 +156,123 @@ const Version = "0.0.1"
 - Single source of truth
 
 ### `release-please-config.json` - Release Configuration
-```json
-{
-  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
-  "release-type": "go",
-  "bump-minor-pre-major": true,
-  "bump-patch-for-minor-pre-major": true,
-  "include-component-in-tag": false,
-  "include-v-in-tag": true,
-  "extra-files": [
-    "cmd/version.go"
-  ],
-  "packages": {
-    ".": {}
-  }
-}
-```
+
+**Configuration**: [release-please-config.json](../release-please-config.json)
 
 **Key settings**:
 - `release-type: go` - Go package release strategy
-- `bump-minor-pre-major: true` - Allow 0.x.0 releases
-- `extra-files: ["cmd/version.go"]` - Update version in source code
-- `include-v-in-tag: true` - Tag format: v0.1.0
+- `bump-minor-pre-major: true` - Allows 0.x.0 minor version releases before 1.0.0
+- `extra-files: ["cmd/version.go"]` - Automatically updates version constant in source code
+- `include-v-in-tag: true` - Creates tags with v prefix (v0.2.0)
+- `draft: false` - Publishes releases immediately (not as drafts)
+- `changelog-sections` - Custom sections with emojis (✨ Features, 🐞 Bug Fixes, etc.)
+- Hidden sections: docs, style, chore, refactor, build, ci
+- Visible sections: feat, fix, perf, revert, test
 
 ### `.release-please-manifest.json` - Current Version
-```json
-{
-  ".": "0.0.1"
-}
-```
 
-**Automatically maintained** by release-please. Do not edit manually.
+**Configuration**: [.release-please-manifest.json](../.release-please-manifest.json)
+
+**Purpose**: Tracks the current released version (0.2.0)
+
+⚠️ **Automatically maintained** by release-please. **Do not edit manually.**
 
 ### `.goreleaser.yaml` - Binary Build Configuration
-```yaml
-builds:
-  - id: tfskel
-    binary: tfskel
-    env:
-      - CGO_ENABLED=0
-    goos: [linux, darwin, windows]
-    goarch: [amd64, arm64, "386"]
-    ldflags:
-      - -s -w
-      - -X github.com/ishuar/tfskel/cmd.Commit={{.Commit}}
-      - -X github.com/ishuar/tfskel/cmd.Date={{.Date}}
-      - -X github.com/ishuar/tfskel/cmd.BuildTime={{.CommitTimestamp}}
-    mod_timestamp: "{{.CommitTimestamp}}"
-    flags:
-      - -trimpath
-```
 
-**Note**: Version is NOT injected via ldflags (comes from `cmd/version.go`)
+**Configuration**: [.goreleaser.yaml](../.goreleaser.yaml)
+
+**Key build settings**:
+- Platforms: Linux, macOS, Windows
+- Architectures: amd64, arm64, 386
+- CGO disabled for static binaries
+- Optimization: `-s -w` flags for smaller binaries
+- Injects: Commit hash, build date, and timestamp
+- Includes: README, LICENSE, CONTRIBUTING, docs/
+
+**Important**: Version is NOT injected via ldflags—it comes from [cmd/version.go](../cmd/version.go)
 
 ## GitHub Actions Workflows
 
 ### `.github/workflows/release-please.yml`
 
-**Trigger**: Every push to `main` branch
-**Purpose**: Create/update Release PR
+**Workflow**: [.github/workflows/release-please.yml](../.github/workflows/release-please.yml)
 
-**Actions**:
-```yaml
-on:
-  push:
-    branches: [main]
+**Triggers**:
+- Every push to `main` branch
+- Manual dispatch via workflow_dispatch
 
-jobs:
-  release-please:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: googleapis/release-please-action@v4
-        with:
-          config-file: release-please-config.json
-          manifest-file: .release-please-manifest.json
-```
+**Purpose**: Create/update Release PR and build binaries when released
 
-### `.github/workflows/release.yml`
+**Concurrency**: Prevents overlapping runs (cancel-in-progress: false)
 
-**Trigger**: When a GitHub release is published
-**Purpose**: Build and upload binaries
+**Jobs**:
 
-**Actions**:
-```yaml
-on:
-  release:
-    types: [published]
+#### Job 1: Release Please
+- **Action**: `googleapis/release-please-action@v4`
+- **Outputs**: `release_created`, `tag_name`, `version`
+- Analyzes commits and creates/updates Release PR
+- Creates GitHub release when PR is merged
 
-jobs:
-  release:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-go@v6
-        with:
-          go-version: '1.24'
-      - uses: goreleaser/goreleaser-action@v6
-        with:
-          args: release --clean
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-```
+#### Job 2: GoReleaser (Conditional)
+- **Condition**: Only runs when `release_created == 'true'`
+- **Go version**: Automatically detected from `go.mod`
+- **GoReleaser**: Uses latest v2.x version
+- Checks out code at the release tag
+- Builds and uploads binaries to the GitHub release
+
+**Workflow**: [.github/workflows/manual-release.yaml](../.github/workflows/manual-release.yaml)
+
+**Trigger**: Manual workflow dispatch only
+
+**Purpose**: (Re)attach binaries to an existing release tag
+
+**Use cases**:
+- GoReleaser failed during automatic release
+- Need to rebuild binaries for an existing release
+- Binary artifacts missing from a release
+
+**Input required**: `git_tag` (e.g., v0.2.0)
+
+**Process**:
+- Checks out code at the specified tag
+- Uses Go version from `go.mod`
+- Runs GoReleaser to build all platform binaries
+- Attaches/replaces assets on the existing GitHub release
+
+**Usage**:
+1. Go to Actions → Manual Release to attach binaries
+2. Click "Run workflow"
+3. Enter the existing tag (e.g., `v0.2.0`)
+4. GoReleaser will build and attach binaries to that release
+
+### `.github/workflows/test.yaml`
+
+**Workflow**: [.github/workflows/test.yaml](../.github/workflows/test.yaml)
+
+**Triggers**: Pull requests and pushes to `main` branch
+
+**Purpose**: Run tests, linting, and build validation
+
+**Path filters**: Skips workflow when only docs/markdown files change
+
+**Jobs**:
+
+#### Job 1: Test Matrix
+- **Operating Systems**: Ubuntu, macOS
+- **Go Versions**: 1.24, 1.25.5
+- Race detector enabled (`-race`)
+- Coverage reports generated
+- Codecov upload (Ubuntu + Go 1.25.5 only)
+
+#### Job 2: Lint
+- Validates `go mod tidy` consistency
+- `golangci-lint` v2.8.0 (5-minute timeout)
+- Runs after tests complete
+
+#### Job 3: Build
+- Optimized binary build (`-ldflags="-w -s"`)
+- Smoke tests: `--version` and `init` commands
+- Runs after tests complete
 
 ## Release Workflow in Detail
 
@@ -274,13 +292,13 @@ git push origin feature/drift-detection
 
 After merge to main, release-please workflow runs:
 
-1. **Scans commits** since last release (`v0.0.1`)
+1. **Scans commits** since last release (`v0.2.0`)
 2. **Finds** conventional commits: `feat:`, `fix:`, etc.
 3. **Calculates** next version based on commit types
-4. **Creates/Updates Release PR** titled "chore(main): release 0.1.0"
+4. **Creates/Updates Release PR** titled "chore(main): release 0.3.0"
 
 **Release PR contains**:
-- `CHANGELOG.md` with new section for 0.1.0
+- `CHANGELOG.md` with new section for 0.3.0
 - `cmd/version.go` with updated version constant
 - `.release-please-manifest.json` with new version
 
@@ -301,12 +319,15 @@ After merge to main, release-please workflow runs:
 
 On Release PR merge:
 
-1. **Release-please creates**:
-   - Git tag: `v0.1.0`
+1. **Release-please (Job 1) creates**:
+   - Git tag: `v0.3.0`
    - GitHub release with CHANGELOG content
+   - Sets `release_created=true` output
 
-2. **Release workflow triggers**:
-   - GoReleaser builds binaries for all platforms
+2. **GoReleaser (Job 2) conditionally triggers**:
+   - Only runs when `release_created == 'true'`
+   - Checks out code at the release tag
+   - Builds binaries for all platforms using Go version from go.mod
    - Archives include: binary, README, LICENSE, CONTRIBUTING, docs/
    - SHA256 checksums generated
    - All uploaded to GitHub release
@@ -315,7 +336,7 @@ On Release PR merge:
 
 ```bash
 # Users can now install
-go install github.com/ishuar/tfskel@v0.1.0
+go install github.com/ishuar/tfskel@v0.3.0
 go install github.com/ishuar/tfskel@latest
 
 # Or download binaries from GitHub releases
@@ -333,7 +354,7 @@ Now returns helpful error message."
 git push origin main
 ```
 
-**Result**: Release PR for `v0.0.2` (patch bump)
+**Result**: Release PR for `v0.2.1` (patch bump)
 
 ### Scenario 2: New Feature
 
@@ -347,7 +368,7 @@ Users can now define custom template functions in config:
 git push origin main
 ```
 
-**Result**: Release PR for `v0.1.0` (minor bump)
+**Result**: Release PR for `v0.3.0` (minor bump)
 
 ### Scenario 3: Breaking Change
 
@@ -370,7 +391,7 @@ Migration: Run 'tfskel config migrate' to convert existing files."
 git push origin main
 ```
 
-**Result**: Release PR for `v1.0.0` (major bump)
+**Result**: Release PR for `v1.0.0` (major bump - first major release)
 
 ### Scenario 4: Multiple Changes
 
@@ -382,73 +403,60 @@ git commit -m "docs: update README with new examples"
 git push origin main
 ```
 
-**Result**: Release PR for `v0.1.0` (highest bump wins: minor from feat:)
+**Result**: Release PR for `v0.3.0` (highest bump wins: minor from feat:)
 
 **CHANGELOG will include**:
 - ✨ Features: add JSON output format
-- 🐛 Bug Fixes: correct CSV escaping
-- 📚 Documentation: update README with new examples
+- 🐞 Bug Fixes: correct CSV escaping
+- Documentation changes are hidden by default per changelog-sections config
 
 ## Modifying the Release System
 
 ### Change Version Bumping Behavior
 
-Edit `release-please-config.json`:
+**File**: [release-please-config.json](../release-please-config.json)
 
-```json
-{
-  "release-type": "go",
-  "bump-minor-pre-major": false,  // Only allow patch bumps before 1.0.0
-  "bump-patch-for-minor-pre-major": false,
-  "extra-files": ["cmd/version.go"]
-}
-```
+**To only allow patch bumps before 1.0.0**:
+- Set `bump-minor-pre-major: false`
+- Set `bump-patch-for-minor-pre-major: false`
 
-### Add Changelog Sections
+This prevents `feat:` commits from creating 0.x.0 releases before reaching 1.0.0.
 
-Release-please uses default Go changelog sections. To customize, add to `release-please-config.json`:
+### Modify Changelog Sections
 
-```json
-{
-  "release-type": "go",
-  "changelog-sections": [
-    {"type": "feat", "section": "✨ Features"},
-    {"type": "fix", "section": "🐛 Bug Fixes"},
-    {"type": "perf", "section": "⚡ Performance"},
-    {"type": "refactor", "section": "♻️ Refactoring"},
-    {"type": "docs", "section": "📚 Documentation"},
-    {"type": "test", "section": "✅ Tests"},
-    {"type": "build", "section": "🔧 Build System"},
-    {"type": "ci", "section": "👷 CI/CD"},
-    {"type": "chore", "section": "🧹 Chores", "hidden": false}
-  ],
-  "extra-files": ["cmd/version.go"]
-}
-```
+**File**: [release-please-config.json](../release-please-config.json)
+
+**Current configuration**: Custom sections with emojis (✨ Features, 🐞 Bug Fixes, etc.)
+
+**To modify**:
+- Edit the `changelog-sections` array
+- Set `"hidden": false` to show a section in CHANGELOG
+- Set `"hidden": true` to hide it from release notes
+- Add new sections with custom `type` and `section` title
+
+**Currently visible**: feat, fix, perf, revert, test
+**Currently hidden**: docs, style, chore, refactor, build, ci
 
 ### Add More Version Files
 
-To update version in multiple files (e.g., Helm chart):
+**File**: [release-please-config.json](../release-please-config.json)
 
-```json
-{
-  "extra-files": [
-    "cmd/version.go",
-    "charts/tfskel/Chart.yaml",
-    "pkg/version/version.go"
-  ]
-}
-```
+**To update version in multiple files** (e.g., Helm charts, package files):
+- Add file paths to the `extra-files` array
+- Release-please will update version strings in all listed files
+- Example: `["cmd/version.go", "charts/tfskel/Chart.yaml", "pkg/version/version.go"]`
 
 ### Change Binary Build Platforms
 
-Edit `.goreleaser.yaml`:
+**File**: [.goreleaser.yaml](../.goreleaser.yaml)
 
-```yaml
-builds:
-  - goos: [linux, darwin, windows, freebsd]  # Add FreeBSD
-    goarch: [amd64, arm64, "386", arm]       # Add ARM
-```
+**To add more platforms/architectures**:
+- Add OS to `goos` array (e.g., `freebsd`, `openbsd`)
+- Add architecture to `goarch` array (e.g., `arm`, `ppc64le`)
+- GoReleaser will build for all combinations
+
+**Current platforms**: Linux, macOS, Windows
+**Current architectures**: amd64, arm64, 386
 
 ### Add Pre-release Versions
 
@@ -486,26 +494,29 @@ git push origin v0.2.0-alpha.1
 
 **Problem**: `cmd/version.go` not updated
 **Solutions**:
-1. Verify file exists: `cmd/version.go`
-2. Check `release-please-config.json` has correct path in `extra-files`
-3. Ensure file has exact format: `const Version = "0.0.1"`
+1. Verify file exists: [cmd/version.go](../cmd/version.go)
+2. Check [release-please-config.json](../release-please-config.json) has correct path in `extra-files`
+3. Ensure file has exact format: `const Version = "0.2.0"`
 4. Review release-please PR for errors
 
 ### Binaries Not Published
 
 **Problem**: Release created but no binaries
 **Solutions**:
-1. Check release workflow ran: Actions → Release
-2. Verify all tests pass
-3. Check GoReleaser logs for errors
-4. Ensure release was "published" (not draft)
+1. Check if GoReleaser job ran: Actions → [Release Please](.github/workflows/release-please.yml) → go-releaser job
+2. Verify `release_created` output was `true`
+3. Check GoReleaser logs for build/upload errors
+4. If GoReleaser failed, use [manual-release workflow](../.github/workflows/manual-release.yaml):
+   - Actions → Manual Release to attach binaries
+   - Enter the tag name (e.g., `v0.2.0`)
+   - Run workflow to rebuild and attach binaries
 
 ### Changelog Missing Commits
 
-**Problem**: Some commits not in CHANGELOG.md
+**Problem**: Some commits not in [CHANGELOG.md](../CHANGELOG.md)
 **Solutions**:
 1. Ensure commits use conventional format
-2. Check commit type is not excluded (e.g., `chore:` may be hidden)
+2. Check commit type is not excluded via [changelog-sections](../release-please-config.json) (e.g., `chore:` is hidden)
 3. Verify commits are in the commit range (between releases)
 
 ## Best Practices
@@ -521,35 +532,26 @@ git push origin v0.2.0-alpha.1
 
 ### ❌ Don'ts
 
-1. **Don't edit manifest manually** - `.release-please-manifest.json` is auto-maintained
-2. **Don't edit CHANGELOG.md directly** - Generated automatically
+1. **Don't edit manifest manually** - [.release-please-manifest.json](../.release-please-manifest.json) is auto-maintained
+2. **Don't edit CHANGELOG.md directly** - [CHANGELOG.md](../CHANGELOG.md) is generated automatically
 3. **Don't create tags manually** - Release-please handles this
 4. **Don't bypass Release PR** - Always merge the PR, don't force-push
-5. **Don't inject version via ldflags** - Use source code version instead
+5. **Don't inject version via ldflags** - Use [source code version](../cmd/version.go) instead
 
 ## Manual Release (Emergency Only)
 
-If automated system fails, create release manually:
+If the automated system fails completely, you can create a release manually:
 
-```bash
-# 1. Update version manually
-sed -i 's/Version = "0.0.1"/Version = "0.1.0"/' cmd/version.go
+**Steps**:
+1. Update version in [cmd/version.go](../cmd/version.go) (e.g., `0.2.0` \u2192 `0.3.0`)
+2. Update version in [.release-please-manifest.json](../.release-please-manifest.json)
+3. Manually update [CHANGELOG.md](../CHANGELOG.md) with release notes
+4. Commit changes: `git commit -am "chore: release 0.3.0"`
+5. Create and push tag: `git tag v0.3.0 && git push origin main --tags`
+6. Create GitHub release manually from the tag
+7. Run [manual-release workflow](../.github/workflows/manual-release.yaml) with tag `v0.3.0` to attach binaries
 
-# 2. Update manifest
-echo '{".":\n"0.1.0"}' > .release-please-manifest.json
-
-# 3. Update CHANGELOG.md manually
-
-# 4. Commit and create tag
-git commit -am "chore: release 0.1.0"
-git tag v0.1.0
-git push origin main --tags
-
-# 5. Create GitHub release manually from tag
-# GoReleaser will trigger automatically
-```
-
-**Note**: After manual release, next automated release will work normally.
+\u26a0\ufe0f **Note**: After manual release, the next automated release will work normally.
 
 ## References
 
@@ -559,8 +561,42 @@ git push origin main --tags
 - [GoReleaser Documentation](https://goreleaser.com/)
 - [GitHub Releases Guide](https://docs.github.com/en/repositories/releasing-projects-on-github)
 
+## Testing Changes
+
+### Test Workflow
+
+**Workflow**: [.github/workflows/test.yaml](../.github/workflows/test.yaml)
+
+Before commits reach `main` and trigger releases, they are validated by the test workflow:
+
+**Runs on**:
+- All pull requests to `main`
+- All pushes to `main`
+- Skips when only docs/markdown changed
+
+**Test matrix**:
+- Operating Systems: Ubuntu, macOS
+- Go Versions: 1.24, 1.25.5
+
+**Validation steps**:
+1. **Tests**: Unit tests with race detector and coverage
+2. **Linting**: golangci-lint v2.8.0 with strict checks
+3. **Build**: Binary compilation and smoke tests
+4. **Coverage**: Upload to Codecov (Ubuntu + Go 1.25.5)
+
+**Quality gates**:
+- All tests must pass on all platforms
+- Linting must pass with no errors
+- Binary must build and execute successfully
+
 ---
 
 **System Status**: ✅ Active and Automated
-**Current Version**: 0.0.1
+**Current Version**: 0.2.0
 **Next Release**: Automatic on next conventional commit to main
+
+**Workflows**:
+- ✅ [Release Please](../.github/workflows/release-please.yml) (automated + manual trigger)
+- ✅ GoReleaser (conditional on release)
+- ✅ [Manual Release](../.github/workflows/manual-release.yaml) (for binary reattachment)
+- ✅ [Tests](../.github/workflows/test.yaml) (PR validation)
