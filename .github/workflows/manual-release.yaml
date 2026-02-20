@@ -4,12 +4,12 @@ on:
   workflow_dispatch:
     inputs:
       git_tag:
-        description: '"Existing Git tag to (re)publish assets for, e.g. v0.2.0"'
+        description: 'Existing Git tag to (re)publish assets for, e.g. v0.2.0'
         required: true
         type: string
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ inputs.git_tag }}
   cancel-in-progress: false
 
 jobs:
@@ -23,7 +23,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          ref: ${{ github.event.inputs.git_tag }}
+          ref: ${{ inputs.git_tag }}
 
       - name: Fetch all tags
         run: git fetch --force --tags
