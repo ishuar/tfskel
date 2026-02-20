@@ -7,7 +7,7 @@ on:
       - 'docs/**'
       - 'LICENSE'
       - '.github/**'
-      - '!.github/workflows/test.yml'
+      - '!.github/workflows/test.yaml'
     branches:
       - main
   push:
@@ -16,7 +16,7 @@ on:
       - 'docs/**'
       - 'LICENSE'
       - '.github/**'
-      - '!.github/workflows/test.yml'
+      - '!.github/workflows/test.yaml'
     branches:
       - main
 
@@ -53,9 +53,7 @@ jobs:
         cache-dependency-path: go.sum
 
     - run: go mod tidy -diff
-
-    - name: Download dependencies
-      run: go mod download
+      if: matrix.os == 'ubuntu-latest' && matrix.go-version == env.GO_VERSION
 
     - name: Run tests
       run: go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
