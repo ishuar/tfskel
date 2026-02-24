@@ -17,6 +17,9 @@ import (
 	"github.com/ishuar/tfskel/internal/util"
 )
 
+// Template category constants
+const categoryGithub = "github"
+
 var (
 	// ErrMetadataKeyNotFound indicates the requested metadata key was not found in template metadata
 	ErrMetadataKeyNotFound = errors.New("metadata key not found")
@@ -24,8 +27,9 @@ var (
 	// ErrInvalidWorkflowFileName indicates the name_template produced an invalid filename
 	ErrInvalidWorkflowFileName = errors.New("name_template produced invalid filename")
 
-	// Template category constants
-	categoryGithub = "github"
+	// appDirReplacer is a reusable strings.Replacer to sanitize AppDir values for filenames by replacing path separators with dashes
+	// Built once when the package is loaded — reused forever
+	appDirReplacer = strings.NewReplacer("/", "-", `\`, "-")
 )
 
 // extractMetadata extracts JSON metadata from a comment line in format: ## tfskel-metadata: {...}
@@ -278,32 +282,46 @@ func sanitizeWorkflowFileName(filename string) (string, bool) {
 
 // sanitizeAppDirForFilename converts an AppDir value that may contain path
 // separators (e.g. "base-infra/ecs-cluster") into a flat, filename-safe
-// string by replacing every '/' and '\' with '-'.
+// string by replacing every '/' with '-'.
 // This is intentionally only used when building the *filename*; the original
 // data.AppDir value is preserved for use inside workflow file content.
 func sanitizeAppDirForFilename(appDir string) string {
-	r := strings.NewReplacer("/", "-")
-	return r.Replace(appDir)
+	return appDirReplacer.Replace(appDir)
 }
 
 // generateWorkflowFileName creates dynamic workflow file names based on template data
 // Pattern: {{.AppDir}}-{{.Env}}-{{.ShortRegion}}-{lint|terraform}.yaml
 // Example: myapp-dev-euc1-lint.yaml, myapp-dev-euc1-terraform.yaml
-// If name_template is provided in config, it uses that template instead
-// Returns error if custom template rendering fails or produces invalid filename
+// If name_template is provided in config, it uses that template instead.
+// AppDir path separators are sanitized in the filename; data.AppDir is never mutated.
+// Returns error if custom template rendering fails or produces invalid filename.
 func (g *Generator) generateWorkflowFileName(originalFileName string, data *templates.Data) (string, error) {
-	// Check if custom name template is not provided
-	// Defensive: check Generate and GithubWorkflows are initialized
-	if g.config.Generate == nil || g.config.Generate.GithubWorkflows == nil || g.config.Generate.GithubWorkflows.NameTemplate == "" {
-		return g.generateDefaultWorkflowFileName(originalFileName, data), nil
+	// Sanitize AppDir for filename use only — original data.AppDir is never touched.
+	// e.g. "base-infra/ecs-cluster" → "base-infra-ecs-cluster"
+	sanitizedAppDir := sanitizeAppDirForFilename(data.AppDir)
+
+	// Default path: no custom template configured
+	if g.config.Generate == nil ||
+		g.config.Generate.GithubWorkflows == nil ||
+		g.config.Generate.GithubWorkflows.NameTemplate == "" {
+		// Pass a copy with sanitized AppDir so generateDefaultWorkflowFileName
+		// uses the flat name without mutating the caller's data.
+		defaultData := *data
+		defaultData.AppDir = sanitizedAppDir
+		return g.generateDefaultWorkflowFileName(originalFileName, &defaultData), nil
 	}
 
-	// Use custom template
+	// Custom template path: build a local copy of data with sanitized AppDir.
+	// This ensures {{.AppDir}} in the NameTemplate produces a filename-safe value,
+	// while data.AppDir remains unchanged for workflow file content rendering.
+	fileNameData := *data
+	fileNameData.AppDir = sanitizedAppDir
+
 	nameTemplate := g.config.Generate.GithubWorkflows.NameTemplate
 	workflowType := strings.TrimSuffix(originalFileName, ".yaml")
 
-	// Parse and execute the custom template
-	rendered, err := g.renderCustomWorkflowName(nameTemplate, data)
+	// Render the custom template against the sanitized copy
+	rendered, err := g.renderCustomWorkflowName(nameTemplate, &fileNameData)
 	if err != nil {
 		return "", fmt.Errorf("failed to render name_template: %w", err)
 	}
@@ -333,15 +351,8 @@ func (g *Generator) renderCustomWorkflowName(nameTemplate string, data *template
 		return "", fmt.Errorf("failed to parse template: %w", err)
 	}
 
-	dataMap := map[string]string{
-		"AppDir":      sanitizeAppDirForFilename(data.AppDir),
-		"Env":         data.Env,
-		"Region":      data.Region,
-		"ShortRegion": data.ShortRegion,
-	}
-
 	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, dataMap); err != nil {
+	if err := tmpl.Execute(&buf, data); err != nil {
 		return "", fmt.Errorf("failed to execute template: %w", err)
 	}
 
@@ -353,12 +364,8 @@ func (g *Generator) generateDefaultWorkflowFileName(originalFileName string, dat
 	// Extract the workflow type from the original filename (e.g., "lint.yaml" -> "lint")
 	workflowType := strings.TrimSuffix(originalFileName, ".yaml")
 
-	// Normalize AppDir for use in filename: replace path separators with dashes
-	// data.AppDir is kept intact for use inside workflow file content
-	appDirForFileName := sanitizeAppDirForFilename(data.AppDir)
-
 	// Build dynamic name: {{.AppDir}}-{{.Env}}-{{.ShortRegion}}-{{workflowType}}.yaml
-	dynamicName := fmt.Sprintf("%s-%s-%s-%s.yaml", appDirForFileName, data.Env, data.ShortRegion, workflowType)
+	dynamicName := fmt.Sprintf("%s-%s-%s-%s.yaml", data.AppDir, data.Env, data.ShortRegion, workflowType)
 
 	return dynamicName
 }
