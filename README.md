@@ -10,7 +10,7 @@
 [![Go Version][go-version-img]][go-version]
 
 <p align="center">
-<img align="center" src="assets/tfskel-logo.svg?raw=true" alt="tfskel logo"  style="height: 100px" />
+<img align="center" src="assets/tfskel-logo.svg?raw=true" alt="tfskel logo"  style="height: 125px" />
 </p>
 
 </div>
