@@ -1,57 +1,38 @@
 <div align="center">
-<img src="assets/tfskel-logo-more-width.png" alt="tfskel logo" width="500" />
+<!-- <img src="assets/tfskel-logo-more-width.png" alt="tfskel logo" width="500" /> -->
 
-[![Go Version][go-version-img]][go-version]
-[![GitHub Release][release-img]][release]
 [![Test][test-img]][test]
-[![Go Report Card][go-report-img]][go-report]
+[![GitHub Release][release-img]][release]
 [![License: MIT][license-img]][license]
 [![Stargazers][stars-shield]][stars-url]
+[![Go Report Card][go-report-img]][go-report]
+[![codecov](https://codecov.io/gh/ishuar/tfskel/graph/badge.svg?token=66VT000UYO)](https://codecov.io/gh/ishuar/tfskel)
+[![Go Version][go-version-img]][go-version]
+
+<p align="center">
+<img align="center" src="assets/tfskel-logo.svg?raw=true" alt="tfskel logo"  style="height: 100px" />
+</p>
+
 </div>
 
 # tfskel
-_Opinionated Terraform scaffolding for teams. No vendor lock-in, just better project structure_
+_Opinionated Terraform scaffolding. No vendor lock-in, just better project structure_
 
-`tfskel` is a CLI tool that scaffolds Terraform monorepos with an **opinionated**, **scalable** and **consistent** way by using environment-based directory structure across multiple regions. No wrappers, no complexity, just vanilla Terraform with consistent backend configs, version **drift detection**, **terraform plan analysis**, and sensible defaults. Spend less time on project setup and more time writing infrastructure code.
+`tfskel` is a CLI tool that scaffolds Terraform monorepos with an **opinionated**, **scalable** and **consistent** way by using environment-based directory structure across multiple regions. No wrappers, no complexity, just vanilla Terraform with consistent terraform root modules, version **drift detection**,and **terraform plan analysis**. Spend less time on project setup and more time writing infrastructure code.
 
 **⭐️ For Latest updates Don't forget to star the repo! ⭐️**
 
-<p align="left">
-  <img src="assets/tfskel-init.gif" alt="tfskel init demo" width="600" />
-</p>
+## Why tfskel
 
-<div>
-    <a href="https://github.com/ishuar/tfskel/issues"><strong>Report Bug</a></strong> or <a href="https://github.com/ishuar/tfskel/issues"><strong>Request Feature</a></strong>
-</div>
+Setting up a Terraform monorepo the right way takes time — defining consistent directory layouts, pinning provider versions, and keeping all of it in sync as the project grows. `tfskel` handles that scaffolding work so you don't have to repeat it for every project or environment while using only native terraform.
 
-## What It Does
+### Features
+1. Consistent Structure, Every Time
+2. Terraform Code Generation via Go Templates
+3. Version Drift Detection Across the Entire Repo
+4. Terraform Plan Analysis
+5. No Wrappers, No Lock-in Just terraform.
 
-- **Scaffolds production-ready Terraform monorepos** organized by environment (dev/stg/prd) and region.
-- **Generates AWS backend, provider configs** & terraform configs using reusable Go templates.
-- **Detects version drift** across Terraform and provider versions in entire repositories—catch inconsistencies before they cause production issues.
-- **Analyzes Terraform plans** to surface resource changes, impact severity, and compliance risks at a glance.
-- **Safe and idempotent** creates new files without overwriting existing infrastructure code.
-- **Works with vanilla Terraform** no custom wrappers, no vendor lock-in, just better project structure.
-
-## tfskel in Action
-
-### Terraform and AWS provider version drift
-<p align="left">
-<img src="assets/tfskel-drift-version.gif" alt="tfskel drift version demo" width="600" />
-</p>
-
-### Terraform plan analysis
-<p align="left">
-<img src="assets/tfskel-drift-plan.gif" alt="tfskel drift plan demo" width="600" />
-</p>
-
-### Terraform files with default github workflow generation
-<p align="left">
-<img src="assets/tfskel-generate.gif" alt="tfskel drift plan demo" width="600" />
-</p>
-
-> [!CAUTION]
-> This project is being developed with the assistance of AI tools. Please review the code carefully and perform your own due diligence. Thank you :pray:
 
 ## Installation
 
@@ -62,92 +43,67 @@ go install github.com/ishuar/tfskel@latest
 # Or download from releases
 # https://github.com/ishuar/tfskel/releases
 ```
-
 Make sure `$HOME/go/bin` is in your PATH.
 
-## Configuration
-
-Create a `.tfskel.yaml` in your project root to customize defaults:
-
-> [!TIP]
-> Use [.tfskel.example.yaml.example](.tfskel.example.yaml) for reference.
-> Configuration precedence: CLI flags → config file → defaults
+> [!CAUTION]
+> This project is developed with AI assistance. Please review the code carefully and perform your own due diligence. Thank you 🙏
 
 ## Quick Start
-1. Help and available commands
+### `tfskel --help`
+
+Help and available commands
 
 ```bash
 tfskel --help
 ```
-2. Initialize a new Terraform monorepo:
+
+### `tfskel init`
+
+This creates initializes a new Terraform monorepo with an environment-and-region-based directory layout (`dev`/`stg`/`prd`) with sensible defaults already in place — `.gitignore`, `.pre-commit-config.yaml`, `.tflint.hcl`, `trivy.yaml`, and per-environment `.terraform-version` files. The same structure, every time, across every project.
 
 ```bash
-# Create project structure with default config
-tfskel init
-
 # Or specify a custom directory
 tfskel init --dir /path/to/your/project
 ```
 
-- This creates an opinionated structure with environment directories and configuration files:
+<p align="left">
+  <img src="assets/tfskel-init.gif" alt="tfskel init demo" width="600" />
+</p>
 
-```
-.
-├── .tfskel.yaml             # Project configuration
-├── .gitignore               # Terraform-specific ignores
-├── .pre-commit-config.yaml  # Pre-commit hooks
-├── .tflint.hcl             # Linting config
-├── trivy.yaml              # Security scanning config
-└── envs/
-    ├── dev/
-    │   ├── .terraform-version
-    │   └── eu-central-1/
-    ├── stg/
-    │   ├── .terraform-version
-    │   └── eu-central-1/
-    └── prd/
-        ├── .terraform-version
-        └── eu-central-1/
-```
+### `tfskel generate`
 
-3. Generate Terraform code for a specific application:
+This creates per-application root module directories with a pre-configured `backend.tf` (S3 with state locking and encryption) and a `versions.tf` with pinned Terraform, AWS provider versions and optional github terraform workflows. You can extend this with your own `.tmpl` files — any custom template you place in your templates directory is processed alongside the built-in defaults, where if same name provided custom template will take precedence.
 
 ```bash
 tfskel generate myapp --env dev --region us-east-1
-```
-- Running `tfskel generate` creates a complete Terraform module directory with backend and version configuration
-
-```bash
-  envs/dev/us-east-1/myapp/
-  ├── backend.tf       # S3 backend with state locking & encryption enabled
-  └── versions.tf      # Terraform and provider versions
-```
-
-```bash
 ## custom templates directory via cmd arguments, otherwise use .tfskel.yaml config else default templates
 tfskel generate myapp --env dev --region us-east-1 --templates-dir <path-to-templates-dir>
 ```
-> [!TIP]
-> You can extend this by creating custom go templates for additional files (`main.tf`, `variables.tf`, `outputs.tf`, etc.).
-> Place templates in a directory, config accordingly and tfskel will use them alongside the defaults.
 
-## Drift Detection
+<p align="left">
+<img src="assets/tfskel-generate.gif" alt="tfskel generate demo" width="600" />
+</p>
 
-**Why it matters:** In large repos and monorepos, version inconsistencies can cause failed deployments, security vulnerabilities, and hours of debugging. Plan analysis helps you assess change impact before applying.
+### `tfskel drift`
 
-**Version Drift Detection**
+tfskel drift has three subcommands `version`, `plan` & `all`
+
+####  `tfskel drift version`
+This scans all environments in the repository and reports Terraform and AWS provider version inconsistencies in one pass from the current directory. Results can be output as JSON,table or csv for use in CI/CD pipelines or automated checks.
+
 ```bash
-# Scan repository for version inconsistencies
-tfskel drift version --path ./envs
-
-# Output as JSON for CI/CD pipelines
-tfskel drift version --format json > drift-report.json
+tfskel drift version
+## with target path
+tfskel drift version --path /path/to/your/terraform-directories
 ```
+<p align="left">
+<img src="assets/tfskel-drift-version.gif" alt="tfskel drift version demo" width="600" />
+</p>
 
-> [!Tip]
-> reference to [tfskel-in-action](#terraform-and-aws-provider-version-drift)
+#### `tfskel drift plan`
 
-**Terraform Plan Analysis**
+This reads a `plan.json` file and summaries resource changes, flags high-severity updates based on a configurable list of critical resources, and produces a structured report. Output can be exported as CSV, table and json for reporting.
+
 ```bash
 # Analyze plan after terraform plan -out=plan.bin
 terraform plan -out plan.bin
@@ -158,14 +114,25 @@ tfskel drift plan --plan-file plan.json
 tfskel drift plan --plan-file plan.json --format csv
 ```
 
-> [!Tip]
-> reference to [tfskel-in-action](#terraform-plan-analysis)
+<p align="left">
+<img src="assets/tfskel-drift-plan.gif" alt="tfskel drift plan demo" width="600" />
+</p>
 
-**Combined Analysis**
+#### `tfskel drift all`
+Run both checks together with `--path` and `--plan-file` argument and provide summarized output.
+
 ```bash
 # Run both version drift and plan analysis
-tfskel drift all --plan-file plan.json
+tfskel drift all --plan-file plan.json --path /path/to/your/terraform-directories
 ```
+
+## Configuration
+
+Create a `.tfskel.yaml` in your project root to customize defaults:
+
+> [!TIP]
+> Use [.tfskel.example.yaml.example](.tfskel.example.yaml) for reference.
+> Configuration precedence: CLI flags → config file → defaults
 
 ## Contributing
 
@@ -210,6 +177,6 @@ Released under [MIT LICENSE](/LICENSE)
 [release]: https://github.com/ishuar/tfskel/releases
 [release-img]: https://img.shields.io/github/release/ishuar/tfskel.svg?logo=github
 [license]: https://github.com/ishuar/tfskel/blob/main/LICENSE
-[license-img]: https://img.shields.io/badge/MIT-blue.svg
+[license-img]: https://img.shields.io/github/license/ishuar/tfskel?color=blue
 [stars-url]: https://github.com/ishuar/tfskel/stargazers
-[stars-shield]: https://img.shields.io/github/stars/ishuar/tfskel
+[stars-shield]: https://img.shields.io/github/stars/ishuar/tfskel?style=flat&logo=github
