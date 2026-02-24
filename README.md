@@ -9,22 +9,23 @@
 [![codecov](https://codecov.io/gh/ishuar/tfskel/graph/badge.svg?token=66VT000UYO)](https://codecov.io/gh/ishuar/tfskel)
 [![Go Version][go-version-img]][go-version]
 
-<p align="center">
-<img align="center" src="assets/tfskel-logo.svg?raw=true" alt="tfskel logo"  style="height: 125px" />
-</p>
+<div align="center">
+<img src="assets/tfskel-logo.svg?raw=true" alt="tfskel logo" height="125" />
+
+<em>Opinionated Terraform scaffolding. No vendor lock-in, just better project structure</em>
+</div>
 
 </div>
 
 # tfskel
-_Opinionated Terraform scaffolding. No vendor lock-in, just better project structure_
 
-`tfskel` is a CLI tool that scaffolds Terraform monorepos with an **opinionated**, **scalable** and **consistent** way by using environment-based directory structure across multiple regions. No wrappers, no complexity, just vanilla Terraform with consistent terraform root modules, version **drift detection**,and **terraform plan analysis**. Spend less time on project setup and more time writing infrastructure code.
-
-**⭐️ For Latest updates Don't forget to star the repo! ⭐️**
+[`tfskel`](https://github.com/ishuar/tfskel) is a CLI tool that scaffolds Terraform monorepos with an **opinionated**, **scalable** and **consistent** way by using environment-based directory structure. No wrappers, no complexity, just vanilla Terraform with consistent terraform root modules, version **drift detection**,and **terraform plan analysis**. Spend less time on project setup and more time writing infrastructure code.
 
 ## Why tfskel
 
-Setting up a Terraform monorepo the right way takes time — defining consistent directory layouts, pinning provider versions, and keeping all of it in sync as the project grows. `tfskel` handles that scaffolding work so you don't have to repeat it for every project or environment while using only native terraform.
+Tired of spending hours setting up the same Terraform folder structure, pinning provider versions, and keeping everything in sync as your infrastructure grows? You’re not alone. Most teams waste valuable time reinventing the wheel for every new environment or region.
+
+[`tfskel`](https://github.com/ishuar/tfskel) eliminates that pain. It gives you a proven, scalable monorepo layout—ready to go in seconds. No more copy-pasting, no more “did we forget that file?” moments. Just run the CLI and get a clean, consistent foundation for your Terraform code, every time.
 
 ### Features
 1. Consistent Structure, Every Time
@@ -33,6 +34,8 @@ Setting up a Terraform monorepo the right way takes time — defining consistent
 4. Terraform Plan Analysis
 5. No Wrappers, No Lock-in Just terraform.
 
+> [!NOTE]
+> *⭐️ For Latest updates Don't forget to star the repo! ⭐️*
 
 ## Installation
 
