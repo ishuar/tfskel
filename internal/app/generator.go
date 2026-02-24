@@ -276,6 +276,16 @@ func sanitizeWorkflowFileName(filename string) (string, bool) {
 	return filename, true
 }
 
+// sanitizeAppDirForFilename converts an AppDir value that may contain path
+// separators (e.g. "base-infra/ecs-cluster") into a flat, filename-safe
+// string by replacing every '/' and '\' with '-'.
+// This is intentionally only used when building the *filename*; the original
+// data.AppDir value is preserved for use inside workflow file content.
+func sanitizeAppDirForFilename(appDir string) string {
+	r := strings.NewReplacer("/", "-")
+	return r.Replace(appDir)
+}
+
 // generateWorkflowFileName creates dynamic workflow file names based on template data
 // Pattern: {{.AppDir}}-{{.Env}}-{{.ShortRegion}}-{lint|terraform}.yaml
 // Example: myapp-dev-euc1-lint.yaml, myapp-dev-euc1-terraform.yaml
@@ -324,7 +334,7 @@ func (g *Generator) renderCustomWorkflowName(nameTemplate string, data *template
 	}
 
 	dataMap := map[string]string{
-		"AppDir":      data.AppDir,
+		"AppDir":      sanitizeAppDirForFilename(data.AppDir),
 		"Env":         data.Env,
 		"Region":      data.Region,
 		"ShortRegion": data.ShortRegion,
@@ -343,8 +353,12 @@ func (g *Generator) generateDefaultWorkflowFileName(originalFileName string, dat
 	// Extract the workflow type from the original filename (e.g., "lint.yaml" -> "lint")
 	workflowType := strings.TrimSuffix(originalFileName, ".yaml")
 
+	// Normalize AppDir for use in filename: replace path separators with dashes
+	// data.AppDir is kept intact for use inside workflow file content
+	appDirForFileName := sanitizeAppDirForFilename(data.AppDir)
+
 	// Build dynamic name: {{.AppDir}}-{{.Env}}-{{.ShortRegion}}-{{workflowType}}.yaml
-	dynamicName := fmt.Sprintf("%s-%s-%s-%s.yaml", data.AppDir, data.Env, data.ShortRegion, workflowType)
+	dynamicName := fmt.Sprintf("%s-%s-%s-%s.yaml", appDirForFileName, data.Env, data.ShortRegion, workflowType)
 
 	return dynamicName
 }
