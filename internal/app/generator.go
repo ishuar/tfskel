@@ -29,7 +29,7 @@ var (
 
 	// appDirReplacer is a reusable strings.Replacer to sanitize AppDir values for filenames by replacing path separators with dashes
 	// Built once when the package is loaded — reused forever
-	appDirReplacer = strings.NewReplacer("/", "-", `\`, "-")
+	appDirReplacer = strings.NewReplacer("/", "-")
 )
 
 // extractMetadata extracts JSON metadata from a comment line in format: ## tfskel-metadata: {...}
