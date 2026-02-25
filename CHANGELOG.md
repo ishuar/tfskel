@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.2.1](https://github.com/ishuar/tfskel/compare/v0.2.0...v0.2.1) (2026-02-25)
+
+
+### 🐞 Bug Fixes
+
+* disable draft release in release please ([07d6fbf](https://github.com/ishuar/tfskel/commit/07d6fbf3d07a4563a31cdc7f7dad14211f941bd9))
+* disable draft release in release please ([#27](https://github.com/ishuar/tfskel/issues/27)) ([07d6fbf](https://github.com/ishuar/tfskel/commit/07d6fbf3d07a4563a31cdc7f7dad14211f941bd9))
+* **generate:** accept nested value for app-dir ([#32](https://github.com/ishuar/tfskel/issues/32)) ([e3befff](https://github.com/ishuar/tfskel/commit/e3befff2f4700aea3ca5fe44f79aa2af2b8b5746))
+
+
+### 🧪 Tests
+
+* added tests for nested app-dir value ([e3befff](https://github.com/ishuar/tfskel/commit/e3befff2f4700aea3ca5fe44f79aa2af2b8b5746))
+
 ## [0.2.0](https://github.com/ishuar/tfskel/compare/v0.1.1...v0.2.0) (2026-02-19)
 
 
