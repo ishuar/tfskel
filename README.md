@@ -256,24 +256,6 @@ Create a `.tfskel.yaml` in your project root to customise defaults:
 > Use [.tfskel.example.yaml](.tfskel.example.yaml) for a full annotated reference.
 > Configuration precedence: **CLI flags → config file → defaults**
 
-### Key configuration fields
-
-| Field | Required | Default | Description |
-|---|---|---|---|
-| `terraform_version` | Yes (for default templates) | — | Terraform version constraint, e.g. `~> 1.13` |
-| `provider.aws.version` | Yes (for default templates) | — | AWS provider version constraint, e.g. `~> 6.0` |
-| `provider.aws.account_mapping` | Yes | — | Map of environment names → AWS account IDs |
-| `provider.aws.regions` | Yes | — | List of AWS regions to scaffold |
-| `provider.aws.default_tags` | No | `{}` | Default tags applied to all AWS resources |
-| `backend.s3.bucket_name` | Yes | — | Globally unique S3 bucket name for Terraform state. **Accepts Go template syntax.** |
-| `generate.templates_dir` | No | `""` | Path to custom templates directory |
-| `generate.github_workflows.create` | No | `false` | Enable GitHub Actions workflow generation |
-| `generate.github_workflows.name_template` | No | `"{{.AppDir}}-{{.Env}}-{{.ShortRegion}}"` | Workflow filename stem. **Accepts Go template syntax.** The workflow type suffix (e.g. `-terraform`) and `.yaml` are appended automatically. |
-| `generate.github_workflows.aws_role_arn` | No | — | Full IAM role ARN for GitHub Actions (takes priority over `aws_role_name`). **Accepts Go template syntax.** |
-| `generate.github_workflows.aws_role_name` | No | — | IAM role name; ARN is constructed as `arn:aws:iam::<AccountID>:role/<name>`. **Accepts Go template syntax.** |
-| `critical_resources` | No | `[]` | Additional resource types flagged as HIGH severity in drift plan analysis |
-| `top_n_count` | No | `10` | Max rows shown in "Changes by Resource Type" / "Changes by Module" tables; `0` = show all |
-
 ### Template context variables
 
 The following config fields accept Go template syntax: `backend.s3.bucket_name`, `generate.github_workflows.name_template`, `generate.github_workflows.aws_role_arn`, and `generate.github_workflows.aws_role_name`.
@@ -297,20 +279,20 @@ All placeholders are populated from the `tfskel generate` invocation:
 
 In addition to the standard Go `text/template` built-ins, the following functions are available in all templated config values:
 
-| Function | Signature | Description | Example |
-|---|---|---|---|
-| `replace` | `replace s old new` | Replace all occurrences of `old` with `new` in `s` | `{{.Env \| replace "prd" "prod"}}` |
-| `toLower` | `toLower s` | Convert string to lowercase | `{{.AppDir \| toLower}}` |
-| `toUpper` | `toUpper s` | Convert string to uppercase | `{{.Env \| toUpper}}` |
-| `trimSpace` | `trimSpace s` | Remove leading and trailing whitespace | `{{.AppDir \| trimSpace}}` |
-| `trimPrefix` | `trimPrefix s prefix` | Remove a leading prefix from `s` | `{{.Region \| trimPrefix "eu-"}}` |
-| `trimSuffix` | `trimSuffix s suffix` | Remove a trailing suffix from `s` | `{{.AppDir \| trimSuffix "-app"}}` |
-| `hasPrefix` | `hasPrefix s prefix` | Returns `true` if `s` starts with `prefix` | `{{if hasPrefix .Region "eu"}}...{{end}}` |
-| `hasSuffix` | `hasSuffix s suffix` | Returns `true` if `s` ends with `suffix` | `{{if hasSuffix .AppDir "-svc"}}...{{end}}` |
-| `contains` | `contains s substr` | Returns `true` if `s` contains `substr` | `{{if contains .Env "prd"}}...{{end}}` |
-| `join` | `join elems sep` | Join string slice with separator | `{{join .someSlice ","}}` |
-| `split` | `split s sep` | Split string into a slice | `{{split .Region "-"}}` |
-| `stripConstraint` | `stripConstraint s` | Remove version constraint operators (`~>`, `>=`, etc.) and return the bare version number | `{{.TerraformVersion \| stripConstraint}}` → `1.13` |
+| Function | Description | Example |
+|---|---|---|
+| `replace` | Replace all occurrences of `old` with `new` in a string | `{{.Env \| replace "prd" "prod"}}` |
+| `toLower` | Convert string to lowercase | `{{.AppDir \| toLower}}` |
+| `toUpper` | Convert string to uppercase | `{{.Env \| toUpper}}` |
+| `trimSpace` | Remove leading and trailing whitespace | `{{.AppDir \| trimSpace}}` |
+| `trimPrefix` | Remove a leading prefix from a string | `{{.Region \| trimPrefix "eu-"}}` |
+| `trimSuffix` | Remove a trailing suffix from a string | `{{.AppDir \| trimSuffix "-app"}}` |
+| `hasPrefix` | Returns `true` if the string starts with the given prefix | `{{if hasPrefix .Region "eu"}}...{{end}}` |
+| `hasSuffix` | Returns `true` if the string ends with the given suffix | `{{if hasSuffix .AppDir "-svc"}}...{{end}}` |
+| `contains` | Returns `true` if the string contains the given substring | `{{if contains .Env "prd"}}...{{end}}` |
+| `join` | Join a string slice with a separator | `{{join .someSlice ","}}` |
+| `split` | Split a string into a slice by separator | `{{split .Region "-"}}` |
+| `stripConstraint` | Remove version constraint operators (`~>`, `>=`, etc.) and return the bare version number | `{{.TerraformVersion \| stripConstraint}}` → `1.13` |
 
 ## Contributing
 
