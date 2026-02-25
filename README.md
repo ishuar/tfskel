@@ -61,10 +61,11 @@ These flags are available on every `tfskel` command:
 |---|---|---|---|
 | `--config` | `-c` | `.tfskel.yaml` (current dir) | Path to config file; takes precedence over auto-discovery |
 | `--verbose` | `-v` | `false` | Enable verbose/debug output |
+| `--version` | | | Print the current tfskel version and exit |
 
 ```bash
-# Show version
-tfskel version
+# Print the installed tfskel version
+tfskel --version
 
 # Show all available commands and flags
 tfskel --help
@@ -151,6 +152,14 @@ Scans all environments in the repository and reports Terraform and AWS provider 
 | `--format` | `-f` | `table` | Output format: `table`, `json`, `csv` |
 | `--no-color` | | `false` | Disable colored output |
 
+**Exit codes:**
+
+| Code | Meaning |
+|---|---|
+| `0` | No drift — all files in sync |
+| `1` | Drift detected (minor or major version differences) |
+| `2` | Parse errors encountered while scanning `.tf` files |
+
 ```bash
 # Check for drift in current directory
 tfskel drift version
@@ -178,6 +187,14 @@ Reads a `plan.json` file, summarises resource changes, flags high-severity updat
 | `--plan-file` | | *(required)* | Path to the Terraform plan JSON file |
 | `--format` | `-f` | `table` | Output format: `table`, `json`, `csv` |
 | `--no-color` | | `false` | Disable colored output |
+
+**Exit codes:**
+
+| Code | Meaning |
+|---|---|
+| `0` | No changes — infrastructure is up to date |
+| `1` | Non-critical changes detected (additions or modifications) |
+| `2` | Critical changes detected (deletions or replacements) |
 
 ```bash
 # Generate and analyze a Terraform plan
@@ -214,7 +231,7 @@ Run both version drift and plan analysis together and provide a unified summaris
 | Code | Meaning |
 |---|---|
 | `0` | No issues found |
-| `1` | Version drift or plan changes detected |
+| `1` | Version drift or non-critical plan changes detected |
 | `2` | Critical changes (deletions/replacements) or major version drift |
 
 ```bash
