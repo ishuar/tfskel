@@ -265,14 +265,52 @@ Create a `.tfskel.yaml` in your project root to customise defaults:
 | `provider.aws.account_mapping` | Yes | — | Map of environment names → AWS account IDs |
 | `provider.aws.regions` | Yes | — | List of AWS regions to scaffold |
 | `provider.aws.default_tags` | No | `{}` | Default tags applied to all AWS resources |
-| `backend.s3.bucket_name` | Yes | — | Globally unique S3 bucket name for Terraform state |
+| `backend.s3.bucket_name` | Yes | — | Globally unique S3 bucket name for Terraform state. **Accepts Go template syntax.** |
 | `generate.templates_dir` | No | `""` | Path to custom templates directory |
 | `generate.github_workflows.create` | No | `false` | Enable GitHub Actions workflow generation |
-| `generate.github_workflows.name_template` | No | — | Workflow name template (supports Go template placeholders) |
-| `generate.github_workflows.aws_role_arn` | No | — | Full IAM role ARN for GitHub Actions (takes priority) |
-| `generate.github_workflows.aws_role_name` | No | — | IAM role name for GitHub Actions |
+| `generate.github_workflows.name_template` | No | `"{{.AppDir}}-{{.Env}}-{{.ShortRegion}}"` | Workflow filename stem. **Accepts Go template syntax.** The workflow type suffix (e.g. `-terraform`) and `.yaml` are appended automatically. |
+| `generate.github_workflows.aws_role_arn` | No | — | Full IAM role ARN for GitHub Actions (takes priority over `aws_role_name`). **Accepts Go template syntax.** |
+| `generate.github_workflows.aws_role_name` | No | — | IAM role name; ARN is constructed as `arn:aws:iam::<AccountID>:role/<name>`. **Accepts Go template syntax.** |
 | `critical_resources` | No | `[]` | Additional resource types flagged as HIGH severity in drift plan analysis |
 | `top_n_count` | No | `10` | Max rows shown in "Changes by Resource Type" / "Changes by Module" tables; `0` = show all |
+
+### Template context variables
+
+The following config fields accept Go template syntax: `backend.s3.bucket_name`, `generate.github_workflows.name_template`, `generate.github_workflows.aws_role_arn`, and `generate.github_workflows.aws_role_name`.
+
+All placeholders are populated from the `tfskel generate` invocation:
+
+| Placeholder | Source | Description | Example value |
+|---|---|---|---|
+| `{{.AppDir}}` | `<app-dir>` argument to `tfskel generate` | Application directory name (path separators `/` are replaced with `-` in filenames) | `myapp`, `base-infra-ecs` |
+| `{{.Env}}` | `--env` / `-e` flag | Target environment | `dev`, `stg`, `prd` |
+| `{{.Region}}` | `--region` / `-r` flag | Full AWS region name | `eu-central-1`, `us-east-1` |
+| `{{.ShortRegion}}` | derived from `--region` | Abbreviated region (e.g. `eu-central-1` → `euc1`) | `euc1`, `use1` |
+| `{{.AccountID}}` | `provider.aws.account_mapping[.Env]` | AWS account ID for the target environment | `123456789012` |
+| `{{.S3BucketName}}` | `backend.s3.bucket_name` (post-render) | Resolved S3 bucket name after template rendering | `my-tfstate-bucket` |
+| `{{.TerraformVersion}}` | `terraform_version` in config | Terraform version constraint | `~> 1.13` |
+| `{{.AWSProviderVersion}}` | `provider.aws.version` in config | AWS provider version constraint | `~> 6.0` |
+| `{{.AWSRoleArn}}` | resolved from `aws_role_arn` / `aws_role_name` | Final IAM role ARN used in workflow files | `arn:aws:iam::123456789012:role/dev-githubactionsrole` |
+| `{{.WorkflowFileName}}` | auto-generated | Rendered workflow filename (for self-reference in workflow `on:` triggers) | `myapp-dev-euc1-terraform.yaml` |
+
+#### Template functions
+
+In addition to the standard Go `text/template` built-ins, the following functions are available in all templated config values:
+
+| Function | Signature | Description | Example |
+|---|---|---|---|
+| `replace` | `replace s old new` | Replace all occurrences of `old` with `new` in `s` | `{{.Env \| replace "prd" "prod"}}` |
+| `toLower` | `toLower s` | Convert string to lowercase | `{{.AppDir \| toLower}}` |
+| `toUpper` | `toUpper s` | Convert string to uppercase | `{{.Env \| toUpper}}` |
+| `trimSpace` | `trimSpace s` | Remove leading and trailing whitespace | `{{.AppDir \| trimSpace}}` |
+| `trimPrefix` | `trimPrefix s prefix` | Remove a leading prefix from `s` | `{{.Region \| trimPrefix "eu-"}}` |
+| `trimSuffix` | `trimSuffix s suffix` | Remove a trailing suffix from `s` | `{{.AppDir \| trimSuffix "-app"}}` |
+| `hasPrefix` | `hasPrefix s prefix` | Returns `true` if `s` starts with `prefix` | `{{if hasPrefix .Region "eu"}}...{{end}}` |
+| `hasSuffix` | `hasSuffix s suffix` | Returns `true` if `s` ends with `suffix` | `{{if hasSuffix .AppDir "-svc"}}...{{end}}` |
+| `contains` | `contains s substr` | Returns `true` if `s` contains `substr` | `{{if contains .Env "prd"}}...{{end}}` |
+| `join` | `join elems sep` | Join string slice with separator | `{{join .someSlice ","}}` |
+| `split` | `split s sep` | Split string into a slice | `{{split .Region "-"}}` |
+| `stripConstraint` | `stripConstraint s` | Remove version constraint operators (`~>`, `>=`, etc.) and return the bare version number | `{{.TerraformVersion \| stripConstraint}}` → `1.13` |
 
 ## Contributing
 
