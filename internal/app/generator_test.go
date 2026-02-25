@@ -2720,3 +2720,213 @@ func TestSanitizeWorkflowFileName(t *testing.T) {
 		})
 	}
 }
+
+// TestSanitizeAppDirForFilename verifies that sanitizeAppDirForFilename correctly
+// converts AppDir values containing path separators into flat, filename-safe strings.
+func TestSanitizeAppDirForFilename(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "plain app dir without separators is unchanged",
+			input:    "myapp",
+			expected: "myapp",
+		},
+		{
+			name:     "single forward slash is replaced with dash",
+			input:    "base-infra/ecs-cluster",
+			expected: "base-infra-ecs-cluster",
+		},
+		{
+			name:     "multiple forward slashes are all replaced",
+			input:    "platform/base-infra/ecs-cluster",
+			expected: "platform-base-infra-ecs-cluster",
+		},
+		{
+			name:     "leading slash is replaced",
+			input:    "/leading-slash-app",
+			expected: "-leading-slash-app",
+		},
+		{
+			name:     "trailing slash is replaced",
+			input:    "trailing-slash-app/",
+			expected: "trailing-slash-app-",
+		},
+		{
+			name:     "empty string returns empty string",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "app dir with only slashes becomes all dashes",
+			input:    "///",
+			expected: "---",
+		},
+		{
+			name:     "app dir with hyphens and no slashes is unchanged",
+			input:    "my-complex-app",
+			expected: "my-complex-app",
+		},
+		{
+			name:     "app dir with underscores and no slashes is unchanged",
+			input:    "my_app",
+			expected: "my_app",
+		},
+		{
+			name:     "mixed slashes and hyphens",
+			input:    "a/b-c/d",
+			expected: "a-b-c-d",
+		},
+		{
+			name:     "consecutive slashes become consecutive dashes",
+			input:    "a//b",
+			expected: "a--b",
+		},
+		{
+			name:     "numeric segments are preserved",
+			input:    "service/v2/api",
+			expected: "service-v2-api",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := sanitizeAppDirForFilename(tt.input)
+			assert.Equal(t, tt.expected, result,
+				"sanitizeAppDirForFilename(%q) = %q, want %q", tt.input, result, tt.expected)
+		})
+	}
+}
+
+// TestGenerator_generateWorkflowFileName_WithSlashedAppDir verifies that the workflow
+// filename is generated correctly when AppDir contains path separators.
+func TestGenerator_generateWorkflowFileName_WithSlashedAppDir(t *testing.T) {
+	tests := []struct {
+		name             string
+		originalFileName string
+		data             *templates.Data
+		config           *config.Config
+		expectedOutput   string
+		expectError      bool
+	}{
+		{
+			name:             "single-level nested AppDir uses sanitized name in filename",
+			originalFileName: "lint.yaml",
+			data: &templates.Data{
+				AppDir:      "base-infra/ecs-cluster",
+				Env:         "dev",
+				ShortRegion: "euc1",
+			},
+			config:         &config.Config{},
+			expectedOutput: "base-infra-ecs-cluster-dev-euc1-lint.yaml",
+			expectError:    false,
+		},
+		{
+			name:             "multi-level nested AppDir uses sanitized name in filename",
+			originalFileName: "terraform.yaml",
+			data: &templates.Data{
+				AppDir:      "platform/base-infra/ecs-cluster",
+				Env:         "prd",
+				ShortRegion: "use1",
+			},
+			config:         &config.Config{},
+			expectedOutput: "platform-base-infra-ecs-cluster-prd-use1-terraform.yaml",
+			expectError:    false,
+		},
+		{
+			// AppDir is sanitized before being substituted into the NameTemplate,
+			// so the slash becomes a dash in the rendered output too.
+			name:             "custom name template with slashed AppDir sanitizes AppDir",
+			originalFileName: "lint.yaml",
+			data: &templates.Data{
+				AppDir:      "base-infra/ecs-cluster",
+				Env:         "stg",
+				Region:      "eu-west-1",
+				ShortRegion: "euw1",
+			},
+			config: &config.Config{
+				Generate: &config.Generate{
+					GithubWorkflows: &config.GithubWorkflows{
+						NameTemplate: "{{.AppDir}}-{{.Env}}",
+					},
+				},
+			},
+			expectedOutput: "base-infra-ecs-cluster-stg-lint.yaml",
+			expectError:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			filesystem := fs.NewMemoryFileSystem()
+			log := logger.New(false)
+			gen := NewGenerator(tt.config, filesystem, log)
+
+			result, err := gen.generateWorkflowFileName(tt.originalFileName, tt.data)
+
+			if tt.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expectedOutput, result)
+			}
+		})
+	}
+}
+
+// TestGenerator_GitHubWorkflows_SlashedAppDir_Integration verifies end-to-end that when
+// AppDir contains slashes, the generated workflow file lands at the correct flat path.
+func TestGenerator_GitHubWorkflows_SlashedAppDir_Integration(t *testing.T) {
+	t.Run("workflow file uses sanitized AppDir in filename", func(t *testing.T) {
+		cfg := &config.Config{
+			TerraformVersion: "~> 1.13",
+			Provider: &config.Provider{
+				AWS: &config.AWSProvider{
+					Version: "~> 6.0",
+					AccountMapping: map[string]string{
+						"dev": "123456789012",
+					},
+				},
+			},
+			Backend: &config.Backend{
+				S3: &config.S3Backend{
+					BucketName: "test-bucket",
+				},
+			},
+			Generate: &config.Generate{
+				GithubWorkflows: &config.GithubWorkflows{
+					Create: true,
+				},
+			},
+		}
+
+		filesystem := fs.NewMemoryFileSystem()
+		log := logger.New(false)
+		gen := NewGenerator(cfg, filesystem, log)
+
+		appPath := "envs/dev/eu-central-1/base-infra/ecs-cluster"
+		_ = filesystem.MkdirAll(appPath, 0755)
+
+		renderer, err := templates.NewRenderer()
+		require.NoError(t, err)
+		gen.renderer = renderer
+
+		err = gen.generateFiles(appPath, "dev", "eu-central-1", "base-infra/ecs-cluster")
+		require.NoError(t, err)
+
+		// Filename must use the sanitized (flat) AppDir — no nested path under .github/workflows/
+		expectedLintWorkflow := ".github/workflows/base-infra-ecs-cluster-dev-euc1-lint.yaml"
+		expectedTerraformWorkflow := ".github/workflows/base-infra-ecs-cluster-dev-euc1-terraform.yaml"
+
+		assert.True(t, filesystem.FileExists(expectedLintWorkflow),
+			"lint workflow should exist at sanitized path %s", expectedLintWorkflow)
+		assert.True(t, filesystem.FileExists(expectedTerraformWorkflow),
+			"terraform workflow should exist at sanitized path %s", expectedTerraformWorkflow)
+
+		lintContent, readErr := filesystem.ReadFile(expectedLintWorkflow)
+		assert.NoError(t, readErr)
+		assert.NotEmpty(t, lintContent, "lint workflow should have non-empty content")
+	})
+}

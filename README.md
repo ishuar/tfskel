@@ -78,6 +78,7 @@ tfskel init --dir /path/to/your/project
 This creates per-application root module directories with a pre-configured `backend.tf` (S3 with state locking and encryption) and a `versions.tf` with pinned Terraform, AWS provider versions and optional github terraform workflows. You can extend this with your own `.tmpl` files — any custom template you place in your templates directory is processed alongside the built-in defaults, where if same name provided custom template will take precedence.
 
 ```bash
+## tfskel generate <subcommand-value-as-app-dir>
 tfskel generate myapp --env dev --region us-east-1
 ## custom templates directory via cmd arguments, otherwise use .tfskel.yaml config else default templates
 tfskel generate myapp --env dev --region us-east-1 --templates-dir <path-to-templates-dir>
@@ -86,6 +87,9 @@ tfskel generate myapp --env dev --region us-east-1 --templates-dir <path-to-temp
 <p align="left">
 <img src="assets/tfskel-generate.gif" alt="tfskel generate demo" width="600" />
 </p>
+
+> [!Note]
+> `/` will be replaced with `-` in `<subcommand-value-as-app-dir>` value for github workflows file naming.
 
 ### `tfskel drift`
 
