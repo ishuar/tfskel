@@ -88,6 +88,9 @@ tfskel generate myapp --env dev --region us-east-1 --templates-dir <path-to-temp
 <img src="assets/tfskel-generate.gif" alt="tfskel generate demo" width="600" />
 </p>
 
+> [!Note]
+> `/` will be replaced with `-` in `<subcommand-value-as-app-dir>` value for github workflows file naming.
+
 ### `tfskel drift`
 
 tfskel drift has three subcommands `version`, `plan` & `all`
