@@ -23,9 +23,9 @@
 
 ## Why tfskel
 
-Tired of spending hours setting up the same Terraform folder structure, pinning provider versions, and keeping everything in sync as your infrastructure grows? You’re not alone. Most teams waste valuable time reinventing the wheel for every new environment or region.
+Tired of spending hours setting up the same Terraform folder structure, pinning provider versions, and keeping everything in sync as your infrastructure grows? You're not alone. Most teams waste valuable time reinventing the wheel for every new environment or region.
 
-[`tfskel`](https://github.com/ishuar/tfskel) eliminates that pain. It gives you a proven, scalable monorepo layout—ready to go in seconds. No more copy-pasting, no more “did we forget that file?” moments. Just run the CLI and get a clean, consistent foundation for your Terraform code, every time.
+[`tfskel`](https://github.com/ishuar/tfskel) eliminates that pain. It gives you a proven, scalable monorepo layout—ready to go in seconds. No more copy-pasting, no more "did we forget that file?" moments. Just run the CLI and get a clean, consistent foundation for your Terraform code, every time.
 
 ### Features
 1. Consistent Structure, Every Time
@@ -52,21 +52,49 @@ Make sure `$HOME/go/bin` is in your PATH.
 > This project is developed with AI assistance. Please review the code carefully and perform your own due diligence. Thank you 🙏
 
 ## Quick Start
-### `tfskel --help`
 
-Help and available commands
+### Global Flags
+
+These flags are available on every `tfskel` command:
+
+| Flag | Short | Default | Description |
+|---|---|---|---|
+| `--config` | `-c` | `.tfskel.yaml` (current dir) | Path to config file; takes precedence over auto-discovery |
+| `--verbose` | `-v` | `false` | Enable verbose/debug output |
 
 ```bash
+# Show version
+tfskel version
+
+# Show all available commands and flags
 tfskel --help
+
+# Use a custom config file for any command
+tfskel --config /path/to/my-config.yaml <command>
+
+# Enable verbose logging
+tfskel --verbose <command>
 ```
 
 ### `tfskel init`
 
-This creates initializes a new Terraform monorepo with an environment-and-region-based directory layout (`dev`/`stg`/`prd`) with sensible defaults already in place — `.gitignore`, `.pre-commit-config.yaml`, `.tflint.hcl`, `trivy.yaml`, and per-environment `.terraform-version` files. The same structure, every time, across every project.
+Initializes a new Terraform monorepo with an environment-and-region-based directory layout (`dev`/`stg`/`prd`) with sensible defaults already in place — `.gitignore`, `.pre-commit-config.yaml`, `.tflint.hcl`, `trivy.yaml`, `.tfskel.yaml`, and per-environment `.terraform-version` files. The same structure, every time, across every project.
+
+If a `.tfskel.yaml` already exists in the target directory, `init` reads environments from `provider.aws.account_mapping` and regions from `provider.aws.regions`, so your existing configuration drives the scaffold.
+
+| Flag | Short | Default | Description |
+|---|---|---|---|
+| `--dir` | `-d` | current directory | Directory to initialize |
 
 ```bash
-# Or specify a custom directory
+# Initialize in the current directory
+tfskel init
+
+# Initialize in a specific directory
 tfskel init --dir /path/to/your/project
+
+# Initialize with an explicit config file
+tfskel init --config /path/to/config.yaml
 ```
 
 <p align="left">
@@ -75,13 +103,31 @@ tfskel init --dir /path/to/your/project
 
 ### `tfskel generate`
 
-This creates per-application root module directories with a pre-configured `backend.tf` (S3 with state locking and encryption) and a `versions.tf` with pinned Terraform, AWS provider versions and optional github terraform workflows. You can extend this with your own `.tmpl` files — any custom template you place in your templates directory is processed alongside the built-in defaults, where if same name provided custom template will take precedence.
+Creates per-application root module directories with a pre-configured `backend.tf` (S3 with state locking and encryption) and a `versions.tf` with pinned Terraform and AWS provider versions, plus optional GitHub Actions workflows. You can extend this with your own `.tmpl` files — any custom template you place in your templates directory is processed alongside the built-in defaults; if the same filename is provided, the custom template takes precedence.
+
+| Flag | Short | Default | Description |
+|---|---|---|---|
+| `--env` | `-e` | *(required)* | Target environment (e.g. `dev`, `stg`, `prd`) |
+| `--region` | `-r` | *(required)* | AWS region (e.g. `us-east-1`, `eu-central-1`) |
+| `--templates-dir` | | `""` | Directory containing custom `.tmpl` template files |
+| `--s3-bucket-name` | | `""` | S3 bucket name for Terraform state (overrides config) |
+| `--create-github-workflows` | | `false` | Generate GitHub Actions workflow files from default templates |
 
 ```bash
-## tfskel generate <subcommand-value-as-app-dir>
+# Generate structure for an app in dev/us-east-1
 tfskel generate myapp --env dev --region us-east-1
-## custom templates directory via cmd arguments, otherwise use .tfskel.yaml config else default templates
-tfskel generate myapp --env dev --region us-east-1 --templates-dir <path-to-templates-dir>
+
+# Generate with a custom templates directory
+tfskel generate myapp --env stg --region eu-central-1 --templates-dir ./templates
+
+# Override S3 bucket name at runtime
+tfskel generate myapp --env prd --region us-east-1 --s3-bucket-name my-tf-state-bucket
+
+# Also create GitHub Actions workflow files
+tfskel generate myapp --env dev --region us-east-1 --create-github-workflows
+
+# Generate with a custom config file
+tfskel generate myapp --config ./my-config.yaml --env dev --region us-east-1
 ```
 
 <p align="left">
@@ -89,36 +135,61 @@ tfskel generate myapp --env dev --region us-east-1 --templates-dir <path-to-temp
 </p>
 
 > [!Note]
-> `/` will be replaced with `-` in `<subcommand-value-as-app-dir>` value for github workflows file naming.
+> `/` will be replaced with `-` in `<app-dir>` value for GitHub workflow file naming.
 
 ### `tfskel drift`
 
-tfskel drift has three subcommands `version`, `plan` & `all`
+`tfskel drift` has three subcommands: `version`, `plan`, and `all`.
 
-####  `tfskel drift version`
-This scans all environments in the repository and reports Terraform and AWS provider version inconsistencies in one pass from the current directory. Results can be output as JSON,table or csv for use in CI/CD pipelines or automated checks.
+#### `tfskel drift version`
+
+Scans all environments in the repository and reports Terraform and AWS provider version inconsistencies in one pass from the current directory. Results can be output as JSON, table, or CSV for use in CI/CD pipelines or automated checks.
+
+| Flag | Short | Default | Description |
+|---|---|---|---|
+| `--path` | `-p` | `.` (current dir) | Path to scan for Terraform files (recursive) |
+| `--format` | `-f` | `table` | Output format: `table`, `json`, `csv` |
+| `--no-color` | | `false` | Disable colored output |
 
 ```bash
+# Check for drift in current directory
 tfskel drift version
-## with target path
-tfskel drift version --path /path/to/your/terraform-directories
+
+# Check a specific subdirectory
+tfskel drift version --path ./envs
+
+# JSON output for CI/CD pipelines
+tfskel drift version --path ./envs --format json
+
+# Generate a CSV report without ANSI colors
+tfskel drift version --format csv --no-color > drift-report.csv
 ```
+
 <p align="left">
 <img src="assets/tfskel-drift-version.gif" alt="tfskel drift version demo" width="600" />
 </p>
 
 #### `tfskel drift plan`
 
-This reads a `plan.json` file and summaries resource changes, flags high-severity updates based on a configurable list of critical resources, and produces a structured report. Output can be exported as CSV, table and json for reporting.
+Reads a `plan.json` file, summarises resource changes, flags high-severity updates based on a configurable list of critical resources, and produces a structured report. Output can be exported as CSV, table, or JSON for reporting.
+
+| Flag | Short | Default | Description |
+|---|---|---|---|
+| `--plan-file` | | *(required)* | Path to the Terraform plan JSON file |
+| `--format` | `-f` | `table` | Output format: `table`, `json`, `csv` |
+| `--no-color` | | `false` | Disable colored output |
 
 ```bash
-# Analyze plan after terraform plan -out=plan.bin
+# Generate and analyze a Terraform plan
 terraform plan -out plan.bin
 terraform show -json plan.bin > plan.json
 tfskel drift plan --plan-file plan.json
 
 # Export as CSV for reporting
 tfskel drift plan --plan-file plan.json --format csv
+
+# JSON output without colors (suitable for log files)
+tfskel drift plan --plan-file plan.json --format json --no-color
 ```
 
 <p align="left">
@@ -126,20 +197,65 @@ tfskel drift plan --plan-file plan.json --format csv
 </p>
 
 #### `tfskel drift all`
-Run both checks together with `--path` and `--plan-file` argument and provide summarized output.
+
+Run both version drift and plan analysis together and provide a unified summarised output. Ideal for pre-commit hooks, CI/CD pipelines, and code reviews.
+
+| Flag | Short | Default | Description |
+|---|---|---|---|
+| `--path` | `-p` | `.` (current dir) | Path to scan for Terraform files |
+| `--plan-file` | | `""` | Path to Terraform plan JSON file (optional) |
+| `--format` | `-f` | `table` | Output format: `table`, `json`, `csv` |
+| `--no-color` | | `false` | Disable colored output |
+| `--skip-plan` | | `false` | Skip plan analysis (run version drift only) |
+| `--skip-versions` | | `false` | Skip version drift analysis (run plan analysis only) |
+
+**Exit codes:**
+
+| Code | Meaning |
+|---|---|
+| `0` | No issues found |
+| `1` | Version drift or plan changes detected |
+| `2` | Critical changes (deletions/replacements) or major version drift |
 
 ```bash
 # Run both version drift and plan analysis
 tfskel drift all --plan-file plan.json --path /path/to/your/terraform-directories
+
+# Skip plan analysis — version drift only
+tfskel drift all --skip-plan
+
+# Skip version drift — plan only
+tfskel drift all --plan-file plan.json --skip-versions
+
+# CI/CD usage with JSON output and no colors
+tfskel drift all --plan-file plan.json --format json --no-color
 ```
 
 ## Configuration
 
-Create a `.tfskel.yaml` in your project root to customize defaults:
+Create a `.tfskel.yaml` in your project root to customise defaults:
 
 > [!TIP]
-> Use [.tfskel.example.yaml.example](.tfskel.example.yaml) for reference.
-> Configuration precedence: CLI flags → config file → defaults
+> Use [.tfskel.example.yaml](.tfskel.example.yaml) for a full annotated reference.
+> Configuration precedence: **CLI flags → config file → defaults**
+
+### Key configuration fields
+
+| Field | Required | Default | Description |
+|---|---|---|---|
+| `terraform_version` | Yes (for default templates) | — | Terraform version constraint, e.g. `~> 1.13` |
+| `provider.aws.version` | Yes (for default templates) | — | AWS provider version constraint, e.g. `~> 6.0` |
+| `provider.aws.account_mapping` | Yes | — | Map of environment names → AWS account IDs |
+| `provider.aws.regions` | Yes | — | List of AWS regions to scaffold |
+| `provider.aws.default_tags` | No | `{}` | Default tags applied to all AWS resources |
+| `backend.s3.bucket_name` | Yes | — | Globally unique S3 bucket name for Terraform state |
+| `generate.templates_dir` | No | `""` | Path to custom templates directory |
+| `generate.github_workflows.create` | No | `false` | Enable GitHub Actions workflow generation |
+| `generate.github_workflows.name_template` | No | — | Workflow name template (supports Go template placeholders) |
+| `generate.github_workflows.aws_role_arn` | No | — | Full IAM role ARN for GitHub Actions (takes priority) |
+| `generate.github_workflows.aws_role_name` | No | — | IAM role name for GitHub Actions |
+| `critical_resources` | No | `[]` | Additional resource types flagged as HIGH severity in drift plan analysis |
+| `top_n_count` | No | `10` | Max rows shown in "Changes by Resource Type" / "Changes by Module" tables; `0` = show all |
 
 ## Contributing
 
