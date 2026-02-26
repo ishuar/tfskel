@@ -8,7 +8,9 @@ terraform_version: terraform-version-constraint # e.g. ~> 1.13
 backend:
   s3:
     # Required with default embedded templates:
-    # Update with your globally unique S3 bucket name for Terraform state storage. accepts templated values
+    # Update with your globally unique S3 bucket name for Terraform state storage.
+    # Accepts Go template syntax — see "Template context variables" in README for available placeholders.
+    # Example with templating: "my-tfstate-{{.Env}}-{{.AccountID}}"
     bucket_name: CHANGE_ME_WITH_YOUR_GLOBALLY_UNIQUE_S3_BUCKET_NAME
 provider:
   aws:
@@ -61,9 +63,16 @@ generate:
   github_workflows:
     # Enable GitHub Actions workflow generation
     create: false
-    # Workflow name template using placeholders:
+    # GitHub workflow filename stem. Accepts Go template syntax.
+    # Available placeholders: {{.AppDir}}, {{.Env}}, {{.Region}}, {{.ShortRegion}}, {{.AccountID}}
+    # Template functions: toLower, toUpper, replace, trimSpace, trimPrefix, trimSuffix, stripConstraint, etc.
+    # The workflow type suffix (-lint, -terraform) and .yaml extension are appended automatically.
+    # Example: "{{.AppDir}}-{{.Env}}-{{.ShortRegion}}" -> "myapp-dev-euc1-terraform.yaml"
+    # See README "Template context variables" section for the full reference.
     name_template: "{{.AppDir}}-{{.Env}}-{{.ShortRegion}}"
-    # Full ARN (takes priority, optional), accepts templated values
+    # Full ARN (takes priority, optional). Accepts Go template syntax.
+    # Available placeholders: {{.AccountID}}, {{.Env}}, {{.Region}}, {{.ShortRegion}}, {{.AppDir}}
     aws_role_arn: "arn:aws:iam::{{.AccountID}}:role/{{.Env}}-githubactionsrole"
-    # IAM role for workflows (optional), accepts templated values
+    # IAM role for workflows (optional). Accepts Go template syntax.
+    # Available placeholders: {{.AccountID}}, {{.Env}}, {{.Region}}, {{.ShortRegion}}, {{.AppDir}}
     aws_role_name: "{{.Env}}-githubactionsrole"
