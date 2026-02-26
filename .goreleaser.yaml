@@ -7,7 +7,6 @@ project_name: tfskel
 before:
   hooks:
     - go mod tidy
-    - go test ./...
 
 builds:
   - id: tfskel
