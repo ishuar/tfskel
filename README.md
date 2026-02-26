@@ -10,32 +10,41 @@
 [![Go Version][go-version-img]][go-version]
 
 <div align="center">
-<img src="assets/tfskel-logo.svg?raw=true" alt="tfskel logo" height="125" />
+<img src="assets/tfskel-logo.svg?raw=true" alt="tfskel logo" height="135" />
 
-<em>Opinionated Terraform scaffolding. No vendor lock-in, just better project structure</em>
+<em>Simplified and predictable Terraform operations. Scale & Build infrastructure, not overhead!</em>
 </div>
 
 </div>
 
 # tfskel
 
-[`tfskel`](https://github.com/ishuar/tfskel) is a CLI tool that scaffolds Terraform monorepos with an **opinionated**, **scalable** and **consistent** way by using environment-based directory structure. No wrappers, no complexity, just vanilla Terraform with consistent terraform root modules, version **drift detection**,and **terraform plan analysis**. Spend less time on project setup and more time writing infrastructure code.
+[`tfskel`](https://github.com/ishuar/tfskel) is a CLI tool that helps you run Terraform without the operational chaos.
+
+It standardizes project structure, reduces drift, and makes plans easier to reason about, so you can spend less time managing Terraform and more time terraforming your infrastructure. No wrappers. No unnecessary abstraction. With `tfskel` Just well-structured, scalable Terraform that stays maintainable as you grow.
 
 ## Why tfskel
 
-Tired of spending hours setting up the same Terraform folder structure, pinning provider versions, and keeping everything in sync as your infrastructure grows? You're not alone. Most teams waste valuable time reinventing the wheel for every new environment or region.
+_Terraform itself isn’t hard. Managing it at scale is._
 
-[`tfskel`](https://github.com/ishuar/tfskel) eliminates that pain. It gives you a proven, scalable monorepo layout—ready to go in seconds. No more copy-pasting, no more "did we forget that file?" moments. Just run the CLI and get a clean, consistent foundation for your Terraform code, every time.
+As infrastructure grows, so does the operational overhead — inconsistent folder structures, version drift, massive plan reviews, and environments slowly falling out of sync. Teams end up spending more time maintaining Terraform than actually building infrastructure.
+
+[`tfskel`](https://github.com/ishuar/tfskel) removes that friction.
+
+It gives you a clean, opinionated foundation that keeps your Terraform projects structured, consistent, and predictable from day one. Instead of reinventing layouts and fixing drift, you can focus on delivering Infrastructure as Code with confidence. _No copy-paste cycles. No structural chaos. No hidden abstraction layers._ Just well-organized, scalable Terraform — built to grow with your infrastructure.
+
+> _tfskel is not a Terraform wrapper. It’s an operational discipline tool for Terraform._
 
 ### Features
-1. Consistent Structure, Every Time
-2. Terraform Code Generation via Go Templates
-3. Version Drift Detection Across the Entire Repo
-4. Terraform Plan Analysis
-5. No Wrappers, No Lock-in Just terraform.
+
+1. Enforce consistent project structure across environments
+2. Generate Terraform code using clean, maintainable templates
+3. Detect AWS provider and Terraform version drift across the entire repo
+4. Analyze Terraform plans to make reviews easier and safer with custom resources severity
+5. Stay vanilla — no wrappers, no lock-in, just Terraform
 
 > [!NOTE]
-> *⭐️ For Latest updates Don't forget to star the repo! ⭐️*
+> *⭐️ If you find tfskel useful, consider starring the repo to stay updated and support the project. ⭐️*
 
 ## Installation
 
@@ -104,7 +113,7 @@ tfskel init --config /path/to/config.yaml
 
 ### `tfskel generate`
 
-Creates per-application root module directories with a pre-configured `backend.tf` (S3 with state locking and encryption) and a `versions.tf` with pinned Terraform and AWS provider versions, plus optional GitHub Actions workflows. You can extend this with your own `.tmpl` files — any custom template you place in your templates directory is processed alongside the built-in defaults; if the same filename is provided, the custom template takes precedence.
+It accepts any subcommand as an input for target app-dir and creates per-application root module directories with a pre-configured `backend.tf` (S3 with state locking and encryption) and a `versions.tf` with pinned Terraform and AWS provider versions, plus optional GitHub Actions workflows. You can extend this with your own `.tmpl` files — any custom template you place in your templates directory is processed alongside the built-in defaults; if the same filename is provided, the custom template takes precedence.
 
 | Flag | Short | Default | Description |
 |---|---|---|---|
@@ -277,22 +286,7 @@ All placeholders are populated from the `tfskel generate` invocation:
 
 #### Template functions
 
-In addition to the standard Go `text/template` built-ins, the following functions are available in all templated config values:
-
-| Function | Description | Example |
-|---|---|---|
-| `replace` | Replace all occurrences of `old` with `new` in a string | `{{.Env \| replace "prd" "prod"}}` |
-| `toLower` | Convert string to lowercase | `{{.AppDir \| toLower}}` |
-| `toUpper` | Convert string to uppercase | `{{.Env \| toUpper}}` |
-| `trimSpace` | Remove leading and trailing whitespace | `{{.AppDir \| trimSpace}}` |
-| `trimPrefix` | Remove a leading prefix from a string | `{{.Region \| trimPrefix "eu-"}}` |
-| `trimSuffix` | Remove a trailing suffix from a string | `{{.AppDir \| trimSuffix "-app"}}` |
-| `hasPrefix` | Returns `true` if the string starts with the given prefix | `{{if hasPrefix .Region "eu"}}...{{end}}` |
-| `hasSuffix` | Returns `true` if the string ends with the given suffix | `{{if hasSuffix .AppDir "-svc"}}...{{end}}` |
-| `contains` | Returns `true` if the string contains the given substring | `{{if contains .Env "prd"}}...{{end}}` |
-| `join` | Join a string slice with a separator | `{{join .someSlice ","}}` |
-| `split` | Split a string into a slice by separator | `{{split .Region "-"}}` |
-| `stripConstraint` | Remove version constraint operators (`~>`, `>=`, etc.) and return the bare version number | `{{.TerraformVersion \| stripConstraint}}` → `1.13` |
+In addition to the standard Go `text/template` built-ins, additional [template functions](https://github.com/ishuar/tfskel/blob/main/docs/tfskel-book.md#string-checking-functions) are available in all templated config values.
 
 ## Contributing
 
