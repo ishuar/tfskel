@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/ishuar/tfskel/compare/v0.2.1...v0.2.2) (2026-02-27)
+
+
+### 🐞 Bug Fixes
+
+* **help:** improve help outputs for all commands ([#35](https://github.com/ishuar/tfskel/issues/35)) ([da8c500](https://github.com/ishuar/tfskel/commit/da8c500011b414c96e48767c434a48aad3fb37db))
+
 ## [0.2.1](https://github.com/ishuar/tfskel/compare/v0.2.0...v0.2.1) (2026-02-25)
 
 
