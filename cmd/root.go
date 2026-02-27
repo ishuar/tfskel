@@ -57,33 +57,6 @@ func init() {
 		// This should never fail, but handle it anyway
 		panic(fmt.Sprintf("failed to bind verbose flag: %v", err))
 	}
-	rootCmd.SetHelpTemplate(`Usage: tfskel [global options] <subcommand> [args]
-
-tfskel simplifies Terraform operations so teams can focus on building infrastructure — not managing folder structures, drift, or plan reviews.
-It provides clean, consistent, and scalable Terraform layouts with built-in best practices.
-
-Main workflow commands:
-  init       Initialize a tfskel project with environment-based structure
-  generate   Generate terraform target directory using subcommand as input
-  drift      Analyze versions drift and plan changes analysis
-  help       Show help about any command
-
-drift subcommands:
-  version  Drift check between configured terraform, provider versions & the actual versions in use
-  plan     Analyze Terraform plan json file & output a human-readable terraform plan summary
-
-Other commands:
-  completion  Generate shell autocompletion scripts
-
-Global options (use these before the subcommand):
-  -c, --config string   Load configuration from the specified file (default is .tfskel.yaml in the current directory)
-  -h, --help            Show this help output
-  -v, --verbose         Enable verbose output
-      --version         Show the current tfskel version
-
-For more details on a specific command, use:
-  tfskel <command> --help
-`)
 }
 
 // initConfig reads in config file and ENV variables if set.
