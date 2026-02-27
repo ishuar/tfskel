@@ -21,25 +21,16 @@ var (
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "tfskel",
-	Short: "Opinionated Terraform scaffolding for real-world teams",
-	Long: `tfskel helps you bootstrap Terraform projects the *right* way — fast, consistent, and scalable.
-
-It creates production-ready Terraform layouts with built-in best practices,
-so teams can focus on infrastructure instead of structure.
-
-What you get:
-  - Clean, environment-first project layouts (dev, stg, prd) with region separation
-  - Pre-wired backend and provider configuration using reusable templates
-  - Terraform and AWS provider version drift detection across repos and monorepos
-  - Plan file analysis to understand infrastructure changes before applying
-  - Simple, declarative customization via .tfskel.yaml
-
-Configuration:
-  tfskel automatically loads .tfskel.yaml from the current directory.
-  Use --config to point to a different file (this always takes precedence).`,
+	Use:   "tfskel <command> <subcommand>",
+	Short: "Simplify Terraform operations and project structure",
+	Long: `tfskel simplifies Terraform operations so teams can focus on building infrastructure
+not managing folder structures, drift, or plan reviews. It provides clean, consistent,
+and scalable Terraform layouts with built-in best practices.`,
 
 	Version: Version,
+	RunE: func(cmd *cobra.Command, _ []string) error {
+		return cmd.Help()
+	},
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -50,6 +41,12 @@ func Execute() error {
 
 func init() {
 	cobra.OnInitialize(initConfig)
+
+	// Define command groups
+	rootCmd.AddGroup(&cobra.Group{
+		ID:    "main",
+		Title: "Main Commands:",
+	})
 
 	// Global flags
 	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file (default is .tfskel.yaml in current directory)")

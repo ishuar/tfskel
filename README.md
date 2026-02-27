@@ -189,7 +189,7 @@ tfskel drift version --format csv --no-color > drift-report.csv
 
 #### `tfskel drift plan`
 
-Reads a `plan.json` file, summarises resource changes, flags high-severity updates based on a configurable list of critical resources, and produces a structured report. Output can be exported as CSV, table, or JSON for reporting.
+Reads a `plan.json` file, summarizes resource changes, flags high-severity updates based on a configurable list of critical resources, and produces a structured report. Output can be exported as CSV, table, or JSON for reporting.
 
 | Flag | Short | Default | Description |
 |---|---|---|---|
@@ -271,18 +271,18 @@ The following config fields accept Go template syntax: `backend.s3.bucket_name`,
 
 All placeholders are populated from the `tfskel generate` invocation:
 
-| Placeholder | Source | Description | Example value |
-|---|---|---|---|
-| `{{.AppDir}}` | `<app-dir>` argument to `tfskel generate` | Application directory name (path separators `/` are replaced with `-` in filenames) | `myapp`, `base-infra-ecs` |
-| `{{.Env}}` | `--env` / `-e` flag | Target environment | `dev`, `stg`, `prd` |
-| `{{.Region}}` | `--region` / `-r` flag | Full AWS region name | `eu-central-1`, `us-east-1` |
-| `{{.ShortRegion}}` | derived from `--region` | Abbreviated region (e.g. `eu-central-1` → `euc1`) | `euc1`, `use1` |
-| `{{.AccountID}}` | `provider.aws.account_mapping[.Env]` | AWS account ID for the target environment | `123456789012` |
-| `{{.S3BucketName}}` | `backend.s3.bucket_name` (post-render) | Resolved S3 bucket name after template rendering | `my-tfstate-bucket` |
-| `{{.TerraformVersion}}` | `terraform_version` in config | Terraform version constraint | `~> 1.13` |
-| `{{.AWSProviderVersion}}` | `provider.aws.version` in config | AWS provider version constraint | `~> 6.0` |
-| `{{.AWSRoleArn}}` | resolved from `aws_role_arn` / `aws_role_name` | Final IAM role ARN used in workflow files | `arn:aws:iam::123456789012:role/dev-githubactionsrole` |
-| `{{.WorkflowFileName}}` | auto-generated | Rendered workflow filename (for self-reference in workflow `on:` triggers) | `myapp-dev-euc1-terraform.yaml` |
+| Placeholder               | Source                                         | Description                                                                         | Example value                                          |
+|---------------------------|------------------------------------------------|-------------------------------------------------------------------------------------|--------------------------------------------------------|
+| `{{.AppDir}}`             | `<app-dir>` argument to `tfskel generate`      | Application directory name. Path separators `/` are replaced with `-` in filenames. | `myapp`, `base-infra-ecs`                              |
+| `{{.Env}}`                | `--env` / `-e` flag                            | Target environment.                                                                 | `dev`, `stg`, `prd`                                    |
+| `{{.Region}}`             | `--region` / `-r` flag                         | Full AWS region name.                                                               | `eu-central-1`, `us-east-1`                            |
+| `{{.ShortRegion}}`        | Derived from `--region` / `-r` flag            | Abbreviated region (e.g. `eu-central-1` → `euc1`).                                  | `euc1`, `use1`                                         |
+| `{{.AccountID}}`          | `provider.aws.account_mapping[.Env]`           | AWS account ID for the target environment.                                          | `123456789012`                                         |
+| `{{.S3BucketName}}`       | `backend.s3.bucket_name` (post-render)         | Resolved S3 bucket name after template rendering.                                   | `my-tfstate-bucket`                                    |
+| `{{.TerraformVersion}}`   | `terraform_version` in config                  | Terraform version constraint.                                                       | `~> 1.13`                                              |
+| `{{.AWSProviderVersion}}` | `provider.aws.version` in config               | AWS provider version constraint.                                                    | `~> 6.0`                                               |
+| `{{.AWSRoleArn}}`         | Resolved from `aws_role_arn` / `aws_role_name` | Final IAM role ARN used in workflow files.                                          | `arn:aws:iam::123456789012:role/dev-githubactionsrole` |
+| `{{.WorkflowFileName}}`   | Auto-generated                                 | Rendered workflow filename (used for self-reference in workflow `on:` triggers).    | `myapp-dev-euc1-terraform.yaml`                        |
 
 #### Template functions
 

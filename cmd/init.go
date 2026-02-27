@@ -24,23 +24,15 @@ var (
 )
 
 var initCmd = &cobra.Command{
-	Use:   "init",
-	Short: "Initialize tfskel project structure",
-	Long: `Initialize a tfskel project structure with environment directories and configuration files.
-
-This creates:
-- Root config files (.gitignore, .pre-commit-config.yaml, .tflint.hcl, trivy.yaml, .tfskel.yaml)
-- Environment directories (dev, stg, prd) with region subdirectories
-- .terraform-version files for each environment
-
-Configuration:
-  The init command reads .tfskel.yaml from the current directory (or --config path)
-  to determine which regions and environments to create. If no config file exists, it uses defaults.
+	Use:     "init",
+	GroupID: "main",
+	Short:   "Initialize tfskel project structure",
+	Long: `Initializes a new Terraform monorepo with an environment-and-region-based
+directory layout with sensible defaults already in place
 
 Recommendations:
   - Ensure required tools are installed: terraform, tflint, trivy, pre-commit
-  - Install pre-commit hooks:
-      pre-commit install --install-hooks`,
+  - Install pre-commit hooks post init with: pre-commit install --install-hooks`,
 	Example: `  # Initialize in current directory (uses .tfskel.yaml if present)
   tfskel init
 
