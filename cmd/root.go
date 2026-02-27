@@ -21,25 +21,16 @@ var (
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "tfskel",
-	Short: "Opinionated Terraform scaffolding for real-world teams",
-	Long: `tfskel helps you bootstrap Terraform projects the *right* way — fast, consistent, and scalable.
-
-It creates production-ready Terraform layouts with built-in best practices,
-so teams can focus on infrastructure instead of structure.
-
-What you get:
-  - Clean, environment-first project layouts (dev, stg, prd) with region separation
-  - Pre-wired backend and provider configuration using reusable templates
-  - Terraform and AWS provider version drift detection across repos and monorepos
-  - Plan file analysis to understand infrastructure changes before applying
-  - Simple, declarative customization via .tfskel.yaml
-
-Configuration:
-  tfskel automatically loads .tfskel.yaml from the current directory.
-  Use --config to point to a different file (this always takes precedence).`,
+	Use:   "tfskel <command> <subcommand>",
+	Short: "Simplify Terraform operations and project structure",
+	Long: `tfskel simplifies Terraform operations so teams can focus on building infrastructure
+not managing folder structures, drift, or plan reviews. It provides clean, consistent,
+and scalable Terraform layouts with built-in best practices.`,
 
 	Version: Version,
+	RunE: func(cmd *cobra.Command, _ []string) error {
+		return cmd.Help()
+	},
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -51,6 +42,12 @@ func Execute() error {
 func init() {
 	cobra.OnInitialize(initConfig)
 
+	// Define command groups
+	rootCmd.AddGroup(&cobra.Group{
+		ID:    "main",
+		Title: "Main Commands:",
+	})
+
 	// Global flags
 	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file (default is .tfskel.yaml in current directory)")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "enable verbose output")
@@ -60,6 +57,33 @@ func init() {
 		// This should never fail, but handle it anyway
 		panic(fmt.Sprintf("failed to bind verbose flag: %v", err))
 	}
+	rootCmd.SetHelpTemplate(`Usage: tfskel [global options] <subcommand> [args]
+
+tfskel simplifies Terraform operations so teams can focus on building infrastructure — not managing folder structures, drift, or plan reviews.
+It provides clean, consistent, and scalable Terraform layouts with built-in best practices.
+
+Main workflow commands:
+  init       Initialize a tfskel project with environment-based structure
+  generate   Generate terraform target directory using subcommand as input
+  drift      Analyze versions drift and plan changes analysis
+  help       Show help about any command
+
+drift subcommands:
+  version  Drift check between configured terraform, provider versions & the actual versions in use
+  plan     Analyze Terraform plan json file & output a human-readable terraform plan summary
+
+Other commands:
+  completion  Generate shell autocompletion scripts
+
+Global options (use these before the subcommand):
+  -c, --config string   Load configuration from the specified file (default is .tfskel.yaml in the current directory)
+  -h, --help            Show this help output
+  -v, --verbose         Enable verbose output
+      --version         Show the current tfskel version
+
+For more details on a specific command, use:
+  tfskel <command> --help
+`)
 }
 
 // initConfig reads in config file and ENV variables if set.

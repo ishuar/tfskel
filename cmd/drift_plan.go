@@ -27,9 +27,10 @@ var (
 // driftPlanCmd represents the drift plan command
 var driftPlanCmd = &cobra.Command{
 	Use:   "plan",
-	Short: "Analyze terraform plan output for changes",
-	Long: `Analyze a terraform plan JSON file to detect and categorize infrastructure changes.
-This command helps you understand the impact of planned changes before applying them.
+	Short: "Analyze Terraform plan json file & output a human-readable terraform plan summary",
+	Long: `Analyze a terraform plan JSON file to detect and
+categorize infrastructure changes.This command helps you
+understand the impact of planned changes before applying them.
 
 The plan file must be in JSON format, generated with:
   terraform plan -out=tfplan.binary
@@ -45,10 +46,9 @@ Severity Levels:
   • Critical  - Deletions or replacements (data loss risk)
   • High      - Modifications to critical resources
   • Medium    - Standard resource modifications
-  • Low       - Additions only
+  • Low       - Additions only`,
 
-Examples:
-  # Analyze a plan file
+	Example: `  # Analyze a plan file
   tfskel drift plan --plan-file tfplan.json
 
   # Export analysis as JSON for CI/CD

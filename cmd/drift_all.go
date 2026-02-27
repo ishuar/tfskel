@@ -64,15 +64,8 @@ type VersionDriftSummary struct {
 var driftAllCmd = &cobra.Command{
 	Use:   "all",
 	Short: "Run combined version drift and plan analysis",
-	Long: `Run a comprehensive drift analysis combining both version drift detection
-and terraform plan analysis. This provides a complete picture of your
-infrastructure state and planned changes.
-
-This command is ideal for:
-  • Pre-commit hooks - Catch both version drift and plan issues
-  • CI/CD pipelines - Comprehensive validation before deployment
-  • Code reviews - Complete analysis for reviewers
-  • Compliance checks - Ensure both versions and changes are validated
+	Long: `Run a comprehensive drift analysis combining both
+version drift detection and terraform plan analysis.
 
 The command will:
   1. Scan for version drift across Terraform configurations
@@ -83,10 +76,9 @@ The command will:
 Exit Codes:
   0 - No issues found
   1 - Version drift or plan changes detected
-  2 - Critical changes (deletions/replacements) or major version drift
+  2 - Critical changes (deletions/replacements) or major version drift`,
 
-Examples:
-  # Run full analysis
+	Example: `  # Run full analysis
   tfskel drift all --plan-file tfplan.json
 
   # Analyze specific directory with plan

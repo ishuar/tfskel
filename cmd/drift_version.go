@@ -30,33 +30,23 @@ var (
 var driftVersionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Detect version drift across Terraform configurations",
-	Long: `Detect and report version inconsistencies for Terraform and providers
-across your workspace. This command recursively scans .tf files, extracts
-version information using HCL parsing, and compares against your .tfskel configuration.
+	Long: `Detect and report version inconsistencies for Terraform
+and providers across your workspace. This command recursively
+scans .tf files, extracts version information using HCL parsing,
+and compares against your .tfskel configuration.
+Results can be output as JSON, table, or CSV
 
-The --path flag accepts:
-  • Relative paths: ./envs, ../terraform, tfskel-function-test
-  • Absolute paths: /full/path/to/terraform
-  • Current directory: . or ./ (scans recursively from current location)
+Note: Hidden directories (starting with .) are automatically skipped.`,
 
-Note: Hidden directories (starting with .) are automatically skipped.
-
-Examples:
-  # Check for drift in current directory and all subdirectories
+	Example: `  # Check for drift in current directory and all subdirectories
   tfskel drift version
   tfskel drift version --path ./
 
   # Check specific subdirectory
   tfskel drift version --path ./envs
 
-  # Check with absolute path
-  tfskel drift version --path /home/user/terraform
-
   # Check home directory with JSON output
-  tfskel drift version --path ~/terraform --format json
-
-  # Generate CSV report for CI/CD
-  tfskel drift version --format csv --no-color > drift-report.csv`,
+  tfskel drift version --path ~/terraform --format json`,
 	RunE: runDriftVersions,
 }
 

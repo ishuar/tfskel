@@ -24,31 +24,32 @@ var (
 )
 
 var generateCmd = &cobra.Command{
-	Use:   "generate <app-dir>",
-	Short: "Generate Terraform project structure",
-	Long: `Generate a complete Terraform project structure with environment-based organization.
+	Use:     "generate <app-dir>",
+	GroupID: "main",
+	Short:   "Generate Terraform project structure for target application",
+	Long: `Accepts any subcommand value as an <app-dir> input and
+creates its root module directories.
 
 This command creates:
-  - Environment directories (dev, stg, prd)
-  - Region-specific subdirectories (only for the specified region)
-  - Application directories
-  - Terraform configuration files from templates
+  - Environment directory if not exists
+  - Region subdirectory for the specified region
+  - <app-dir> directory under the specified env & region
+  - Terraform configuration files from go templates
+  - Optional GitHub workflow files from templates
 
 Configuration:
   The generate command reads .tfskel.yaml from the current directory by default.
-  Use --config flag to specify a different configuration file location.
-  The --config flag takes precedence over the default location.
 
 Arguments:
-  app-dir: Name of the application directory to create (required)`,
+  <app-dir>: Name of the application directory as subcommand input to create (required)`,
 	Example: `  # Generate structure for an app in dev environment (uses .tfskel.yaml)
   tfskel generate myapp --env dev --region us-east-1
 
   # Generate with custom configuration file
   tfskel generate myapp --config ./my-config.yaml --env dev --region us-east-1
 
-  # Generate with custom templates
-  tfskel generate myapp --env stg --region eu-central-1 --templates-dir ./templates`,
+  # Generate with custom templates and GitHub workflows
+  tfskel generate myapp --env stg --region eu-central-1 --templates-dir ./templates --create-github-workflows`,
 	Args: cobra.ExactArgs(1),
 	RunE: runGenerate,
 }
