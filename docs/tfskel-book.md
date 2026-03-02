@@ -259,7 +259,8 @@ Automate creation of GitHub Actions workflows for Terraform CI/CD:
 
 **⚠️ Auto-Apply Safety**:
 
-> **IMPORTANT**: The `auto_apply` parameter controls automatic terraform apply execution.
+> [!IMPORTANT]
+> The `auto_apply` parameter controls automatic terraform apply execution.
 
 **Default Behavior** (when `auto_apply` is not explicitly set):
 - ✅ **On PR**: Plan only, no auto-apply (safe for all environments)
@@ -278,7 +279,7 @@ Automate creation of GitHub Actions workflows for Terraform CI/CD:
 uses: ./.github/workflows/reusable-terraform-plan-apply.yaml
 with:
   environment: production  # Or prd, prod, live - any name works
-  auto_apply: false        # Explicit safety for production
+  auto_apply: ${{ inputs.auto_apply || false }}
   # ... other inputs
 ```
 

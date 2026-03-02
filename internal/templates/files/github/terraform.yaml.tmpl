@@ -55,4 +55,4 @@ jobs:
       aws_role_to_assume: "{{.AWSRoleArn}}"
       environment: {{.Env}}
       ## Set to true to enable auto-apply on PR. Keep false for production unless using approval gates.
-      auto_apply: false
+      auto_apply: ${{"{{"}} inputs.auto_apply || false {{"}}"}}
