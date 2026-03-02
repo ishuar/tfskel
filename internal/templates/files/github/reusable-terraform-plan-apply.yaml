@@ -42,6 +42,11 @@ on:
         type: string
         required: true
         description: The environment in which the terraform resources should be deployed.
+      tfskel_version:
+        type: string
+        required: false
+        default: 'latest'
+        description: The version of tfskel to use for plan analysis.
 
 env:
   # verbosity setting for Terraform logs
@@ -107,8 +112,9 @@ jobs:
           label: ${{ inputs.terraform_files_path }}
           add_github_comment: true
 
-      - name: Set up Go
+      - name: Set up Go for tfskel analysis
         uses: actions/setup-go@v6
+        if: steps.plan.outputs.changes == 'true'
         with:
           go-version: '1.24.0'
           cache: true
@@ -122,7 +128,7 @@ jobs:
         ## but we don't want to fail the job because of that
         continue-on-error: true
         run: |
-          go install github.com/ishuar/tfskel@latest
+          go install github.com/ishuar/tfskel@${{ inputs.tfskel_version }}
           which tfskel && tfskel --version
           tfskel drift plan --plan-file ${{ steps.plan.outputs.json_plan_path }}
 

@@ -19,31 +19,16 @@ on:
   ## For manual trigger on github UI
   workflow_dispatch:
     inputs:
-      terraform_files_path:
-        type: string
-        required: true
-        default: 'envs/{{.Env}}/{{.Region}}/{{.AppDir}}'
-        description: Path to the Terraform files to validate
-      aws_region:
-        type: string
-        required: true
-        default: {{.Region}}
-        description: The AWS region in which terraform resources should be deployed.
-      aws_role_to_assume:
-        type: string
-        required: true
-        default: "{{.AWSRoleArn}}"
-        description: The AWS role to assume for the terraform deployment.
       auto_apply:
         type: boolean
         required: false
         default: false
         description: Set to true to auto-apply terraform plan. Keep false for production unless using approval gates.
-      environment:
+      tfskel_version:
         type: string
-        required: true
-        default: {{.Env}}
-        description: The environment in which the terraform resources should be deployed.
+        required: false
+        default: 'latest'
+        description: The version of tfskel to use for plan analysis.
 
 jobs:
   terraform-plan-apply:
@@ -51,8 +36,7 @@ jobs:
     with:
       terraform_files_path: 'envs/{{.Env}}/{{.Region}}/{{.AppDir}}'
       aws_region: {{.Region}}
-      ## Cyclic dependency for bootstrap, need local apply for the first time.
-      aws_role_to_assume: "{{.AWSRoleArn}}"
+      aws_role_to_assume: "{{.AWSRoleArn}}" # Cyclic dependency for bootstrap, need local apply for the first time.
       environment: {{.Env}}
-      ## Set to true to enable auto-apply on PR. Keep false for production unless using approval gates.
-      auto_apply: ${{"{{"}} inputs.auto_apply || false {{"}}"}}
+      auto_apply: ${{"{{"}} inputs.auto_apply || false {{"}}"}} # Set to true to enable auto-apply on PR. Keep false for production unless using approval gates.
+      tfskel_version: ${{"{{"}} inputs.tfskel_version || 'latest' {{"}}"}}
