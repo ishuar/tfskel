@@ -225,7 +225,6 @@ Defines AWS provider configuration:
 
 Automate creation of GitHub Actions workflows for Terraform CI/CD:
 
-
 **Configuration Fields**:
 - `generate.github_workflows.create`: Enable/disable workflow generation (default: false)
 - `generate.github_workflows.name_template`: Custom workflow filename pattern (optional)
@@ -261,10 +260,10 @@ Automate creation of GitHub Actions workflows for Terraform CI/CD:
 
 > [!IMPORTANT]
 > The `auto_apply` parameter controls automatic terraform apply execution.
+> However **On push to main**: always apply irrespective of `auto_apply` value
 
 **Default Behavior** (when `auto_apply` is not explicitly set):
 - ✅ **On PR**: Plan only, no auto-apply (safe for all environments)
-- ✅ **On push to main**: Automatically applies changes
 - ⚠️ **On manual dispatch**: Requires explicit `auto_apply` input
 
 **Production Safety Recommendations**:
