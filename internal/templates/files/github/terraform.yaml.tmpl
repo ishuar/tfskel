@@ -34,12 +34,11 @@ on:
         required: true
         default: "{{.AWSRoleArn}}"
         description: The AWS role to assume for the terraform deployment.
-      ## Note: It is not recommended to enable apply on PR for production environments.
-      enable_apply_on_pr:
+      auto_apply:
         type: boolean
         required: false
         default: false
-        description: Enable terraform apply on pull request. This is not recommended for production environments.
+        description: Set to true to auto apply terraform plan. Not recommended for production env, always review plan before applying.
       environment:
         type: string
         required: true
@@ -55,4 +54,5 @@ jobs:
       ## Cyclic dependency for bootstrap, need local apply for the first time.
       aws_role_to_assume: "{{.AWSRoleArn}}"
       environment: {{.Env}}
-      enable_apply_on_pr: false # set to true to enable apply on PR, not recommended for production environments.
+      ## set to true to enable auto apply on PR, not recommended for production env.
+      auto_apply: false
