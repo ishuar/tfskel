@@ -38,7 +38,7 @@ on:
         type: boolean
         required: false
         default: false
-        description: Set to true to auto apply terraform plan. Not recommended for production env, always review plan before applying.
+        description: Set to true to auto-apply terraform plan. Keep false for production unless using approval gates.
       environment:
         type: string
         required: true
@@ -54,5 +54,5 @@ jobs:
       ## Cyclic dependency for bootstrap, need local apply for the first time.
       aws_role_to_assume: "{{.AWSRoleArn}}"
       environment: {{.Env}}
-      ## set to true to enable auto apply on PR, not recommended for production env.
+      ## Set to true to enable auto-apply on PR. Keep false for production unless using approval gates.
       auto_apply: false

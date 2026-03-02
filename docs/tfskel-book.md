@@ -257,6 +257,31 @@ Automate creation of GitHub Actions workflows for Terraform CI/CD:
 - TFLint integration with caching
 - Plan artifacts and PR comments
 
+**⚠️ Auto-Apply Safety**:
+
+> **IMPORTANT**: The `auto_apply` parameter controls automatic terraform apply execution.
+
+**Default Behavior** (when `auto_apply` is not explicitly set):
+- ✅ **On PR**: Plan only, no auto-apply (safe for all environments)
+- ✅ **On push to main**: Automatically applies changes
+- ⚠️ **On manual dispatch**: Requires explicit `auto_apply` input
+
+**Production Safety Recommendations**:
+1. **Always set `auto_apply: false`** in workflow inputs for production environments
+2. Use GitHub environment protection rules with required reviewers
+3. Enable branch protection on `main` with required PR reviews
+4. Consider manual approval gates for production applies
+5. The workflow respects any environment naming (not just 'prd') - safety is **your responsibility**
+
+**Example Production Workflow**:
+```yaml
+uses: ./.github/workflows/reusable-terraform-plan-apply.yaml
+with:
+  environment: production  # Or prd, prod, live - any name works
+  auto_apply: false        # Explicit safety for production
+  # ... other inputs
+```
+
 #### Drift Detection Configuration
 
 Configure drift detection behavior for version and plan analysis:
@@ -650,7 +675,7 @@ Generates a workflow for Terraform plan and apply:
 - Self-referencing trigger paths
 - AWS OIDC authentication with configurable role
 - Manual dispatch with full parameter control
-- Safety: apply on PR disabled by default
+- `auto_apply` parameter controls PR auto-apply (default: false for safety)
 
 **Reusable Workflows** (stored as static `.yaml` files):
 - `reusable-lint.yaml` - Shared linting logic

@@ -132,17 +132,19 @@ jobs:
     environment: ${{ inputs.environment }}
     needs: plan
     ## if not cancelled and not failed and plan was created successfully
-    ## if plan has changes, otherwise skip the job
-    ## only allowed on non-prod envs on PR when enabled
-    ## on Prod only from push to main branch (after PR merge)
-    ## or manual trigger (workflow_dispatch) when enabled.
+    ## if plan has changes
+    ## Auto-apply behavior:
+    ## - On PR: Only when auto_apply=true (use with caution, especially for production)
+    ## - On push to main: Always applies (ensure branch protection is enabled)
+    ## - On manual dispatch: Respects auto_apply input
+    ## IMPORTANT: Set auto_apply=false in production workflows unless you have proper approval gates
     if: ${{
       !cancelled() &&
       !failure() &&
       needs.plan.outputs.changes == 'true' &&
       (
-      (github.event_name == 'pull_request' && inputs.environment != 'prd' && inputs.auto_apply == true) ||
-      (github.event_name == 'push' && github.ref == 'refs/heads/main' && inputs.environment == 'prd') ||
+      (github.event_name == 'pull_request' && inputs.auto_apply == true) ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
       (github.event_name == 'workflow_dispatch' && inputs.auto_apply == true)
       )
       }}
