@@ -75,7 +75,7 @@ func TestValidate(t *testing.T) {
 				},
 			},
 			wantErr: true,
-			errMsg:  "backend.s3.bucket_name must be set",
+			errMsg:  "backend.s3.bucket_name configuration is required",
 		},
 		{
 			name: "empty bucket_name",
@@ -94,7 +94,7 @@ func TestValidate(t *testing.T) {
 				},
 			},
 			wantErr: true,
-			errMsg:  "backend.s3.bucket_name must be set",
+			errMsg:  "backend.s3.bucket_name configuration is required",
 		},
 		{
 			name: "placeholder bucket_name",
