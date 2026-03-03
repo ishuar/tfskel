@@ -397,6 +397,53 @@ func (e *ConfigError) Error() string {
 }
 ```
 
+### Sentinel Errors
+
+Sentinel errors are predefined error values that can be compared using `errors.Is()`:
+
+```go
+var (
+    ErrNotFound = errors.New("not found")
+    ErrInvalid  = errors.New("invalid")
+)
+
+// Usage
+if errors.Is(err, ErrNotFound) {
+    // Handle not found case
+}
+```
+
+**tfskel Config Package Sentinel Errors**:
+
+```go
+// internal/config/config.go
+var (
+    // ErrAWSProviderRequired indicates AWS provider configuration is missing
+    ErrAWSProviderRequired = errors.New("AWS provider configuration is required")
+
+    // ErrAccountMappingRequired indicates AWS account mapping is missing
+    ErrAccountMappingRequired = errors.New("AWS account mapping is required in provider configuration")
+
+    // ErrAccountMappingNotFound indicates the specified environment has no account mapping
+    ErrAccountMappingNotFound = errors.New("no account mapping found for environment")
+
+    // ErrInvalidAccountID indicates an AWS account ID is not properly formatted
+    ErrInvalidAccountID = errors.New("AWS account ID must be a 12-digit number (not a placeholder or invalid format)")
+
+    // ErrInvalidBucketName indicates the S3 bucket name is not properly configured
+    ErrInvalidBucketName = errors.New("backend.s3.bucket_name must be set to a valid value (not empty or placeholder)")
+}
+```
+
+These sentinel errors allow precise error handling and testing:
+
+```go
+// In tests or error handling
+if errors.Is(err, config.ErrAccountMappingNotFound) {
+    // Show helpful message about available environments
+}
+```
+
 ### Error Handling Pattern
 
 ```go
@@ -500,7 +547,57 @@ func (c *Config) Validate() error {
     if len(c.Provider.AWS.AccountMapping) == 0 {
         return ErrAccountMappingRequired
     }
+    // Validate AWS account IDs are 12-digit numbers
+    if err := c.validateAccountIDs(); err != nil {
+        return err
+    }
+    // Validate backend configuration
+    if c.Backend == nil || c.Backend.S3 == nil || c.Backend.S3.BucketName == "" {
+        return ErrInvalidBucketName
+    }
+    // Check if user left the example placeholder value
+    if c.Backend.S3.BucketName == "CHANGE_ME_WITH_YOUR_GLOBALLY_UNIQUE_S3_BUCKET_NAME" {
+        return fmt.Errorf("%w: placeholder value must be replaced with actual bucket name", ErrInvalidBucketName)
+    }
     return nil
+}
+
+// validateAccountIDs checks that all AWS account IDs are valid 12-digit numbers
+func (c *Config) validateAccountIDs() error {
+    // AWS account IDs are exactly 12 digits
+    accountIDPattern := regexp.MustCompile(`^\d{12}$`)
+
+    for env, accountID := range c.Provider.AWS.AccountMapping {
+        // Validate format: must be exactly 12 digits
+        if !accountIDPattern.MatchString(accountID) {
+            return fmt.Errorf("%w for environment %q: %q",
+                ErrInvalidAccountID, env, accountID)
+        }
+    }
+
+    return nil
+}
+
+// GetAccountID returns the AWS account ID for the specified environment,
+// or an error if no mapping exists for that environment.
+func (c *Config) GetAccountID(env string) (string, error) {
+    if c.Provider != nil && c.Provider.AWS != nil &&
+        c.Provider.AWS.AccountMapping != nil {
+        if id, ok := c.Provider.AWS.AccountMapping[env]; ok {
+            return id, nil
+        }
+        // Show available keys to help the user fix it immediately
+        available := make([]string, 0, len(c.Provider.AWS.AccountMapping))
+        for k := range c.Provider.AWS.AccountMapping {
+            available = append(available, k)
+        }
+        sort.Strings(available)
+        return "", fmt.Errorf(
+            "%w %q, available: [%s]",
+            ErrAccountMappingNotFound, env, strings.Join(available, ", "),
+        )
+    }
+    return "", ErrAWSProviderRequired
 }
 ```
 
@@ -535,16 +632,11 @@ func runGenerate(cmd *cobra.Command, args []string) error {
         return fmt.Errorf("configuration validation failed: %w", err)
     }
 
-    // Validate that account mapping exists for the environment
-    if err := validateAccountMapping(cfg, env); err != nil {
-        cmd.SilenceUsage = true
-        return err
-    }
-
     // Create filesystem abstraction
     filesystem := fs.NewOSFileSystem()
 
     // Create and run the generator with generation parameters
+    // GetAccountID is called internally during template preparation
     generator := app.NewGenerator(cfg, filesystem, log)
     if err := generator.Run(env, region, appDir); err != nil {
         cmd.SilenceUsage = true
@@ -556,11 +648,38 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 }
 ```
 
+**Error Handling in Template Preparation (internal/app/generator.go)**:
+
+```go
+func (g *Generator) prepareTemplateData(env, region, appDir string) (*templates.Data, error) {
+    // ... other preparation code ...
+
+    // Get account ID for the environment - returns error if not found
+    accountID, err := g.config.GetAccountID(env)
+    if err != nil {
+        return nil, err  // Error includes helpful message with available envs
+    }
+
+    // Create template data with validated account ID
+    data := &templates.Data{
+        Env:                env,
+        Region:             region,
+        AppDir:             appDir,
+        AccountID:          accountID,  // Guaranteed to be non-empty
+        // ... other fields ...
+    }
+
+    return data, nil
+}
+```
+
 **Benefits of This Approach**:
 - Clear error context at every level
 - Easy to trace where errors originate
 - Wrapped errors preserve the original error
-- User-friendly error messages
+- User-friendly error messages with actionable information
+- Early validation prevents issues downstream
+- GetAccountID provides helpful hints showing available environments
 
 ---
 

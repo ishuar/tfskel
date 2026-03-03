@@ -243,17 +243,49 @@ func (g *Generator) shouldRegenerateFile(filePath string, data map[string]string
 ```
 
 **Workflow**:
-1. Validate configuration
-2. Create directory structure
-3. Render templates with configuration data
-4. Write rendered files to file system
-5. Log progress and results
+1. Load configuration from .tfskel.yaml
+2. Validate configuration structure:
+   - AWS provider exists with account_mapping
+   - All account IDs are exactly 12-digit numbers (validateAccountIDs)
+   - Backend S3 bucket_name is set and not placeholder
+3. Prepare template data for environment:
+   - Call GetAccountID(env) to retrieve and validate account ID exists for environment
+   - Returns descriptive error with available environments if not found
+4. Create directory structure
+5. Render templates with validated configuration data (guaranteed valid account ID)
+6. Write rendered files to file system
+7. Log progress and results
+
+**Error Handling Flow**:
+- Configuration validation errors stop execution before any file operations
+- GetAccountID errors provide helpful messages showing available environments
+- Early validation prevents partial scaffolding with invalid data
 
 ### Layer 3: Domain Layer (internal/config, internal/templates, internal/fs)
 
 #### Config Package (internal/config)
 
 **Responsibility**: Load, validate, and provide configuration.
+
+**Sentinel Errors**:
+```go
+var (
+    // ErrAWSProviderRequired indicates AWS provider configuration is missing
+    ErrAWSProviderRequired = errors.New("AWS provider configuration is required")
+
+    // ErrAccountMappingRequired indicates AWS account mapping is missing
+    ErrAccountMappingRequired = errors.New("AWS account mapping is required in provider configuration")
+
+    // ErrAccountMappingNotFound indicates the specified environment has no account mapping
+    ErrAccountMappingNotFound = errors.New("no account mapping found for environment")
+
+    // ErrInvalidAccountID indicates an AWS account ID is not properly formatted
+    ErrInvalidAccountID = errors.New("AWS account ID must be a 12-digit number (not a placeholder or invalid format)")
+
+    // ErrInvalidBucketName indicates the S3 bucket name is not properly configured
+    ErrInvalidBucketName = errors.New("backend.s3.bucket_name must be set to a valid value (not empty or placeholder)")
+)
+```
 
 **API**:
 ```go
@@ -264,11 +296,15 @@ func Load(cmd *cobra.Command, v *viper.Viper) (*Config, error)
 // Validate checks configuration correctness
 func (c *Config) Validate() error
 
+// validateAccountIDs checks that all AWS account IDs are valid 12-digit numbers
+func (c *Config) validateAccountIDs() error
+
 // GetBackendConfig returns backend-specific config
 func (c *Config) GetBackendConfig() map[string]string
 
 // GetAccountID retrieves the AWS account ID for a given environment
-func (c *Config) GetAccountID(env string) string
+// Returns error if no mapping exists for that environment
+func (c *Config) GetAccountID(env string) (string, error)
 ```
 
 **Configuration Loading Process**:
@@ -276,6 +312,89 @@ func (c *Config) GetAccountID(env string) string
 2. **Deprecation Check**: Warns about old root-level `templates_dir`
 3. **Flag Overrides**: Command-line flags override config file values
 4. **Defaults**: Apply sensible defaults for optional fields
+
+**Configuration Validation**:
+- `Validate()` performs comprehensive checks:
+  - AWS provider configuration exists and account_mapping is not empty
+  - All account IDs are exactly 12 numeric digits (via `validateAccountIDs()`)
+  - Backend S3 bucket_name is set and not a placeholder value
+  - Rejects placeholder values like "CHANGE_ME_WITH_YOUR_GLOBALLY_UNIQUE_S3_BUCKET_NAME"
+- `GetAccountID(env)` validates that the specific environment has an account mapping
+- Returns descriptive errors with available environments when mapping is missing
+- Uses sentinel errors for precise error handling
+
+**Validation Implementation**:
+
+The `Validate()` method performs multi-stage validation:
+
+```go
+func (c *Config) Validate() error {
+    // Check AWS provider exists
+    if c.Provider == nil || c.Provider.AWS == nil {
+        return ErrAWSProviderRequired
+    }
+
+    // Check account mapping exists and not empty
+    if len(c.Provider.AWS.AccountMapping) == 0 {
+        return ErrAccountMappingRequired
+    }
+
+    // Validate all account IDs are 12-digit numbers
+    if err := c.validateAccountIDs(); err != nil {
+        return err
+    }
+
+    // Validate backend configuration
+    if c.Backend == nil || c.Backend.S3 == nil || c.Backend.S3.BucketName == "" {
+        return ErrInvalidBucketName
+    }
+
+    // Check if user left the example placeholder value
+    if c.Backend.S3.BucketName == "CHANGE_ME_WITH_YOUR_GLOBALLY_UNIQUE_S3_BUCKET_NAME" {
+        return fmt.Errorf("%w: placeholder value must be replaced with actual bucket name", ErrInvalidBucketName)
+    }
+
+    return nil
+}
+
+// validateAccountIDs validates that all account IDs are exactly 12 digits
+func (c *Config) validateAccountIDs() error {
+    accountIDPattern := regexp.MustCompile(`^\d{12}$`)
+
+    for env, accountID := range c.Provider.AWS.AccountMapping {
+        if !accountIDPattern.MatchString(accountID) {
+            return fmt.Errorf("%w for environment %q: %q",
+                ErrInvalidAccountID, env, accountID)
+        }
+    }
+
+    return nil
+}
+```
+
+The `GetAccountID()` method provides environment-specific validation with helpful error messages:
+
+```go
+func (c *Config) GetAccountID(env string) (string, error) {
+    if c.Provider != nil && c.Provider.AWS != nil &&
+        c.Provider.AWS.AccountMapping != nil {
+        if id, ok := c.Provider.AWS.AccountMapping[env]; ok {
+            return id, nil
+        }
+        // Show available environments to help user fix it
+        available := make([]string, 0, len(c.Provider.AWS.AccountMapping))
+        for k := range c.Provider.AWS.AccountMapping {
+            available = append(available, k)
+        }
+        sort.Strings(available)
+        return "", fmt.Errorf(
+            "%w %q, available: [%s]",
+            ErrAccountMappingNotFound, env, strings.Join(available, ", "),
+        )
+    }
+    return "", ErrAWSProviderRequired
+}
+```
 
 **Data Structures**:
 ```go

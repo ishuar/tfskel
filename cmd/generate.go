@@ -19,8 +19,6 @@ var (
 	ErrRegionRequired = errors.New("region is required (use --region flag)")
 	// ErrAppDirRequired indicates no app directory argument was provided
 	ErrAppDirRequired = errors.New("app directory name is required (provide as argument)")
-	// ErrAccountMapping indicates account mapping is missing for the environment
-	ErrAccountMapping = errors.New("account mapping is required for environment in your configuration")
 )
 
 var generateCmd = &cobra.Command{
@@ -123,12 +121,6 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("configuration validation failed: %w", err)
 	}
 
-	// Validate that account mapping exists for the environment
-	if err := validateAccountMapping(cfg, env); err != nil {
-		cmd.SilenceUsage = true
-		return err
-	}
-
 	// Create filesystem abstraction
 	filesystem := fs.NewOSFileSystem()
 
@@ -136,7 +128,7 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 	generator := app.NewGenerator(cfg, filesystem, log)
 	if err := generator.Run(env, region, appDir); err != nil {
 		cmd.SilenceUsage = true
-		return fmt.Errorf("generation failed: %w", err)
+		return err
 	}
 
 	log.Success("Terraform directory scaffolding completed!")
@@ -153,15 +145,6 @@ func validateGenerateParams(env, region, appDir string) error {
 	}
 	if appDir == "" {
 		return ErrAppDirRequired
-	}
-	return nil
-}
-
-// validateAccountMapping checks if the account mapping exists for the environment
-func validateAccountMapping(cfg *config.Config, env string) error {
-	accountID := cfg.GetAccountID(env)
-	if accountID == "000000000000" {
-		return fmt.Errorf("%w '%s'", ErrAccountMapping, env)
 	}
 	return nil
 }

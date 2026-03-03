@@ -3,6 +3,9 @@ package config
 import (
 	"errors"
 	"fmt"
+	"regexp"
+	"sort"
+	"strings"
 
 	"github.com/ishuar/tfskel/internal/logger"
 	"github.com/spf13/cobra"
@@ -14,6 +17,12 @@ var (
 	ErrAWSProviderRequired = errors.New("AWS provider configuration is required")
 	// ErrAccountMappingRequired indicates AWS account mapping is missing from provider configuration
 	ErrAccountMappingRequired = errors.New("AWS account mapping is required in provider configuration")
+	// ErrAccountMappingNotFound indicates the specified environment has no account mapping
+	ErrAccountMappingNotFound = errors.New("no account mapping found for environment")
+	// ErrInvalidAccountID indicates an AWS account ID is not properly formatted
+	ErrInvalidAccountID = errors.New("AWS account ID must be a 12-digit number (not a placeholder or invalid format)")
+	// ErrInvalidBucketName indicates the S3 bucket name is not properly configured
+	ErrInvalidBucketName = errors.New("backend.s3.bucket_name must be set to a valid value (not empty or placeholder)")
 )
 
 // AWSProvider holds AWS provider configuration
@@ -159,9 +168,6 @@ func setDefaults(cfg *Config) {
 	if cfg.Backend.S3 == nil {
 		cfg.Backend.S3 = &S3Backend{}
 	}
-	if cfg.Backend.S3.BucketName == "" {
-		cfg.Backend.S3.BucketName = "CHANGE_ME_WITH_YOUR_GLOBALLY_UNIQUE_S3_BUCKET_NAME"
-	}
 }
 
 // Validate checks if the configuration is valid
@@ -173,18 +179,58 @@ func (c *Config) Validate() error {
 	if len(c.Provider.AWS.AccountMapping) == 0 {
 		return ErrAccountMappingRequired
 	}
+	// Validate AWS account IDs
+	if err := c.validateAccountIDs(); err != nil {
+		return err
+	}
+	// Validate backend configuration
+	if c.Backend == nil || c.Backend.S3 == nil || c.Backend.S3.BucketName == "" {
+		return ErrInvalidBucketName
+	}
+	// Check if user left the example placeholder value
+	if c.Backend.S3.BucketName == "CHANGE_ME_WITH_YOUR_GLOBALLY_UNIQUE_S3_BUCKET_NAME" {
+		return fmt.Errorf("%w: placeholder value must be replaced with actual bucket name", ErrInvalidBucketName)
+	}
+
 	return nil
 }
 
-// GetAccountID returns the AWS account ID for the specified environment
-func (c *Config) GetAccountID(env string) string {
+// validateAccountIDs checks that all AWS account IDs are valid 12-digit numbers
+func (c *Config) validateAccountIDs() error {
+	// AWS account IDs are exactly 12 digits
+	accountIDPattern := regexp.MustCompile(`^\d{12}$`)
+
+	for env, accountID := range c.Provider.AWS.AccountMapping {
+		// Validate format: must be exactly 12 digits
+		if !accountIDPattern.MatchString(accountID) {
+			return fmt.Errorf("%w for environment %q: %q",
+				ErrInvalidAccountID, env, accountID)
+		}
+	}
+
+	return nil
+}
+
+// GetAccountID returns the AWS account ID for the specified environment,
+// or an error if no mapping exists for that environment.
+func (c *Config) GetAccountID(env string) (string, error) {
 	if c.Provider != nil && c.Provider.AWS != nil &&
 		c.Provider.AWS.AccountMapping != nil {
 		if id, ok := c.Provider.AWS.AccountMapping[env]; ok {
-			return id
+			return id, nil
 		}
+		// Show available keys to help the user fix it immediately
+		available := make([]string, 0, len(c.Provider.AWS.AccountMapping))
+		for k := range c.Provider.AWS.AccountMapping {
+			available = append(available, k)
+		}
+		sort.Strings(available)
+		return "", fmt.Errorf(
+			"%w %q, available: [%s]",
+			ErrAccountMappingNotFound, env, strings.Join(available, ", "),
+		)
 	}
-	return "000000000000"
+	return "", ErrAWSProviderRequired
 }
 
 // GetRegions returns the list of configured AWS regions

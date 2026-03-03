@@ -433,12 +433,18 @@ func (g *Generator) prepareTemplateData(env, region, appDir string) (*templates.
 		s3BucketName = g.config.Backend.S3.BucketName
 	}
 
+	// Get account ID for the environment
+	accountID, err := g.config.GetAccountID(env)
+	if err != nil {
+		return nil, err
+	}
+
 	// Create initial data for template rendering
 	data := &templates.Data{
 		Env:                env,
 		Region:             region,
 		AppDir:             appDir,
-		AccountID:          g.config.GetAccountID(env),
+		AccountID:          accountID,
 		ShortRegion:        shortRegion,
 		S3BucketName:       s3BucketName,
 		TerraformVersion:   g.config.TerraformVersion,

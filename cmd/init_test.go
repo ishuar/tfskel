@@ -252,11 +252,13 @@ func TestCreateDefaultConfig(t *testing.T) {
 		assert.Contains(t, contentStr, "aws:")
 		assert.Contains(t, contentStr, "version: ~> 6.0")
 		assert.Contains(t, contentStr, "account_mapping:")
-		assert.Contains(t, contentStr, "REPLACE_WITH_YOUR_DEV_ACCOUNT_ID")
 		assert.Contains(t, contentStr, "backend:")
 		assert.Contains(t, contentStr, "s3:")
 		assert.Contains(t, contentStr, "bucket_name:")
+		assert.Contains(t, contentStr, "CHANGE_ME_WITH_YOUR_GLOBALLY_UNIQUE_S3_BUCKET_NAME")
 		assert.Contains(t, contentStr, "default_tags:")
+		assert.Contains(t, contentStr, "critical_resources:")
+		assert.Contains(t, contentStr, "For full configuration reference")
 	})
 
 	t.Run("skips if config exists", func(t *testing.T) {
@@ -287,7 +289,7 @@ func TestDetermineInitParameters(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Equal(t, []string{"dev", "stg", "prd"}, envs)
-		assert.Equal(t, "1.13.1", tfVersion)
+		assert.Equal(t, defaultTerraformVersion, tfVersion)
 		assert.Equal(t, []string{"eu-central-1"}, regions)
 	})
 
@@ -385,7 +387,7 @@ provider:
 
 		// Should fall back to defaults
 		assert.Equal(t, []string{"dev", "stg", "prd"}, envs)
-		assert.Equal(t, "1.13.1", tfVersion)
+		assert.Equal(t, defaultTerraformVersion, tfVersion)
 		assert.Equal(t, []string{"eu-central-1"}, regions)
 	})
 

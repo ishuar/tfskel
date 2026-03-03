@@ -23,6 +23,10 @@ var (
 	ErrMissingAccountMapping = errors.New("provider.aws.account_mapping is missing or empty")
 )
 
+const (
+	defaultTerraformVersion = "~> 1.13"
+)
+
 var initCmd = &cobra.Command{
 	Use:     "init",
 	GroupID: "main",
@@ -123,9 +127,8 @@ func extractVersionFromConstraint(constraint string) string {
 // determineInitParameters determines environments, terraform version, and regions
 // Priority: existing .tfskel.yaml in target dir > defaults
 func determineInitParameters(targetDir string, log *logger.Logger) ([]string, string, []string, error) {
-	// Default values
+	// Default values for bootstrapping new projects
 	defaultEnvironments := []string{"dev", "stg", "prd"}
-	defaultTerraformVersion := "1.13.1"
 	defaultRegions := []string{"eu-central-1"}
 
 	// Check if .tfskel.yaml exists in target directory
@@ -354,12 +357,8 @@ func createDefaultConfig(configPath string, log *logger.Logger) error {
 		"terraform_version": "~> 1.13",
 		"provider": map[string]any{
 			"aws": map[string]any{
-				"version": "~> 6.0",
-				"account_mapping": map[string]string{
-					"dev": "REPLACE_WITH_YOUR_DEV_ACCOUNT_ID",
-					"stg": "REPLACE_WITH_YOUR_STG_ACCOUNT_ID",
-					"prd": "REPLACE_WITH_YOUR_PRD_ACCOUNT_ID",
-				},
+				"version":         "~> 6.0",
+				"account_mapping": map[string]string{},
 				"default_tags": map[string]string{
 					"managed_by": "terraform",
 				},
@@ -371,6 +370,7 @@ func createDefaultConfig(configPath string, log *logger.Logger) error {
 				"bucket_name": "CHANGE_ME_WITH_YOUR_GLOBALLY_UNIQUE_S3_BUCKET_NAME",
 			},
 		},
+		"critical_resources": []string{},
 	}
 
 	// Marshal to YAML
@@ -381,13 +381,11 @@ func createDefaultConfig(configPath string, log *logger.Logger) error {
 
 	// Add comments at the top
 	header := `# tfskel configuration file
-# This file contains default settings for your Terraform project scaffolding
+# This file contains default settings for your Terraform operations with tfskel
 #
-# Required: Update provider.aws.account_mapping with your actual AWS account IDs
-# Required: Update backend.s3.bucket_name with your actual S3 bucket name for Terraform state
-# Optional: Customize terraform_version, provider versions, regions, and default_tags as needed
+# For full configuration reference with all available options and examples:
+# https://github.com/ishuar/tfskel/blob/main/.tfskel.example.yaml
 #
-# For more information, visit: https://github.com/ishuar/tfskel
 
 `
 	fullContent := []byte(header + string(data))
