@@ -75,7 +75,7 @@ func TestValidate(t *testing.T) {
 				},
 			},
 			wantErr: true,
-			errMsg:  "backend.s3.bucket_name configuration is required",
+			errMsg:  "backend.s3.bucket_name is invalid",
 		},
 		{
 			name: "empty bucket_name",
@@ -94,7 +94,7 @@ func TestValidate(t *testing.T) {
 				},
 			},
 			wantErr: true,
-			errMsg:  "backend.s3.bucket_name configuration is required",
+			errMsg:  "backend.s3.bucket_name is invalid",
 		},
 		{
 			name: "placeholder bucket_name",
@@ -113,7 +113,7 @@ func TestValidate(t *testing.T) {
 				},
 			},
 			wantErr: true,
-			errMsg:  "backend.s3.bucket_name must be set",
+			errMsg:  "backend.s3.bucket_name is invalid",
 		},
 		{
 			name: "invalid account ID - placeholder text",
@@ -243,7 +243,7 @@ func TestGetAccountID(t *testing.T) {
 						AccountMapping: map[string]string{
 							"dev": "789456123789",
 							"stg": "123456789012",
-							"prd": "96385214714",
+							"prd": "963852147141",
 						},
 					},
 				},

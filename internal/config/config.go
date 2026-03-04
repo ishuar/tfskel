@@ -22,9 +22,7 @@ var (
 	// ErrInvalidAccountID indicates an AWS account ID is not properly formatted
 	ErrInvalidAccountID = errors.New("valid AWS account ID must be a 12-digit number. Remove the account mapping")
 	// ErrInvalidBucketName indicates the S3 bucket name is not properly configured
-	ErrInvalidBucketName = errors.New("backend.s3.bucket_name must be set to a valid value (not empty or placeholder)")
-	// ErrBackendRequired indicates backend configuration is missing
-	ErrBackendRequired = errors.New("backend.s3.bucket_name configuration is required")
+	ErrInvalidBucketName = errors.New("backend.s3.bucket_name is invalid")
 	// to avoid the regex on every call to validateAccountIDs, we can compile it once at package level
 	accountIDPattern = regexp.MustCompile(`^\d{12}$`)
 )
@@ -189,7 +187,7 @@ func (c *Config) Validate() error {
 	}
 	// Validate backend configuration
 	if c.Backend == nil || c.Backend.S3 == nil || c.Backend.S3.BucketName == "" {
-		return ErrBackendRequired
+		return fmt.Errorf("%w: must not be empty", ErrInvalidBucketName)
 	}
 	// Check if user left the example placeholder value
 	if c.Backend.S3.BucketName == "CHANGE_ME_WITH_YOUR_GLOBALLY_UNIQUE_S3_BUCKET_NAME" {

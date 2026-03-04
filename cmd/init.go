@@ -24,7 +24,7 @@ var (
 )
 
 const (
-	defaultTerraformVersion = "~> 1.13"
+	defaultTerraformVersion = "1.13.1"
 )
 
 var initCmd = &cobra.Command{

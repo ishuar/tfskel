@@ -128,7 +128,7 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 	generator := app.NewGenerator(cfg, filesystem, log)
 	if err := generator.Run(env, region, appDir); err != nil {
 		cmd.SilenceUsage = true
-		return err
+		return fmt.Errorf("generation failed: %w", err)
 	}
 
 	log.Success("Terraform directory scaffolding completed!")

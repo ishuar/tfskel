@@ -290,7 +290,7 @@ func TestDetermineInitParameters(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Equal(t, []string{"dev", "stg", "prd"}, envs)
-		assert.Equal(t, defaultTerraformVersion, tfVersion)
+		assert.Equal(t, "1.13.1", tfVersion)
 		assert.Equal(t, []string{"eu-central-1"}, regions)
 	})
 
