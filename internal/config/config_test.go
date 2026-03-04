@@ -259,7 +259,7 @@ func TestGetAccountID(t *testing.T) {
 					AWS: &AWSProvider{
 						AccountMapping: map[string]string{
 							"dev": "789456123789",
-							"prd": "96385214714",
+							"prd": "963852147141",
 							"stg": "123456789012",
 						},
 					},
