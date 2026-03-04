@@ -252,6 +252,7 @@ func TestCreateDefaultConfig(t *testing.T) {
 		assert.Contains(t, contentStr, "aws:")
 		assert.Contains(t, contentStr, "version: ~> 6.0")
 		assert.Contains(t, contentStr, "account_mapping:")
+		assert.Contains(t, contentStr, "REPLACE_WITH_YOUR_DEV_ACCOUNT_ID")
 		assert.Contains(t, contentStr, "backend:")
 		assert.Contains(t, contentStr, "s3:")
 		assert.Contains(t, contentStr, "bucket_name:")

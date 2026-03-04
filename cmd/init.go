@@ -357,8 +357,12 @@ func createDefaultConfig(configPath string, log *logger.Logger) error {
 		"terraform_version": "~> 1.13",
 		"provider": map[string]any{
 			"aws": map[string]any{
-				"version":         "~> 6.0",
-				"account_mapping": map[string]string{},
+				"version": "~> 6.0",
+				"account_mapping": map[string]string{
+					"dev": "REPLACE_WITH_YOUR_DEV_ACCOUNT_ID",
+					"stg": "REPLACE_WITH_YOUR_STG_ACCOUNT_ID",
+					"prd": "REPLACE_WITH_YOUR_PRD_ACCOUNT_ID",
+				},
 				"default_tags": map[string]string{
 					"managed_by": "terraform",
 				},

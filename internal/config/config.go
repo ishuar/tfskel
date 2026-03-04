@@ -20,7 +20,7 @@ var (
 	// ErrAccountMappingNotFound indicates the specified environment has no account mapping
 	ErrAccountMappingNotFound = errors.New("no account mapping found for environment")
 	// ErrInvalidAccountID indicates an AWS account ID is not properly formatted
-	ErrInvalidAccountID = errors.New("AWS account ID must be a 12-digit number (not a placeholder or invalid format)")
+	ErrInvalidAccountID = errors.New("valid AWS account ID must be a 12-digit number. Remove the account mapping")
 	// ErrInvalidBucketName indicates the S3 bucket name is not properly configured
 	ErrInvalidBucketName = errors.New("backend.s3.bucket_name must be set to a valid value (not empty or placeholder)")
 	// ErrBackendRequired indicates backend configuration is missing
@@ -206,7 +206,7 @@ func (c *Config) validateAccountIDs() error {
 	for env, accountID := range c.Provider.AWS.AccountMapping {
 		// Validate format: must be exactly 12 digits
 		if !accountIDPattern.MatchString(accountID) {
-			return fmt.Errorf("%w for environment %q: %q",
+			return fmt.Errorf("%w %q: %q or update it",
 				ErrInvalidAccountID, env, accountID)
 		}
 	}
