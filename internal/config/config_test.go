@@ -25,6 +25,11 @@ func TestValidate(t *testing.T) {
 						},
 					},
 				},
+				Backend: &Backend{
+					S3: &S3Backend{
+						BucketName: "my-terraform-state-bucket",
+					},
+				},
 			},
 			wantErr: false,
 		},
@@ -58,6 +63,153 @@ func TestValidate(t *testing.T) {
 			wantErr: true,
 			errMsg:  "account mapping is required",
 		},
+		{
+			name: "missing backend config",
+			config: &Config{
+				Provider: &Provider{
+					AWS: &AWSProvider{
+						AccountMapping: map[string]string{
+							"dev": "123456789012",
+						},
+					},
+				},
+			},
+			wantErr: true,
+			errMsg:  "backend.s3.bucket_name is invalid",
+		},
+		{
+			name: "empty bucket_name",
+			config: &Config{
+				Provider: &Provider{
+					AWS: &AWSProvider{
+						AccountMapping: map[string]string{
+							"dev": "123456789012",
+						},
+					},
+				},
+				Backend: &Backend{
+					S3: &S3Backend{
+						BucketName: "",
+					},
+				},
+			},
+			wantErr: true,
+			errMsg:  "backend.s3.bucket_name is invalid",
+		},
+		{
+			name: "placeholder bucket_name",
+			config: &Config{
+				Provider: &Provider{
+					AWS: &AWSProvider{
+						AccountMapping: map[string]string{
+							"dev": "123456789012",
+						},
+					},
+				},
+				Backend: &Backend{
+					S3: &S3Backend{
+						BucketName: "CHANGE_ME_WITH_YOUR_GLOBALLY_UNIQUE_S3_BUCKET_NAME",
+					},
+				},
+			},
+			wantErr: true,
+			errMsg:  "backend.s3.bucket_name is invalid",
+		},
+		{
+			name: "invalid account ID - placeholder text",
+			config: &Config{
+				Provider: &Provider{
+					AWS: &AWSProvider{
+						AccountMapping: map[string]string{
+							"dev": "REPLACE_WITH_YOUR_DEV_ACCOUNT_ID",
+						},
+					},
+				},
+				Backend: &Backend{
+					S3: &S3Backend{
+						BucketName: "my-terraform-state-bucket",
+					},
+				},
+			},
+			wantErr: true,
+			errMsg:  "AWS account ID must be a 12-digit number",
+		},
+		{
+			name: "invalid account ID - contains letters",
+			config: &Config{
+				Provider: &Provider{
+					AWS: &AWSProvider{
+						AccountMapping: map[string]string{
+							"dev": "12345678901A",
+						},
+					},
+				},
+				Backend: &Backend{
+					S3: &S3Backend{
+						BucketName: "my-terraform-state-bucket",
+					},
+				},
+			},
+			wantErr: true,
+			errMsg:  "AWS account ID must be a 12-digit number",
+		},
+		{
+			name: "invalid account ID - too short",
+			config: &Config{
+				Provider: &Provider{
+					AWS: &AWSProvider{
+						AccountMapping: map[string]string{
+							"dev": "12345",
+						},
+					},
+				},
+				Backend: &Backend{
+					S3: &S3Backend{
+						BucketName: "my-terraform-state-bucket",
+					},
+				},
+			},
+			wantErr: true,
+			errMsg:  "AWS account ID must be a 12-digit number",
+		},
+		{
+			name: "invalid account ID - too long",
+			config: &Config{
+				Provider: &Provider{
+					AWS: &AWSProvider{
+						AccountMapping: map[string]string{
+							"dev": "1234567890123",
+						},
+					},
+				},
+				Backend: &Backend{
+					S3: &S3Backend{
+						BucketName: "my-terraform-state-bucket",
+					},
+				},
+			},
+			wantErr: true,
+			errMsg:  "AWS account ID must be a 12-digit number",
+		},
+		{
+			name: "invalid account ID - contains CHANGE keyword",
+			config: &Config{
+				Provider: &Provider{
+					AWS: &AWSProvider{
+						AccountMapping: map[string]string{
+							"dev": "CHANGE_ME_123",
+						},
+					},
+				},
+				Backend: &Backend{
+					S3: &S3Backend{
+						BucketName: "my-terraform-state-bucket",
+					},
+				},
+			},
+			wantErr: true,
+			errMsg:  "AWS account ID must be a 12-digit number",
+		},
 	}
 
 	for _, tt := range tests {
@@ -75,42 +227,93 @@ func TestValidate(t *testing.T) {
 
 func TestGetAccountID(t *testing.T) {
 	tests := []struct {
-		name     string
-		env      string
-		mapping  map[string]string
-		expected string
+		name        string
+		env         string
+		config      *Config
+		expected    string
+		expectError bool
+		errorMsg    string
 	}{
 		{
-			name: "dev environment",
+			name: "dev environment - success",
 			env:  "dev",
-			mapping: map[string]string{
-				"dev": "789456123789",
-				"stg": "123456789012",
-				"prd": "96385214714",
+			config: &Config{
+				Provider: &Provider{
+					AWS: &AWSProvider{
+						AccountMapping: map[string]string{
+							"dev": "789456123789",
+							"stg": "123456789012",
+							"prd": "963852147141",
+						},
+					},
+				},
 			},
-			expected: "789456123789",
+			expected:    "789456123789",
+			expectError: false,
 		},
 		{
-			name: "unknown environment",
+			name: "unknown environment - error with available envs",
 			env:  "test",
-			mapping: map[string]string{
-				"dev": "789456123789",
+			config: &Config{
+				Provider: &Provider{
+					AWS: &AWSProvider{
+						AccountMapping: map[string]string{
+							"dev": "789456123789",
+							"prd": "963852147141",
+							"stg": "123456789012",
+						},
+					},
+				},
 			},
-			expected: "000000000000",
+			expected:    "",
+			expectError: true,
+			errorMsg:    "no account mapping found for environment \"test\", available: [dev, prd, stg]",
+		},
+		{
+			name:        "nil provider - error",
+			env:         "dev",
+			config:      &Config{},
+			expected:    "",
+			expectError: true,
+			errorMsg:    "AWS provider configuration is required",
+		},
+		{
+			name: "nil AWS provider - error",
+			env:  "dev",
+			config: &Config{
+				Provider: &Provider{},
+			},
+			expected:    "",
+			expectError: true,
+			errorMsg:    "AWS provider configuration is required",
+		},
+		{
+			name: "nil account mapping - error",
+			env:  "dev",
+			config: &Config{
+				Provider: &Provider{
+					AWS: &AWSProvider{},
+				},
+			},
+			expected:    "",
+			expectError: true,
+			errorMsg:    "AWS provider configuration is required",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := &Config{
-				Provider: &Provider{
-					AWS: &AWSProvider{
-						AccountMapping: tt.mapping,
-					},
-				},
+			result, err := tt.config.GetAccountID(tt.env)
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Equal(t, tt.expected, result)
+				if tt.errorMsg != "" {
+					assert.Contains(t, err.Error(), tt.errorMsg)
+				}
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expected, result)
 			}
-			result := cfg.GetAccountID(tt.env)
-			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
@@ -154,7 +357,8 @@ func TestConfig_MultipleAccountMappings(t *testing.T) {
 					},
 				},
 			}
-			result := cfg.GetAccountID(env)
+			result, err := cfg.GetAccountID(env)
+			assert.NoError(t, err)
 			assert.Equal(t, expectedAccount, result)
 		}
 	})

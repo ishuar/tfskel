@@ -1297,7 +1297,7 @@ func TestGenerator_prepareTemplateData(t *testing.T) {
 			expectedProviderVer:  "~> 6.0", // default value
 			expectedTerraformVer: "~> 1.13",
 			expectedS3Bucket:     "test-bucket",
-			expectError:          false,
+			expectError:          true, // Now expects error because no account mapping
 		},
 	}
 

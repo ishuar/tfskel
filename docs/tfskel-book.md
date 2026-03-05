@@ -196,6 +196,9 @@ Utility functions (`internal/util`) provide:
 
 Configures S3 backend for Terraform state:
 - `backend.s3.bucket_name`: S3 bucket name for state storage
+  - **Required**: Cannot be empty or left as placeholder value
+  - **Invalid**: Placeholder "CHANGE_ME_WITH_YOUR_GLOBALLY_UNIQUE_S3_BUCKET_NAME" will be rejected
+  - **Must be replaced**: With actual S3 bucket name before running generate command
 - Supports template variables like {{.Env}}, {{.Region}}, {{.AppDir}}
 
 
@@ -205,6 +208,11 @@ Defines AWS provider configuration:
 - `provider.aws.version`: AWS provider version constraint (default: ~> 6.0)
 - `provider.aws.regions`: List of AWS regions for the project
 - `provider.aws.account_mapping`: Maps environment names to AWS account IDs
+  - **Required**: At least one environment mapping must be defined
+  - **Account ID format**: Must be exactly 12 numeric digits (e.g., "123456789012")
+  - **No placeholders**: Account IDs like "REPLACE_WITH_YOUR_DEV_ACCOUNT_ID" will be rejected during validation
+  - **Environment matching**: If you use `tfskel generate --env <env>`, the account ID for that environment must exist in the mapping
+  - **Example**: If mapping has `dev: "123456789012"`, you can use `--env dev`, but `--env prod` will fail if `prod` is not in the mapping
 - `provider.aws.default_tags`: Default tags applied to all AWS resources. Tag keys are automatically normalized to lowercase (but NOT converted to snake_case).
     ```yaml
     provider:
@@ -297,6 +305,133 @@ Configure drift detection behavior for version and plan analysis:
 
 ---
 
+## Validation and Error Handling
+
+### Configuration Validation
+
+When running `tfskel generate`, the configuration undergoes strict validation to ensure all required values are properly set.
+
+#### Required Configuration Validations
+
+1. **AWS Provider Configuration**
+   - Provider AWS section must exist
+   - Account mapping must be defined and not empty
+
+2. **Account ID Format Validation**
+   - All account IDs must be exactly 12 numeric digits
+   - Format: `^\d{12}$` (e.g., "123456789012")
+   - Invalid examples:
+     - `REPLACE_WITH_YOUR_DEV_ACCOUNT_ID` (placeholder text)
+     - `12345678901A` (contains letters)
+     - `12345` (too short)
+     - `1234567890123` (too long)
+
+3. **Environment-Specific Account Mapping**
+   - The environment specified with `--env` flag must have a corresponding account ID in `account_mapping`
+   - If mapping not found, error shows available environments to help you fix it
+
+4. **Backend S3 Bucket Name Validation**
+   - `backend.s3.bucket_name` must be set to a non-empty value
+   - Cannot be left as placeholder: `CHANGE_ME_WITH_YOUR_GLOBALLY_UNIQUE_S3_BUCKET_NAME`
+   - Must be replaced with actual S3 bucket name
+
+### Common Validation Errors
+
+Here are common errors you may encounter and how to fix them:
+
+#### "AWS account ID must be a 12-digit number"
+
+**Cause**: Account ID in `account_mapping` is not exactly 12 numeric digits.
+
+**Example Error**:
+```
+AWS account ID must be a 12-digit number: Update the account mapping "dev": "REPLACE_WITH_YOUR_DEV_ACCOUNT_ID"
+```
+
+**Fix**: Replace with valid 12-digit AWS account ID:
+```yaml
+provider:
+  aws:
+    account_mapping:
+      dev: "123456789012"  # Valid format
+```
+
+#### "no account mapping found for environment"
+
+**Cause**: The environment specified with `--env` flag doesn't exist in your `account_mapping`.
+
+**Example Error**:
+```
+no account mapping found for environment "prod", available: [dev, prd, stg]
+```
+
+**Fix**: Either add the missing environment or use an available one:
+```yaml
+provider:
+  aws:
+    account_mapping:
+      dev: "123456789012"
+      stg: "234567890123"
+      prd: "345678901234"
+      prod: "456789012345"  # Add the missing environment
+```
+
+Or use an existing environment:
+```bash
+tfskel generate myapp --env prd --region us-east-1  # Use 'prd' instead of 'prod'
+```
+
+#### "backend.s3.bucket_name is invalid"
+
+**Cause**: S3 bucket name is empty or still set to placeholder value.
+
+**Example Errors**:
+```
+backend.s3.bucket_name is invalid: must not be empty
+```
+or
+```
+backend.s3.bucket_name is invalid: placeholder value must be replaced with actual bucket name
+```
+
+**Fix**: Set a valid S3 bucket name:
+```yaml
+backend:
+  s3:
+    bucket_name: "my-terraform-state-bucket"  # Replace with your bucket
+```
+
+#### "AWS provider configuration is required"
+
+**Cause**: AWS provider section is missing or incomplete in `.tfskel.yaml`.
+
+**Fix**: Ensure your configuration includes:
+```yaml
+provider:
+  aws:
+    version: "~> 6.0"
+    account_mapping:
+      dev: "123456789012"
+    regions:
+      - us-east-1
+```
+
+### Validation Workflow
+
+The validation process follows this order:
+
+1. **Load Configuration** - Parse `.tfskel.yaml` and apply flag overrides
+2. **Validate Structure** - Check AWS provider and account_mapping exist
+3. **Validate Account IDs** - Verify all account IDs are 12-digit numbers
+4. **Validate Backend** - Ensure bucket_name is set and not placeholder
+5. **Validate Environment Mapping** - Check specified `--env` has account ID
+6. **Prepare Template Data** - Retrieve account ID for the environment
+7. **Generate Files** - Create directory structure and render templates
+
+Validation errors are caught early and provide actionable error messages with suggestions to help you fix the issue quickly.
+
+---
+
 ## Commands
 
 ### `tfskel init`
@@ -333,10 +468,20 @@ tfskel init --config /path/to/config.yaml
    - `.pre-commit-config.yaml` - Pre-commit hooks configuration
    - `.tflint.hcl` - TFLint configuration
    - `trivy.yaml` - Trivy security scanner configuration
-   - `.tfskel.yaml` - Default tfskel configuration (if not exists)
+   - `.tfskel.yaml` - Default tfskel configuration with:
+     - Default `account_mapping` for [`dev`,`stg`,`prd`] envs with placeholder values
+     - Empty `critical_resources` list
+     - Placeholder S3 bucket name that must be replaced
+     - Terraform version constraint `~> 1.13` (instead of specific version)
 3. Creates environment directories based on account_mapping in config
 4. Creates region subdirectories for each environment
 5. Creates `.terraform-version` files for each environment
+
+> [!IMPORTANT]
+> After running `tfskel init`, you **must** update `.tfskel.yaml` with:
+> - Your AWS account IDs in `provider.aws.account_mapping` (12-digit format)
+> - Your S3 bucket name in `backend.s3.bucket_name`
+> - Before running `tfskel generate`, these values must be properly configured
 
 ### `tfskel generate`
 
@@ -385,7 +530,10 @@ tfskel generate api --env prd --region eu-central-1
 
 **What it does**:
 1. Loads configuration from .tfskel.yaml
-2. Validates required configuration (account_mapping for environment)
+2. Validates required configuration:
+   - Checks that `provider.aws.account_mapping` exists and is not empty
+   - Validates that the specified `--env` has a corresponding account ID in the mapping
+   - Returns a helpful error showing available environments if mapping is missing
 3. Creates directory structure: `envs/<env>/<region>/<app-dir>`
 4. Renders embedded templates:
    - `backend.tf` - S3 backend with metadata
@@ -397,8 +545,8 @@ tfskel generate api --env prd --region eu-central-1
    - `.github/workflows/reusable-terraform-plan-apply.yaml` - Reusable Terraform workflow
 6. Renders custom templates if `--templates-dir` is provided or configured in `.tfskel.yaml`
 7. Embeds metadata in generated files for change detection
-7. Only creates new files, preserves existing ones
-8. Updates files if configuration metadata has changed
+8. Only creates new files, preserves existing ones
+9. Updates files if configuration metadata has changed
 
 ### `tfskel drift`
 
@@ -1049,8 +1197,13 @@ All templates (both embedded and custom) receive a `Data` struct containing all 
 
 **Empty Values**:
 - If `DefaultTags` is empty or nil, tag iteration produces no output
-- If `AccountID` is missing for environment, generation fails with error
+- If `AccountID` is missing or invalid for environment, generation fails with descriptive error message showing available environments
 - `AWSRoleArn` defaults to placeholder if not configured
+
+**Validation Guarantees**:
+- `AccountID` is always a valid 12-digit number when templates are rendered
+- `S3BucketName` is never empty or placeholder value in generated files
+- All template variables are validated before rendering begins
 
 ### Template Functions Reference
 
