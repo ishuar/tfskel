@@ -469,7 +469,7 @@ tfskel init --config /path/to/config.yaml
    - `.tflint.hcl` - TFLint configuration
    - `trivy.yaml` - Trivy security scanner configuration
    - `.tfskel.yaml` - Default tfskel configuration with:
-     - Empty `account_mapping` (you must add your AWS account IDs)
+     - Default `account_mapping` for [`dev`,`stg`,`prd`] envs with placeholder values
      - Empty `critical_resources` list
      - Placeholder S3 bucket name that must be replaced
      - Terraform version constraint `~> 1.13` (instead of specific version)
