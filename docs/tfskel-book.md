@@ -345,7 +345,7 @@ Here are common errors you may encounter and how to fix them:
 
 **Example Error**:
 ```
-AWS account ID must be a 12-digit number (not a placeholder or invalid format) for environment "dev": "REPLACE_WITH_YOUR_DEV_ACCOUNT_ID"
+AWS account ID must be a 12-digit number: Update the account mapping "dev": "REPLACE_WITH_YOUR_DEV_ACCOUNT_ID"
 ```
 
 **Fix**: Replace with valid 12-digit AWS account ID:
@@ -381,13 +381,17 @@ Or use an existing environment:
 tfskel generate myapp --env prd --region us-east-1  # Use 'prd' instead of 'prod'
 ```
 
-#### "backend.s3.bucket_name must be set"
+#### "backend.s3.bucket_name is invalid"
 
 **Cause**: S3 bucket name is empty or still set to placeholder value.
 
-**Example Error**:
+**Example Errors**:
 ```
-backend.s3.bucket_name must be set to a valid value (not empty or placeholder): placeholder value must be replaced with actual bucket name
+backend.s3.bucket_name is invalid: must not be empty
+```
+or
+```
+backend.s3.bucket_name is invalid: placeholder value must be replaced with actual bucket name
 ```
 
 **Fix**: Set a valid S3 bucket name:

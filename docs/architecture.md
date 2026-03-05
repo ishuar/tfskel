@@ -188,8 +188,10 @@ mustBindPFlag("generate.github_workflows.create", "create-github-workflows")
 
 **Key Functions**:
 ```go
+// version.go
+const Version = "0.2.2"  // x-release-please-version (Updated by release-please)
+
 // root.go
-const Version = "0.0.1"  // Updated by release-please
 var Commit, Date, BuildTime string  // Build metadata
 func Execute() error
 func initConfig()
@@ -280,10 +282,10 @@ var (
     ErrAccountMappingNotFound = errors.New("no account mapping found for environment")
 
     // ErrInvalidAccountID indicates an AWS account ID is not properly formatted
-    ErrInvalidAccountID = errors.New("AWS account ID must be a 12-digit number (not a placeholder or invalid format)")
+    ErrInvalidAccountID = errors.New("AWS account ID must be a 12-digit number")
 
     // ErrInvalidBucketName indicates the S3 bucket name is not properly configured
-    ErrInvalidBucketName = errors.New("backend.s3.bucket_name must be set to a valid value (not empty or placeholder)")
+    ErrInvalidBucketName = errors.New("backend.s3.bucket_name is invalid")
 )
 ```
 
@@ -344,9 +346,15 @@ func (c *Config) Validate() error {
         return err
     }
 
-    // Validate backend configuration
-    if c.Backend == nil || c.Backend.S3 == nil || c.Backend.S3.BucketName == "" {
-        return ErrInvalidBucketName
+    // Validate backend configuration exists
+    if c.Backend == nil || c.Backend.S3 == nil {
+        return fmt.Errorf("%w: must not be empty", ErrInvalidBucketName)
+    }
+
+    // Check bucket name is not empty or whitespace
+    bucketName := strings.TrimSpace(c.Backend.S3.BucketName)
+    if bucketName == "" {
+        return fmt.Errorf("%w: must not be empty", ErrInvalidBucketName)
     }
 
     // Check if user left the example placeholder value
@@ -363,7 +371,7 @@ func (c *Config) validateAccountIDs() error {
 
     for env, accountID := range c.Provider.AWS.AccountMapping {
         if !accountIDPattern.MatchString(accountID) {
-            return fmt.Errorf("%w for environment %q: %q",
+            return fmt.Errorf("%w: Update the account mapping %q: %q",
                 ErrInvalidAccountID, env, accountID)
         }
     }
@@ -445,21 +453,23 @@ type GithubWorkflows struct {
 **API**:
 ```go
 // NewRenderer creates a template renderer
-func NewRenderer() *Renderer
+func NewRenderer() (*Renderer, error)
+
+// NewRendererWithCustomTemplates creates a renderer with custom template directory
+func NewRendererWithCustomTemplates(customTemplateDir string) (*Renderer, error)
 
 // Render renders a template with data
-func (r *Renderer) Render(
-    templateName string,
-    data interface{},
-) (string, error)
+func (r *Renderer) Render(templateName string, data *Data) (string, error)
 
-// RenderToFile renders template directly to file
-func (r *Renderer) RenderToFile(
-    templateName string,
-    data interface{},
-    outputPath string,
-    fs fs.FileSystem,
-) error
+// RenderConfigValue renders a config string that may contain Go template syntax
+// Plain strings without "{{" are returned unchanged
+func (r *Renderer) RenderConfigValue(value, name string, data *Data) (string, error)
+
+// GetTemplateNames returns all loaded template names
+func (r *Renderer) GetTemplateNames() []string
+
+// GetTemplateSource returns the source path of a template
+func (r *Renderer) GetTemplateSource(templateName string) string
 ```
 
 **Template Functions**:
