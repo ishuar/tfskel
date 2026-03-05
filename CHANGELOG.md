@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.3.0](https://github.com/ishuar/tfskel/compare/v0.2.2...v0.3.0) (2026-03-05)
+
+
+### ⚠ BREAKING CHANGES
+
+* **generate:** provider.aws.account_mapping values must now be valid 12-digit AWS account IDs and backend.s3.bucket_name can no longer be empty or use the placeholder.
+    #### Details
+    - provider.aws.account_mapping[key].value is now mandatory and must be a valid 12-digit numeric AWS account ID.
+    - backend.s3.bucket_name can no longer be empty or use the default placeholder value.
+* **template:** rename enable_apply_on_pr input to auto_apply and fixed reusable terraform plan-apply workflow ([#37](https://github.com/ishuar/tfskel/issues/37))
+The input `enable_apply_on_pr` has been renamed to `auto_apply` in the Terraform plan-apply reusable workflow. All caller workflows must replace `enable_apply_on_pr` with `auto_apply`. The GitHub environment input dependency has been removed from the Terraform auto-apply logic. Auto-apply now depends only on `inputs.auto_apply` and will always run on push to `main`.
+
+### ✨ Features
+
+* **template:** rename enable_apply_on_pr input to auto_apply and fixed reusable terraform plan-apply workflow ([#37](https://github.com/ishuar/tfskel/issues/37)) ([2b34394](https://github.com/ishuar/tfskel/commit/2b343948e426acb99f30d4d55d237e2e379e239d))
+* **template:** use tfskel for easier plan review in terraform plan-apply re-usable workflow ([2b34394](https://github.com/ishuar/tfskel/commit/2b343948e426acb99f30d4d55d237e2e379e239d))
+
+
+### 🐞 Bug Fixes
+
+* **generate:** require 12-digit AWS account ID and explicit S3 bucket name ([#39](https://github.com/ishuar/tfskel/issues/39)) ([fff6760](https://github.com/ishuar/tfskel/commit/fff67606e1062d530801339ddeea25ac057d0a51))
+* **template:** added workflow permissions when not enabled on repo and inherit secrets ([2b34394](https://github.com/ishuar/tfskel/commit/2b343948e426acb99f30d4d55d237e2e379e239d))
+* **template:** respects workflow_dispatch input on auto_apply ([2b34394](https://github.com/ishuar/tfskel/commit/2b343948e426acb99f30d4d55d237e2e379e239d))
+
 ## [0.2.2](https://github.com/ishuar/tfskel/compare/v0.2.1...v0.2.2) (2026-02-27)
 
 
