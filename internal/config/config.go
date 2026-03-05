@@ -20,7 +20,7 @@ var (
 	// ErrAccountMappingNotFound indicates the specified environment has no account mapping
 	ErrAccountMappingNotFound = errors.New("no account mapping found for environment")
 	// ErrInvalidAccountID indicates an AWS account ID is not properly formatted
-	ErrInvalidAccountID = errors.New("valid AWS account ID must be a 12-digit number")
+	ErrInvalidAccountID = errors.New("AWS account ID must be a 12-digit number")
 	// ErrInvalidBucketName indicates the S3 bucket name is not properly configured
 	ErrInvalidBucketName = errors.New("backend.s3.bucket_name is invalid")
 	// to avoid the regex on every call to validateAccountIDs, we can compile it once at package level
@@ -186,7 +186,13 @@ func (c *Config) Validate() error {
 		return err
 	}
 	// Validate backend configuration
-	if c.Backend == nil || c.Backend.S3 == nil || c.Backend.S3.BucketName == "" {
+	// check that bucket name is not configured (nil)
+	if c.Backend == nil || c.Backend.S3 == nil {
+		return fmt.Errorf("%w: must not be empty", ErrInvalidBucketName)
+	}
+	// check that bucket name is not empty or just whitespace
+	bucketName := strings.TrimSpace(c.Backend.S3.BucketName)
+	if bucketName == "" {
 		return fmt.Errorf("%w: must not be empty", ErrInvalidBucketName)
 	}
 	// Check if user left the example placeholder value
@@ -204,7 +210,7 @@ func (c *Config) validateAccountIDs() error {
 	for env, accountID := range c.Provider.AWS.AccountMapping {
 		// Validate format: must be exactly 12 digits
 		if !accountIDPattern.MatchString(accountID) {
-			return fmt.Errorf("%w . Update the account mapping %q: %q",
+			return fmt.Errorf("%w: Update the account mapping %q: %q",
 				ErrInvalidAccountID, env, accountID)
 		}
 	}
