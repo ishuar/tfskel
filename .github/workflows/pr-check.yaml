@@ -14,6 +14,8 @@ jobs:
     name: required labels
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      pull-requests: read
     steps:
       - name: check
         if: >-
