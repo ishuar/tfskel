@@ -1,6 +1,8 @@
 package cmd
 
-import "fmt"
+import (
+	"fmt"
+)
 
 // ExitError represents an error that should cause the program to exit with a specific code
 type ExitError struct {

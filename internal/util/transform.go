@@ -1,8 +1,34 @@
 package util
 
 import (
+	"errors"
 	"strings"
 )
+
+// ErrEmptyInput is returned when input is empty or contains only whitespace
+var ErrEmptyInput = errors.New("input cannot be empty or contain only whitespace")
+
+// EmptyFieldError represents an error when a specific field is empty or only whitespace
+type EmptyFieldError struct {
+	Field string
+}
+
+func (e *EmptyFieldError) Error() string {
+	return e.Field + " cannot be empty or contain only whitespace"
+}
+
+// TrimAndValidateInput trims leading and trailing whitespace from input
+// and returns an error if the result is empty
+func TrimAndValidateInput(input, fieldName string) (string, error) {
+	trimmed := strings.TrimSpace(input)
+	if trimmed == "" {
+		if fieldName != "" {
+			return "", &EmptyFieldError{Field: fieldName}
+		}
+		return "", ErrEmptyInput
+	}
+	return trimmed, nil
+}
 
 // TransformRegionName converts AWS region names to shorter format
 // Examples: eu-central-1 -> euc1, us-west-2 -> usw2, eu-west-1 -> euw1

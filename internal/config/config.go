@@ -58,7 +58,7 @@ type GithubWorkflows struct {
 	AWSRoleArn   string `mapstructure:"aws_role_arn"`
 }
 
-// Generate holds generate command specific configuration
+// Generate holds add command specific configuration
 type Generate struct {
 	GithubWorkflows *GithubWorkflows `mapstructure:"github_workflows"`
 	TemplatesDir    string           `mapstructure:"templates_dir"`
