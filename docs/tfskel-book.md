@@ -93,10 +93,10 @@ Download from the [releases page](https://github.com/ishuar/tfskel/releases).
 tfskel init
 ```
 
-2. **Generate application structure**:
+2. **Add application structure**:
 
 ```bash
-tfskel generate myapp --env dev --region us-east-1
+tfskel add myapp --env dev --region us-east-1
 ```
 
 3. **Check for version drift**:
@@ -211,7 +211,7 @@ Defines AWS provider configuration:
   - **Required**: At least one environment mapping must be defined
   - **Account ID format**: Must be exactly 12 numeric digits (e.g., "123456789012")
   - **No placeholders**: Account IDs like "REPLACE_WITH_YOUR_DEV_ACCOUNT_ID" will be rejected during validation
-  - **Environment matching**: If you use `tfskel generate --env <env>`, the account ID for that environment must exist in the mapping
+  - **Environment matching**: If you use `tfskel add --env <env>`, the account ID for that environment must exist in the mapping
   - **Example**: If mapping has `dev: "123456789012"`, you can use `--env dev`, but `--env prod` will fail if `prod` is not in the mapping
 - `provider.aws.default_tags`: Default tags applied to all AWS resources. Tag keys are automatically normalized to lowercase (but NOT converted to snake_case).
     ```yaml
@@ -309,7 +309,7 @@ Configure drift detection behavior for version and plan analysis:
 
 ### Configuration Validation
 
-When running `tfskel generate`, the configuration undergoes strict validation to ensure all required values are properly set.
+When running `tfskel add`, the configuration undergoes strict validation to ensure all required values are properly set.
 
 #### Required Configuration Validations
 
@@ -378,7 +378,7 @@ provider:
 
 Or use an existing environment:
 ```bash
-tfskel generate myapp --env prd --region us-east-1  # Use 'prd' instead of 'prod'
+tfskel add myapp --env prd --region us-east-1  # Use 'prd' instead of 'prod'
 ```
 
 #### "backend.s3.bucket_name is invalid"
@@ -481,15 +481,15 @@ tfskel init --config /path/to/config.yaml
 > After running `tfskel init`, you **must** update `.tfskel.yaml` with:
 > - Your AWS account IDs in `provider.aws.account_mapping` (12-digit format)
 > - Your S3 bucket name in `backend.s3.bucket_name`
-> - Before running `tfskel generate`, these values must be properly configured
+> - Before running `tfskel add`, these values must be properly configured
 
-### `tfskel generate`
+### `tfskel add`
 
-Generate Terraform project structure for a specific application.
+Add Terraform project structure for a specific application.
 
 **Usage**:
 ```bash
-tfskel generate <app-dir> [flags]
+tfskel add <app-dir> [flags]
 ```
 
 **Arguments**:
@@ -508,24 +508,24 @@ tfskel generate <app-dir> [flags]
 **Examples**:
 
 ```bash
-# Generate structure for an app in dev environment
-tfskel generate myapp --env dev --region us-east-1
+# Add structure for an app in dev environment
+tfskel add myapp --env dev --region us-east-1
 
-# Generate with GitHub Actions workflows
-tfskel generate myapp --env dev --region us-east-1 --create-github-workflows
+# Add with GitHub Actions workflows
+tfskel add myapp --env dev --region us-east-1 --create-github-workflows
 
-# Generate with custom configuration file
-tfskel generate myapp --config ./my-config.yaml --env dev --region us-east-1
+# Add with custom configuration file
+tfskel add myapp --config ./my-config.yaml --env dev --region us-east-1
 
-# Generate with custom templates
-tfskel generate myapp --env stg --region eu-central-1 --templates-dir ./templates
+# Add with custom templates
+tfskel add myapp --env stg --region eu-central-1 --templates-dir ./templates
 
 # Override S3 bucket name
-tfskel generate myapp --env prd --region us-west-2 --s3-bucket-name my-custom-bucket
+tfskel add myapp --env prd --region us-west-2 --s3-bucket-name my-custom-bucket
 
-# Generate with workflows using config file settings
+# Add with workflows using config file settings
 # (workflows enabled in .tfskel.yaml with custom naming)
-tfskel generate api --env prd --region eu-central-1
+tfskel add api --env prd --region eu-central-1
 ```
 
 **What it does**:
@@ -835,7 +835,7 @@ Generates a workflow for Terraform plan and apply:
 You can add custom templates for additional files using the `--templates-dir` flag or `generate.templates_dir` config in `.tfskel.yaml`:
 
 ```bash
-tfskel generate myapp --env dev --region us-east-1 --templates-dir ./custom-templates
+tfskel add myapp --env dev --region us-east-1 --templates-dir ./custom-templates
 ```
 
 **Custom Template Structure**:
@@ -857,7 +857,7 @@ custom-templates/
 
 #### Overview
 
-tfskel uses **metadata comments** embedded in generated files to track configuration values and detect when updates are needed. When you run `tfskel generate` on existing directories, tfskel reads these metadata comments and automatically regenerates files if configuration has changed.
+tfskel uses **metadata comments** embedded in generated files to track configuration values and detect when updates are needed. When you run `tfskel add` on existing directories, tfskel reads these metadata comments and automatically regenerates files if configuration has changed.
 
 This enables:
 - **Automatic version updates** when you change Terraform or provider versions in `.tfskel.yaml`
@@ -1043,7 +1043,7 @@ All templates (both embedded and custom) receive a `Data` struct containing all 
   ```
 
 **`AppDir` (Application Directory)**
-- Source: First positional argument to `tfskel generate <app-dir>`
+- Source: First positional argument to `tfskel add <app-dir>`
 - Used in: Backend state keys, tags, resource naming
 - Example usage:
   ```hcl
@@ -1435,7 +1435,7 @@ module "vpc" {
 EOF
 
 # Generate with custom templates
-tfskel generate myapp --env dev --region us-east-1 --templates-dir custom-templates
+tfskel add myapp --env dev --region us-east-1 --templates-dir custom-templates
 ```
 
 **Supported Custom Templates**:
@@ -1467,16 +1467,16 @@ Deploy the same application across multiple regions:
 
 ```bash
 # Deploy to US regions
-tfskel generate webapp --env prd --region us-east-1
-tfskel generate webapp --env prd --region us-west-2
+tfskel add webapp --env prd --region us-east-1
+tfskel add webapp --env prd --region us-west-2
 
 # Deploy to EU regions
-tfskel generate webapp --env prd --region eu-central-1
-tfskel generate webapp --env prd --region eu-west-1
+tfskel add webapp --env prd --region eu-central-1
+tfskel add webapp --env prd --region eu-west-1
 
 # Deploy to Asia-Pacific
-tfskel generate webapp --env prd --region ap-south-1
-tfskel generate webapp --env prd --region ap-southeast-1
+tfskel add webapp --env prd --region ap-south-1
+tfskel add webapp --env prd --region ap-southeast-1
 ```
 
 ### Version Drift Management

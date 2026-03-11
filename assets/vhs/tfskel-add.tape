@@ -1,4 +1,4 @@
-Output "~/workspaces/personal/github/tfskel/assets/tfskel-generate.gif"
+Output "/Users/ishansharma/workspaces/personal/github/tfskel/assets/tfskel-add.gif"
 
 Require echo
 Set Margin 10
@@ -14,7 +14,10 @@ Set PlaybackSpeed 0.7
 Type "echo 'Welcome to tfskel!'" Sleep 500ms  Enter
 Type "tfskel init" Sleep 500ms  Enter
 Sleep 2s
-Type "tfskel generate test --env dev --region eu-central-1 --create-github-workflows" Sleep 500ms  Enter
+Type "cat .tfskel.yaml" Sleep 500ms  Enter
+Sleep 2s
+Type "clear" Sleep 300ms Enter
+Type "tfskel add test --env dev --region eu-central-1" Sleep 500ms  Enter
 Sleep 5s
 Type "clear" Sleep 300ms Enter
 Sleep 500ms

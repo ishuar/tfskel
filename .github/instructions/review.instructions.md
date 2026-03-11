@@ -61,7 +61,7 @@ If a junior engineer cannot understand the function in under 30 seconds, simplif
   ```go
   fmt.Errorf("context: %w", err)
   ```
-or 
+or
 Implemented structured logging wherever applicable.
 
 * No silent failures.
@@ -101,7 +101,7 @@ Command structure should feel predictable:
 
 ```
 tfskel init
-tfskel generate
+tfskel add
 tfskel drift
 ```
 
