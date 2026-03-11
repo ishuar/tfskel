@@ -1,4 +1,4 @@
-Output "/Users/ishansharma/workspaces/personal/github/tfskel/assets/tfskel-add.gif"
+Output "../assets/tfskel-add.gif"
 
 Require echo
 Set Margin 10
@@ -14,7 +14,7 @@ Set PlaybackSpeed 0.7
 Type "echo 'Welcome to tfskel!'" Sleep 500ms  Enter
 Type "tfskel init" Sleep 500ms  Enter
 Sleep 2s
-Type "cat .tfskel.yaml" Sleep 500ms  Enter
+Type "bat .tfskel.yaml" Sleep 500ms  Enter
 Sleep 2s
 Type "clear" Sleep 300ms Enter
 Type "tfskel add test --env dev --region eu-central-1" Sleep 500ms  Enter
