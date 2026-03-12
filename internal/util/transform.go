@@ -31,6 +31,15 @@ func TrimAndValidateInput(input, fieldName string) (string, error) {
 	return trimmed, nil
 }
 
+// ReplaceSpacesWithHyphens replaces all spaces in the input string with hyphens
+// Multiple consecutive spaces are collapsed into a single hyphen
+func ReplaceSpacesWithHyphens(input string) string {
+	// Split by spaces (removes empty strings from consecutive spaces)
+	parts := strings.Fields(input)
+	// Join with hyphen
+	return strings.Join(parts, "-")
+}
+
 // TransformRegionName converts AWS region names to shorter format
 // Examples: eu-central-1 -> euc1, us-west-2 -> usw2, eu-west-1 -> euw1
 func TransformRegionName(region string) string {

@@ -151,11 +151,11 @@ func (g *Generator) Run(env, region, appDir string) error {
 	// Initialize template renderer with custom templates if provided
 	var renderer *templates.Renderer
 	var err error
-	// Defensive: check Generate is initialized (always true from config.Load, but defensive for direct usage)
-	if g.config.Generate != nil && g.config.Generate.TemplatesDir != "" {
-		g.log.Infof("Using custom templates from: %s", g.config.Generate.TemplatesDir)
+	// Defensive: check Templates is initialized (always true from config.Load, but defensive for direct usage)
+	if g.config.Templates != nil && g.config.Templates.Dir != "" {
+		g.log.Infof("Using custom templates from: %s", g.config.Templates.Dir)
 		renderer, err = templates.NewRendererWithCustomTemplates(
-			g.config.Generate.TemplatesDir,
+			g.config.Templates.Dir,
 		)
 	} else {
 		g.log.Debug("Using default embedded templates")
@@ -198,20 +198,6 @@ func (g *Generator) Run(env, region, appDir string) error {
 	return nil
 }
 
-// findProjectRoot returns the project root directory (containing envs folder) from an app path
-// appPath is in format: envs/<env>/<region>/<app>
-func findProjectRoot(appPath string) string { //nolint:unparam // keeping for clarity and future use
-	// Navigate up from appPath to find project root
-	// Example: envs/dev/us-east-1/myapp -> current directory (project root)
-	parts := strings.Split(filepath.ToSlash(appPath), "/")
-	if len(parts) > 0 && parts[0] == "envs" {
-		// Return current directory (".") which is the project root
-		return "."
-	}
-	// Fallback to current directory
-	return "."
-}
-
 // determineOutputPath converts template path to output location based on category
 // Template paths are like: root/.gitignore.tmpl, tf/backend.tf.tmpl, github/workflow.yaml.tmpl
 func (g *Generator) determineOutputPath(tmplPath, appPath string, data *templates.Data) (string, bool) {
@@ -230,14 +216,14 @@ func (g *Generator) determineOutputPath(tmplPath, appPath string, data *template
 	switch category {
 	case "root":
 		// Place at project root
-		projectRoot := findProjectRoot(appPath)
+		projectRoot := "."
 		return filepath.Join(projectRoot, fileName), true
 	case "tf":
 		// Place in app directory
 		return filepath.Join(appPath, fileName), true
 	case categoryGithub:
 		// Place in .github/workflows/ directory at project root with dynamic naming
-		projectRoot := findProjectRoot(appPath)
+		projectRoot := "."
 
 		// Check if this is a reusable workflow (no .tmpl extension in original, just .yaml)
 		if strings.HasPrefix(fileName, "reusable-") {
@@ -301,9 +287,8 @@ func (g *Generator) generateWorkflowFileName(originalFileName string, data *temp
 	sanitizedAppDir := sanitizeAppDirForFilename(data.AppDir)
 
 	// Default path: no custom template configured
-	if g.config.Generate == nil ||
-		g.config.Generate.GithubWorkflows == nil ||
-		g.config.Generate.GithubWorkflows.NameTemplate == "" {
+	if g.config.Workflows == nil ||
+		g.config.Workflows.NameTemplate == "" {
 		// Pass a copy with sanitized AppDir so generateDefaultWorkflowFileName
 		// uses the flat name without mutating the caller's data.
 		defaultData := *data
@@ -317,7 +302,7 @@ func (g *Generator) generateWorkflowFileName(originalFileName string, data *temp
 	fileNameData := *data
 	fileNameData.AppDir = sanitizedAppDir
 
-	nameTemplate := g.config.Generate.GithubWorkflows.NameTemplate
+	nameTemplate := g.config.Workflows.NameTemplate
 	workflowType := strings.TrimSuffix(originalFileName, ".yaml")
 
 	// Render the custom template against the sanitized copy
@@ -474,13 +459,13 @@ func (g *Generator) prepareTemplateData(env, region, appDir string) (*templates.
 // Priority: aws_role_arn > aws_role_name > default placeholder
 // Accepts full template data to allow flexible template variables in role names/ARNs
 func (g *Generator) buildAWSRoleArn(data *templates.Data) (string, error) {
-	// Defensive: check Generate and GithubWorkflows are initialized
-	if g.config.Generate == nil || g.config.Generate.GithubWorkflows == nil {
+	// Defensive: check Workflows is initialized
+	if g.config.Workflows == nil {
 		// Return default placeholder
 		return fmt.Sprintf("arn:aws:iam::%s:role/REPLACE_WITH_ROLE_TO_ASSUME", data.AccountID), nil
 	}
 
-	workflows := g.config.Generate.GithubWorkflows
+	workflows := g.config.Workflows
 
 	// Create template data once for reuse in both ARN and role name rendering
 	// This provides all available fields for maximum flexibility in templates
@@ -592,8 +577,8 @@ func (g *Generator) shouldSkipTemplate(tmplPath string) (bool, string) {
 
 	// Skip github templates if create_github_workflows is not enabled
 	if category == categoryGithub {
-		// Defensive: check Generate and GithubWorkflows are initialized
-		if g.config.Generate == nil || g.config.Generate.GithubWorkflows == nil || !g.config.Generate.GithubWorkflows.Create {
+		// Defensive: check Workflows is initialized
+		if g.config.Workflows == nil || !g.config.Workflows.Create {
 			return true, "github template (create-github-workflows not enabled)"
 		}
 	}

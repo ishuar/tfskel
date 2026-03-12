@@ -51,29 +51,29 @@ critical_resources: []
 # Set to 0 to show all items (not recommended for large projects)
 top_n_count: 10
 
-# The 'add' command uses this 'generate' section
-# Note: Generate command used this in previous versions.
-generate:
+# Custom templates directory configuration
+templates:
   # Optional: Custom templates directory
   # to override default embedded templates, create custom templates
   # with the same name in the custom templates directory,
   # e.g. custom-dir/versions.tf.tmpl will override the default embedded versions.tf.tmpl template
   # NOTE: All files ending with .tmpl extension will be processed as Go templates
-  templates_dir: /path/to/custom/templates
-  # Optional: GitHub Actions workflow generation configuration
-  github_workflows:
-    # Enable GitHub Actions workflow generation
-    create: false
-    # GitHub workflow filename stem. Accepts Go template syntax.
-    # Available placeholders: {{.AppDir}}, {{.Env}}, {{.Region}}, {{.ShortRegion}}, {{.AccountID}}
-    # Template functions: toLower, toUpper, replace, trimSpace, trimPrefix, trimSuffix, stripConstraint, etc.
-    # The workflow type suffix (-lint, -terraform) and .yaml extension are appended automatically.
-    # Example: "{{.AppDir}}-{{.Env}}-{{.ShortRegion}}" -> "myapp-dev-euc1-terraform.yaml"
-    # See README "Template context variables" section for the full reference.
-    name_template: "{{.AppDir}}-{{.Env}}-{{.ShortRegion}}"
-    # Full ARN (takes priority, optional). Accepts Go template syntax.
-    # Available placeholders: {{.AccountID}}, {{.Env}}, {{.Region}}, {{.ShortRegion}}, {{.AppDir}}
-    aws_role_arn: "arn:aws:iam::{{.AccountID}}:role/{{.Env}}-githubactionsrole"
-    # IAM role for workflows (optional). Accepts Go template syntax.
-    # Available placeholders: {{.AccountID}}, {{.Env}}, {{.Region}}, {{.ShortRegion}}, {{.AppDir}}
-    aws_role_name: "{{.Env}}-githubactionsrole"
+  dir: /path/to/custom/templates
+
+# GitHub Actions workflow generation configuration
+workflows:
+  # Enable GitHub Actions workflow generation
+  create: false
+  # GitHub workflow filename stem. Accepts Go template syntax.
+  # Available placeholders: {{.AppDir}}, {{.Env}}, {{.Region}}, {{.ShortRegion}}, {{.AccountID}}
+  # Template functions: toLower, toUpper, replace, trimSpace, trimPrefix, trimSuffix, stripConstraint, etc.
+  # The workflow type suffix (-lint, -terraform) and .yaml extension are appended automatically.
+  # Example: "{{.AppDir}}-{{.Env}}-{{.ShortRegion}}" -> "myapp-dev-euc1-terraform.yaml"
+  # See README "Template context variables" section for the full reference.
+  name_template: "{{.AppDir}}-{{.Env}}-{{.ShortRegion}}"
+  # Full ARN (takes priority, optional). Accepts Go template syntax.
+  # Available placeholders: {{.AccountID}}, {{.Env}}, {{.Region}}, {{.ShortRegion}}, {{.AppDir}}
+  aws_role_arn: "arn:aws:iam::{{.AccountID}}:role/{{.Env}}-githubactionsrole"
+  # IAM role for workflows (optional). Accepts Go template syntax.
+  # Available placeholders: {{.AccountID}}, {{.Env}}, {{.Region}}, {{.ShortRegion}}, {{.AppDir}}
+  aws_role_name: "{{.Env}}-githubactionsrole"

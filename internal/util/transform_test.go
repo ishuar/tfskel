@@ -151,6 +151,72 @@ func TestTrimAndValidateInput_ErrEmptyInput(t *testing.T) {
 	})
 }
 
+func TestReplaceSpacesWithHyphens(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "no spaces",
+			input:    "myapp",
+			expected: "myapp",
+		},
+		{
+			name:     "single space",
+			input:    "my app",
+			expected: "my-app",
+		},
+		{
+			name:     "multiple spaces",
+			input:    "my complex app",
+			expected: "my-complex-app",
+		},
+		{
+			name:     "consecutive spaces collapsed",
+			input:    "my  app",
+			expected: "my-app",
+		},
+		{
+			name:     "mixed consecutive spaces collapsed",
+			input:    "my  complex   app",
+			expected: "my-complex-app",
+		},
+		{
+			name:     "empty string",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "only spaces",
+			input:    "   ",
+			expected: "",
+		},
+		{
+			name:     "spaces with hyphens",
+			input:    "my-app with spaces",
+			expected: "my-app-with-spaces",
+		},
+		{
+			name:     "spaces with underscores",
+			input:    "my_app with spaces",
+			expected: "my_app-with-spaces",
+		},
+		{
+			name:     "leading and trailing spaces removed",
+			input:    "  my app  ",
+			expected: "my-app",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := ReplaceSpacesWithHyphens(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
 func TestTransformRegionName(t *testing.T) {
 	tests := []struct {
 		name     string
