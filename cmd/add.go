@@ -120,7 +120,7 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	generator := app.NewGenerator(cfg, filesystem, log)
 	if err := generator.Run(trimmedEnv, trimmedRegion, trimmedAppDir); err != nil {
 		cmd.SilenceUsage = true
-		return fmt.Errorf("generation failed: %w", err)
+		return fmt.Errorf("failed to add Terraform structure: %w", err)
 	}
 
 	log.Success("Terraform directory scaffolding completed!")

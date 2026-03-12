@@ -51,7 +51,8 @@ critical_resources: []
 # Set to 0 to show all items (not recommended for large projects)
 top_n_count: 10
 
-# Add command configuration
+# The 'add' command uses this 'generate' section
+# Note: Generate command used this in previous versions.
 generate:
   # Optional: Custom templates directory
   # to override default embedded templates, create custom templates

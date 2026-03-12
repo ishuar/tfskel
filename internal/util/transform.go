@@ -5,7 +5,8 @@ import (
 	"strings"
 )
 
-// ErrEmptyInput is returned when input is empty or contains only whitespace
+// ErrEmptyInput represents an empty or whitespace-only input when no field name is provided.
+// TrimAndValidateInput returns this when the trimmed input is empty and fieldName is an empty string.
 var ErrEmptyInput = errors.New("input cannot be empty or contain only whitespace")
 
 // EmptyFieldError represents an error when a specific field is empty or only whitespace

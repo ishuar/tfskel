@@ -197,11 +197,8 @@ mustBindPFlag("generate.github_workflows.create", "create-github-workflows")
 **Sentinel Errors**:
 ```go
 // add.go
-var (
-    ErrEnvironmentRequired = errors.New("environment is required (use --env flag)")
-    ErrRegionRequired      = errors.New("region is required (use --region flag)")
-    ErrAppDirRequired      = errors.New("app directory name is required (provide as argument)")
-)
+// Input validation now uses util.TrimAndValidateInput and returns wrapped errors.
+// No exported sentinel errors are defined for this command.
 
 // init.go
 var (
@@ -1246,7 +1243,9 @@ func TestGeneratorIntegration(t *testing.T) {
 ### End-to-End Tests
 
 Test complete CLI commands:
-AddCommand(t *testing.T) {
+
+```go
+func TestAddCommand(t *testing.T) {
     // Create temp directory
     tmpDir := t.TempDir()
 
@@ -1265,10 +1264,9 @@ AddCommand(t *testing.T) {
     assert.NoError(t, err)
     assert.DirExists(t, filepath.Join(tmpDir, "envs/dev/us-east-1/myapp"))
     assert.FileExists(t, filepath.Join(tmpDir, "envs/dev/us-east-1/myapp/backend.tf"))
-    assert.FileExists(t, filepath.Join(tmpDir, "envs/dev/us-east-1/myapp/versions
-    assert.NoError(t, err)
-    assert.FileExists(t, filepath.Join(tmpDir, "main.tf"))
+    assert.FileExists(t, filepath.Join(tmpDir, "envs/dev/us-east-1/myapp/versions.tf"))
 }
+```
 ```
 
 ### Test Coverage

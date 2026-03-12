@@ -38,7 +38,7 @@ It gives you a clean, opinionated foundation that keeps your Terraform projects 
 ### Features
 
 1. Enforce consistent project structure across environments
-2. Add/Generate Terraform code using clean, maintainable templates
+2. Add Terraform code using clean, maintainable templates
 3. Detect AWS provider and Terraform version drift across the entire repo
 4. Analyze Terraform plans to make reviews easier and safer with custom resources severity
 5. Stay vanilla — no wrappers, no lock-in, just Terraform
