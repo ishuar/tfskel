@@ -101,7 +101,7 @@ Command structure should feel predictable:
 
 ```
 tfskel init
-tfskel add
+tfskel scaffold
 tfskel drift
 ```
 

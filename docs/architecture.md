@@ -160,7 +160,7 @@ Behavior is driven by configuration, not hardcoded:
 **Components**:
 - `root.go`: Root command and global flags
 - `init.go`: Initialize new project command
-- `add.go`: Add Terraform project structure (generates env/region/app directories)
+- `scaffold.go`: Scaffold Terraform project structure (generates env/region/app directories)
 - `version.go`: Version constant
 - `drift.go`: Parent drift command
 - `drift_version.go`: Version drift detection command
@@ -179,7 +179,7 @@ Behavior is driven by configuration, not hardcoded:
 - **Runtime errors**: Returned with context wrapping
 - **Consistent approach**: All commands use same error handling pattern
 
-**Flag Binding Pattern** (in `add.go`):
+**Flag Binding Pattern** (in `scaffold.go`):
 ```go
 // Fail-fast helper for flag binding - panics on developer errors
 mustBindPFlag := func(key string, flagName string) {
@@ -196,7 +196,7 @@ mustBindPFlag("generate.github_workflows.create", "create-github-workflows")
 
 **Sentinel Errors**:
 ```go
-// add.go
+// scaffold.go
 // Input validation now uses util.TrimAndValidateInput and returns wrapped errors.
 // No exported sentinel errors are defined for this command.
 
@@ -238,7 +238,7 @@ func initConfig()
 // init.go
 func runInit(cmd *cobra.Command, _ []string) error
 
-// add.go
+// scaffold.go
 func runAdd(cmd *cobra.Command, args []string) error
 
 // drift_version.go
@@ -781,12 +781,12 @@ func TransformRegionName(region string) string
 
 ## Data Flow
 
-### Add Command Flow
+### Scaffold Command Flow
 
 ```
-User runs: tfskel add myapp --env dev --region us-east-1
+User runs: tfskel scaffold myapp --env dev --region us-east-1
 
-1. CLI Layer (cmd/add.go)
+1. CLI Layer (cmd/scaffold.go)
    ├─ Parse flags (env, region, templates-dir, etc.)
    ├─ Extract app directory from args
    └─ Validate required flags (env, region)

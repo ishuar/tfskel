@@ -93,10 +93,10 @@ Download from the [releases page](https://github.com/ishuar/tfskel/releases).
 tfskel init
 ```
 
-2. **Add application structure**:
+2. **Scaffold application structure**:
 
 ```bash
-tfskel add myapp --env dev --region us-east-1
+tfskel scaffold myapp --env dev --region us-east-1
 ```
 
 3. **Check for version drift**:
@@ -211,7 +211,7 @@ Defines AWS provider configuration:
   - **Required**: At least one environment mapping must be defined
   - **Account ID format**: Must be exactly 12 numeric digits (e.g., "123456789012")
   - **No placeholders**: Account IDs like "REPLACE_WITH_YOUR_DEV_ACCOUNT_ID" will be rejected during validation
-  - **Environment matching**: If you use `tfskel add --env <env>`, the account ID for that environment must exist in the mapping
+  - **Environment matching**: If you use `tfskel scaffold --env <env>`, the account ID for that environment must exist in the mapping
   - **Example**: If mapping has `dev: "123456789012"`, you can use `--env dev`, but `--env prod` will fail if `prod` is not in the mapping
 - `provider.aws.default_tags`: Default tags applied to all AWS resources. Tag keys are automatically normalized to lowercase (but NOT converted to snake_case).
     ```yaml
@@ -224,7 +224,7 @@ Defines AWS provider configuration:
     ```
 #### Custom Templates
 
-- `generate.templates_dir`: Path to custom template directory
+- `templates.dir`: Path to custom template directory
 - All files ending with `.tmpl` extension are processed as Go templates
 - Custom templates override embedded defaults
 - Useful for adding main.tf, variables.tf, outputs.tf, etc.
@@ -234,14 +234,14 @@ Defines AWS provider configuration:
 Automate creation of GitHub Actions workflows for Terraform CI/CD:
 
 **Configuration Fields**:
-- `generate.github_workflows.create`: Enable/disable workflow generation (default: false)
-- `generate.github_workflows.name_template`: Custom workflow filename pattern (optional)
+- `workflows.create`: Enable/disable workflow generation (default: false)
+- `workflows.name_template`: Custom workflow filename pattern (optional)
   - Available variables: `{{.AppDir}}`, `{{.Env}}`, `{{.Region}}`, `{{.ShortRegion}}`
   - Workflow type (`-lint`, `-terraform`) is automatically appended
   - Default pattern: `{{.AppDir}}-{{.Env}}-{{.ShortRegion}}`
-- `generate.github_workflows.aws_role_name`: IAM role name for AWS authentication (optional)
+- `workflows.aws_role_name`: IAM role name for AWS authentication (optional)
   - Automatically constructs ARN: `arn:aws:iam::<account-id>:role/<role-name>`
-- `generate.github_workflows.aws_role_arn`: Explicit IAM role ARN (optional, takes priority)
+- `workflows.aws_role_arn`: Explicit IAM role ARN (optional, takes priority)
 
 **Priority Order for AWS Role**:
 1. `aws_role_arn` (if specified) - Explicit ARN
@@ -309,7 +309,7 @@ Configure drift detection behavior for version and plan analysis:
 
 ### Configuration Validation
 
-When running `tfskel add`, the configuration undergoes strict validation to ensure all required values are properly set.
+When running `tfskel scaffold`, the configuration undergoes strict validation to ensure all required values are properly set.
 
 #### Required Configuration Validations
 
@@ -378,7 +378,7 @@ provider:
 
 Or use an existing environment:
 ```bash
-tfskel add myapp --env prd --region us-east-1  # Use 'prd' instead of 'prod'
+tfskel scaffold myapp --env prd --region us-east-1  # Use 'prd' instead of 'prod'
 ```
 
 #### "backend.s3.bucket_name is invalid"
@@ -481,16 +481,18 @@ tfskel init --config /path/to/config.yaml
 > After running `tfskel init`, you **must** update `.tfskel.yaml` with:
 > - Your AWS account IDs in `provider.aws.account_mapping` (12-digit format)
 > - Your S3 bucket name in `backend.s3.bucket_name`
-> - Before running `tfskel add`, these values must be properly configured
+> - Before running `tfskel scaffold`, these values must be properly configured
 
-### `tfskel add`
+### `tfskel scaffold`
 
-Add Terraform project structure for a specific application.
+Scaffold Terraform project structure for a specific application.
 
 **Usage**:
 ```bash
-tfskel add <app-dir> [flags]
+tfskel scaffold <app-dir> [flags]
 ```
+
+**Aliases**: `sc`
 
 **Arguments**:
 - `app-dir`: Name of the application directory to create (required)
@@ -502,30 +504,33 @@ tfskel add <app-dir> [flags]
 - `--templates-dir`: Directory containing custom template files
 - `--s3-bucket-name`: Override S3 bucket name for Terraform state
 - `--extra-template-extensions`: Additional template file extensions to process
-- `--create-github-workflows`: Enable GitHub Actions workflow generation
+- `--workflows`: Enable GitHub Actions workflow generation
 - `--verbose, -v`: Enable verbose output
 
 **Examples**:
 
 ```bash
-# Add structure for an app in dev environment
-tfskel add myapp --env dev --region us-east-1
+# Scaffold structure for an app in dev environment
+tfskel scaffold myapp --env dev --region us-east-1
 
-# Add with GitHub Actions workflows
-tfskel add myapp --env dev --region us-east-1 --create-github-workflows
+# Scaffold with GitHub Actions workflows
+tfskel scaffold myapp --env dev --region us-east-1 --workflows
 
-# Add with custom configuration file
-tfskel add myapp --config ./my-config.yaml --env dev --region us-east-1
+# Scaffold with custom configuration file
+tfskel scaffold myapp --config ./my-config.yaml --env dev --region us-east-1
 
-# Add with custom templates
-tfskel add myapp --env stg --region eu-central-1 --templates-dir ./templates
+# Scaffold with custom templates
+tfskel scaffold myapp --env stg --region eu-central-1 --templates-dir ./templates
 
 # Override S3 bucket name
-tfskel add myapp --env prd --region us-west-2 --s3-bucket-name my-custom-bucket
+tfskel scaffold myapp --env prd --region us-west-2 --s3-bucket-name my-custom-bucket
 
-# Add with workflows using config file settings
+# Using the short alias
+tfskel sc myapp --env dev --region us-east-1
+
+# Scaffold with workflows using config file settings
 # (workflows enabled in .tfskel.yaml with custom naming)
-tfskel add api --env prd --region eu-central-1
+tfskel scaffold api --env prd --region eu-central-1
 ```
 
 **What it does**:
@@ -786,7 +791,7 @@ Generates Terraform and provider version constraints with AWS provider configura
 
 #### 3. GitHub Actions Workflow Templates
 
-**Generated when `--create-github-workflows` flag is used or `generate.github_workflows.create: true` in config**
+**Generated when `--workflows` flag is used or `workflows.create: true` in config**
 
 ##### Lint Workflow (`lint.yaml.tmpl`)
 
@@ -832,10 +837,10 @@ Generates a workflow for Terraform plan and apply:
 
 ### Custom Templates
 
-You can add custom templates for additional files using the `--templates-dir` flag or `generate.templates_dir` config in `.tfskel.yaml`:
+You can add custom templates for additional files using the `--templates-dir` flag or `templates.dir` config in `.tfskel.yaml`:
 
 ```bash
-tfskel add myapp --env dev --region us-east-1 --templates-dir ./custom-templates
+tfskel scaffold myapp --env dev --region us-east-1 --templates-dir ./custom-templates
 ```
 
 **Custom Template Structure**:
@@ -857,7 +862,7 @@ custom-templates/
 
 #### Overview
 
-tfskel uses **metadata comments** embedded in generated files to track configuration values and detect when updates are needed. When you run `tfskel add` on existing directories, tfskel reads these metadata comments and automatically regenerates files if configuration has changed.
+tfskel uses **metadata comments** embedded in generated files to track configuration values and detect when updates are needed. When you run `tfskel scaffold` on existing directories, tfskel reads these metadata comments and automatically regenerates files if configuration has changed.
 
 This enables:
 - **Automatic version updates** when you change Terraform or provider versions in `.tfskel.yaml`
@@ -1043,7 +1048,7 @@ All templates (both embedded and custom) receive a `Data` struct containing all 
   ```
 
 **`AppDir` (Application Directory)**
-- Source: First positional argument to `tfskel add <app-dir>`
+- Source: First positional argument to `tfskel scaffold <app-dir>`
 - Used in: Backend state keys, tags, resource naming
 - Example usage:
   ```hcl
@@ -1153,7 +1158,7 @@ All templates (both embedded and custom) receive a `Data` struct containing all 
   Results in: `## tfskel-tags: {"team":"platform","managedby":"terraform"}`
 
 **`AWSRoleArn` (GitHub Workflow AWS Role ARN)**
-- Source: Derived from `generate.github_workflows.aws_role_arn` or `aws_role_name` in `.tfskel.yaml`
+- Source: Derived from `workflows.aws_role_arn` or `aws_role_name` in `.tfskel.yaml`
 - Format: Full ARN format or constructed from role name
 - Used in: GitHub Actions workflow AWS authentication
 - Priority order:
@@ -1167,7 +1172,7 @@ All templates (both embedded and custom) receive a `Data` struct containing all 
   ```
 
 **`WorkflowFileName` (GitHub Workflow Self-Reference)**
-- Source: Auto-generated based on `generate.github_workflows.name_template` or default pattern
+- Source: Auto-generated based on `workflows.name_template` or default pattern
 - Default pattern: `{{.AppDir}}-{{.Env}}-{{.ShortRegion}}`
 - **Purpose**: Enables workflows to self-reference for path-based triggers
 - Used in: GitHub workflow trigger paths
@@ -1435,7 +1440,7 @@ module "vpc" {
 EOF
 
 # Generate with custom templates
-tfskel add myapp --env dev --region us-east-1 --templates-dir custom-templates
+tfskel scaffold myapp --env dev --region us-east-1 --templates-dir custom-templates
 ```
 
 **Supported Custom Templates**:
@@ -1467,16 +1472,16 @@ Deploy the same application across multiple regions:
 
 ```bash
 # Deploy to US regions
-tfskel add webapp --env prd --region us-east-1
-tfskel add webapp --env prd --region us-west-2
+tfskel scaffold webapp --env prd --region us-east-1
+tfskel scaffold webapp --env prd --region us-west-2
 
 # Deploy to EU regions
-tfskel add webapp --env prd --region eu-central-1
-tfskel add webapp --env prd --region eu-west-1
+tfskel scaffold webapp --env prd --region eu-central-1
+tfskel scaffold webapp --env prd --region eu-west-1
 
 # Deploy to Asia-Pacific
-tfskel add webapp --env prd --region ap-south-1
-tfskel add webapp --env prd --region ap-southeast-1
+tfskel scaffold webapp --env prd --region ap-south-1
+tfskel scaffold webapp --env prd --region ap-southeast-1
 ```
 
 ### Version Drift Management
