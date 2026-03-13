@@ -680,56 +680,6 @@ tfskel drift plan --plan-file plan.json --format csv > changes.csv
 
 ---
 
-### `tfskel drift all`
-
-Run both version drift detection and plan analysis in a single command.
-
-**Usage**:
-```bash
-tfskel drift all [flags]
-```
-
-**Flags**:
-- `--plan-file`: Path to Terraform plan JSON file (required)
-- `--path, -p`: Path to scan for Terraform files (default: current directory)
-- `--format, -f`: Output format: table, json, csv (default: table)
-- `--top-n, -n`: Show top N highest-impact resources (default: 10)
-- `--skip-version`: Skip version drift detection
-- `--skip-plan`: Skip plan analysis
-- `--no-color`: Disable colored output
-- `--config`: Path to config file (default: .tfskel.yaml)
-- `--verbose, -v`: Enable verbose output
-
-**Examples**:
-
-```bash
-# Run complete drift analysis
-terraform plan -out=plan.bin && terraform show -json plan.bin > plan.json
-tfskel drift all --plan-file plan.json
-
-# Skip version check, only analyze plan
-tfskel drift all --plan-file plan.json --skip-version
-
-# Focus on specific directory for version drift
-tfskel drift all --plan-file plan.json --path ./envs/prd
-
-# Export combined report as JSON
-tfskel drift all --plan-file plan.json --format json > full-report.json
-```
-
-**What it does**:
-1. Runs version drift detection (unless `--skip-version` specified)
-2. Runs plan analysis (unless `--skip-plan` specified)
-3. Provides comprehensive drift visibility in one command
-4. Outputs both analyses in the same format
-5. Useful for CI/CD pipelines and pre-deployment checks
-
-**Use Cases**:
-- **Pre-deployment validation**: Check both version consistency and planned changes
-- **CI/CD integration**: Single command for comprehensive drift reporting
-- **Compliance audits**: Verify version standards and change impact together
-- **Large repository monitoring**: Detect inconsistencies across monorepos before deployment
-
 ### `tfskel --version`
 
 Display version information.
