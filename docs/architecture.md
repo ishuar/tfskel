@@ -28,10 +28,10 @@ tfskel follows a layered, modular architecture that separates concerns and promo
 │  └──────────┘  └──────────┘   └────┬─────┘                  │
 │                                    │                        │
 │                    ┌───────────────┼───────────────┐        │
-│                    │               │               │        │
-│             ┌──────▼──────┐ ┌──────▼──────┐ ┌───── ▼────┐   │
-│             │   version   │ │    plan     │ │    all    │   │
-│             └─────────────┘ └─────────────┘ └───────────┘   │
+│                    │                               │        │
+│             ┌──────▼──────┐                 ┌───── ▼────┐   │
+│             │   version   │                 │    plan   │   │
+│             └─────────────┘                 └───────────┘   │
 └─────────────────────────────────────────────────────────────┘
                             │
                             ▼
@@ -165,7 +165,6 @@ Behavior is driven by configuration, not hardcoded:
 - `drift.go`: Parent drift command
 - `drift_version.go`: Version drift detection command
 - `drift_plan.go`: Plan analysis command
-- `drift_all.go`: Combined drift analysis command
 - `errors.go`: Custom exit error handling
 
 **Dependencies**:
@@ -218,12 +217,6 @@ var (
     ErrPlanFileRequired = errors.New("plan file is required")
     ErrPlanFileNotFound = errors.New("plan file not found")
 )
-
-// drift_all.go
-var (
-    ErrAllAnalysisFailed = errors.New("one or more analyses failed")
-    ErrInvalidSkipFlags  = errors.New("invalid flags: cannot skip all analyses")
-)
 ```
 
 **Key Functions**:
@@ -247,11 +240,6 @@ func runDriftVersions(cmd *cobra.Command, _ []string) error
 
 // drift_plan.go
 func runDriftPlan(cmd *cobra.Command, _ []string) error
-
-// drift_all.go
-func runDriftAll(cmd *cobra.Command, _ []string) error
-func runVersionAnalysis(scanPath string, log *logger.Logger, cmd *cobra.Command) (*VersionDriftSummary, int, error)
-func runPlanAnalysisInternal(planFile string, log *logger.Logger) (*drift.PlanAnalysis, int, error)
 
 // errors.go
 type ExitError struct {
@@ -916,31 +904,6 @@ User runs: tfskel drift plan --plan-file tfplan.json
        ▼
 5. Result
    └─ Plan analysis report with severity and exit code
-```
-
-#### Drift All Flow
-```
-User runs: tfskel drift all --path ./envs --plan-file tfplan.json
-
-1. CLI Layer (cmd/drift_all.go)
-   ├─ Parse flags (path, plan-file, format, skip options)
-   └─ Validate skip flags (both analyses can't be skipped)
-       │
-       ▼
-2. Combined Analysis
-   ├─ Run version analysis (if not skipped)
-   ├─ Run plan analysis (if not skipped)
-   └─ Combine results
-       │
-       ▼
-3. Aggregate Results
-   ├─ Calculate overall status (critical/warning/clean)
-   ├─ Determine exit code (max of both analyses)
-   └─ Format combined output
-       │
-       ▼
-4. Result
-   └─ Unified drift report with overall status
 ```
 
 ### Configuration Loading Flow
