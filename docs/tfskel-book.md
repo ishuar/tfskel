@@ -198,7 +198,7 @@ Configures S3 backend for Terraform state:
 - `backend.s3.bucket_name`: S3 bucket name for state storage
   - **Required**: Cannot be empty or left as placeholder value
   - **Invalid**: Placeholder "CHANGE_ME_WITH_YOUR_GLOBALLY_UNIQUE_S3_BUCKET_NAME" will be rejected
-  - **Must be replaced**: With actual S3 bucket name before running generate command
+  - **Must be replaced**: With actual S3 bucket name before running scaffold command
 - Supports template variables like {{.Env}}, {{.Region}}, {{.AppDir}}
 
 
