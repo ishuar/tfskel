@@ -94,7 +94,7 @@ body:
       description: Please copy and paste any relevant log output (run with --verbose for detailed logs)
       render: shell
       placeholder: |
-        $ tfskel generate --verbose
+        $ tfskel scaffold --verbose
         [ERROR] ...
 
   - type: textarea

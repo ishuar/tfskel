@@ -50,26 +50,26 @@ type Backend struct {
 	S3 *S3Backend `mapstructure:"s3"`
 }
 
-// GithubWorkflows holds GitHub workflows configuration
-type GithubWorkflows struct {
+// Templates holds template directory configuration
+type Templates struct {
+	Dir string `mapstructure:"dir"`
+}
+
+// Workflows holds GitHub workflows configuration
+type Workflows struct {
 	Create       bool   `mapstructure:"create"`
 	NameTemplate string `mapstructure:"name_template"`
 	AWSRoleName  string `mapstructure:"aws_role_name"`
 	AWSRoleArn   string `mapstructure:"aws_role_arn"`
 }
 
-// Generate holds generate command specific configuration
-type Generate struct {
-	GithubWorkflows *GithubWorkflows `mapstructure:"github_workflows"`
-	TemplatesDir    string           `mapstructure:"templates_dir"`
-}
-
 // Config holds the application configuration
 type Config struct {
-	TerraformVersion string    `mapstructure:"terraform_version"`
-	Provider         *Provider `mapstructure:"provider"`
-	Backend          *Backend  `mapstructure:"backend"`
-	Generate         *Generate `mapstructure:"generate"`
+	TerraformVersion string     `mapstructure:"terraform_version"`
+	Provider         *Provider  `mapstructure:"provider"`
+	Backend          *Backend   `mapstructure:"backend"`
+	Templates        *Templates `mapstructure:"templates"`
+	Workflows        *Workflows `mapstructure:"workflows"`
 }
 
 // Load reads configuration from viper and command line flags
@@ -97,7 +97,7 @@ func Load(cmd *cobra.Command, v *viper.Viper) (*Config, error) {
 func applyFlagOverrides(cmd *cobra.Command, cfg *Config) {
 	applyTemplatesDirOverride(cmd, cfg)
 	applyS3BucketNameOverride(cmd, cfg)
-	applyCreateGithubWorkflowsOverride(cmd, cfg)
+	applyWorkflowsOverride(cmd, cfg)
 }
 
 func applyTemplatesDirOverride(cmd *cobra.Command, cfg *Config) {
@@ -106,10 +106,10 @@ func applyTemplatesDirOverride(cmd *cobra.Command, cfg *Config) {
 	}
 	templatesDir, err := cmd.Flags().GetString("templates-dir")
 	if err == nil {
-		if cfg.Generate == nil {
-			cfg.Generate = &Generate{}
+		if cfg.Templates == nil {
+			cfg.Templates = &Templates{}
 		}
-		cfg.Generate.TemplatesDir = templatesDir
+		cfg.Templates.Dir = templatesDir
 	}
 }
 
@@ -130,26 +130,29 @@ func applyS3BucketNameOverride(cmd *cobra.Command, cfg *Config) {
 	cfg.Backend.S3.BucketName = bucketName
 }
 
-func applyCreateGithubWorkflowsOverride(cmd *cobra.Command, cfg *Config) {
-	if !cmd.Flags().Changed("create-github-workflows") {
+func applyWorkflowsOverride(cmd *cobra.Command, cfg *Config) {
+	if !cmd.Flags().Changed("workflows") {
 		return
 	}
-	createWorkflows, err := cmd.Flags().GetBool("create-github-workflows")
+	createWorkflows, err := cmd.Flags().GetBool("workflows")
 	if err != nil {
 		return
 	}
-	// No nil check needed for Generate - always initialized in setDefaults
-	if cfg.Generate.GithubWorkflows == nil {
-		cfg.Generate.GithubWorkflows = &GithubWorkflows{}
+	// Ensure Workflows is initialized before applying overrides (defensive check)
+	if cfg.Workflows == nil {
+		cfg.Workflows = &Workflows{}
 	}
-	cfg.Generate.GithubWorkflows.Create = createWorkflows
+	cfg.Workflows.Create = createWorkflows
 }
 
 // setDefaults initializes default values for unset configuration fields
 func setDefaults(cfg *Config) {
-	// Always initialize Generate to avoid nil checks throughout codebase
-	if cfg.Generate == nil {
-		cfg.Generate = &Generate{}
+	// Always initialize Templates and Workflows to avoid nil checks throughout codebase
+	if cfg.Templates == nil {
+		cfg.Templates = &Templates{}
+	}
+	if cfg.Workflows == nil {
+		cfg.Workflows = &Workflows{}
 	}
 
 	if cfg.TerraformVersion == "" {
@@ -254,14 +257,19 @@ func checkDeprecatedConfig(v *viper.Viper) {
 	// Create a minimal logger for warnings (non-verbose mode)
 	log := logger.New(false)
 
-	// Check for old root-level templates_dir (moved to generate.templates_dir)
-	if v.IsSet("templates_dir") && !v.IsSet("generate.templates_dir") {
-		log.Warnf("DEPRECATION: 'templates_dir' at root level is deprecated, use 'generate.templates_dir' instead (current: %s) - this will be ignored",
+	// Check for old 'generate' section (replaced with 'templates' and 'workflows')
+	if v.IsSet("generate") {
+		log.Warn("DEPRECATION: 'generate' section is deprecated, use 'templates' and 'workflows' sections instead - this will be ignored")
+	}
+
+	// Check for old root-level templates_dir
+	if v.IsSet("templates_dir") {
+		log.Warnf("DEPRECATION: 'templates_dir' at root level is deprecated, use 'templates.dir' instead (current: %s) - this will be ignored",
 			v.GetString("templates_dir"))
 	}
 
-	// Check for old root-level extra_template_extensions (moved to generate.extra_template_extensions)
-	if v.IsSet("extra_template_extensions") || v.IsSet("generate.extra_template_extensions") {
+	// Check for old root-level extra_template_extensions
+	if v.IsSet("extra_template_extensions") {
 		log.Warn("DEPRECATION: 'extra_template_extensions' is no longer supported - all .tmpl files are now processed as templates")
 	}
 }
