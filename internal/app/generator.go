@@ -575,11 +575,11 @@ func (g *Generator) shouldSkipTemplate(tmplPath string) (bool, string) {
 		return true, "root template (init only)"
 	}
 
-	// Skip github templates if create_github_workflows is not enabled
+	// Skip github templates if workflows are not enabled
 	if category == categoryGithub {
 		// Defensive: check Workflows is initialized
 		if g.config.Workflows == nil || !g.config.Workflows.Create {
-			return true, "github template (create-github-workflows not enabled)"
+			return true, "github template (--workflows not enabled)"
 		}
 	}
 

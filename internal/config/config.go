@@ -138,7 +138,7 @@ func applyWorkflowsOverride(cmd *cobra.Command, cfg *Config) {
 	if err != nil {
 		return
 	}
-	// No nil check needed for Workflows - always initialized in setDefaults
+	// Ensure Workflows is initialized before applying overrides (defensive check)
 	if cfg.Workflows == nil {
 		cfg.Workflows = &Workflows{}
 	}

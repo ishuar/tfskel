@@ -31,10 +31,10 @@ func TrimAndValidateInput(input, fieldName string) (string, error) {
 	return trimmed, nil
 }
 
-// ReplaceSpacesWithHyphens replaces all spaces in the input string with hyphens
-// Multiple consecutive spaces are collapsed into a single hyphen
+// ReplaceSpacesWithHyphens replaces runs of whitespace in the input string with hyphens.
+// Multiple consecutive whitespace characters (spaces, tabs, newlines) are collapsed into a single hyphen.
 func ReplaceSpacesWithHyphens(input string) string {
-	// Split by spaces (removes empty strings from consecutive spaces)
+	// Split by whitespace (removes empty strings from consecutive whitespace)
 	parts := strings.Fields(input)
 	// Join with hyphen
 	return strings.Join(parts, "-")

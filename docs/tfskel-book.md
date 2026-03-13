@@ -503,7 +503,6 @@ tfskel scaffold <app-dir> [flags]
 - `--config, -c`: Path to config file (default: .tfskel.yaml in current directory)
 - `--templates-dir`: Directory containing custom template files
 - `--s3-bucket-name`: Override S3 bucket name for Terraform state
-- `--extra-template-extensions`: Additional template file extensions to process
 - `--workflows`: Enable GitHub Actions workflow generation
 - `--verbose, -v`: Enable verbose output
 
@@ -1439,13 +1438,12 @@ module "vpc" {
 }
 EOF
 
-# Generate with custom templates
+# Scaffold with custom templates
 tfskel scaffold myapp --env dev --region us-east-1 --templates-dir custom-templates
 ```
 
 **Supported Custom Templates**:
-- Any file ending in `.tf.tmpl` (processed by default)
-- Additional extensions via `--extra-template-extensions` flag
+- Any file ending in `.tmpl` (all template files are processed automatically)
 
 **Example: Add variables.tf template**:
 ```hcl

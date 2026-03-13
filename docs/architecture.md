@@ -24,7 +24,7 @@ tfskel follows a layered, modular architecture that separates concerns and promo
 │                        CLI Layer                            │
 │                    (cmd/ package)                           │
 │  ┌──────────┐  ┌──────────┐   ┌──────────┐                  │
-│  │   init   │  │    add   │   │  drift   │                  │
+│  │   init   │  │ scaffold │   │  drift   │                  │
 │  └──────────┘  └──────────┘   └────┬─────┘                  │
 │                                    │                        │
 │                    ┌───────────────┼───────────────┐        │
@@ -131,7 +131,7 @@ if err := fs.WriteFile(path, content); err != nil {
 ```go
 // Developer error - panic during init
 mustBindPFlag := func(key string, flagName string) {
-    if err := viper.BindPFlag(key, addCmd.Flags().Lookup(flagName)); err != nil {
+    if err := viper.BindPFlag(key, scaffoldCmd.Flags().Lookup(flagName)); err != nil {
         panic(fmt.Sprintf("failed to bind flag %s to config key %s: %v", flagName, key, err))
     }
 }
@@ -183,15 +183,16 @@ Behavior is driven by configuration, not hardcoded:
 ```go
 // Fail-fast helper for flag binding - panics on developer errors
 mustBindPFlag := func(key string, flagName string) {
-    if err := viper.BindPFlag(key, addCmd.Flags().Lookup(flagName)); err != nil {
+    if err := viper.BindPFlag(key, scaffoldCmd.Flags().Lookup(flagName)); err != nil {
         panic(fmt.Sprintf("failed to bind flag %s to config key %s: %v", flagName, key, err))
     }
 }
 
 // Bind flags to viper with strict validation
-mustBindPFlag("generate.templates_dir", "templates-dir")
+mustBindPFlag("templates.dir", "templates-dir")
 mustBindPFlag("backend.s3.bucket_name", "s3-bucket-name")
-mustBindPFlag("generate.github_workflows.create", "create-github-workflows")
+mustBindPFlag("workflows.create", "workflows")
+```
 ```
 
 **Sentinel Errors**:
@@ -239,7 +240,7 @@ func initConfig()
 func runInit(cmd *cobra.Command, _ []string) error
 
 // scaffold.go
-func runAdd(cmd *cobra.Command, args []string) error
+func runScaffold(cmd *cobra.Command, args []string) error
 
 // drift_version.go
 func runDriftVersions(cmd *cobra.Command, _ []string) error
@@ -453,7 +454,8 @@ type Config struct {
     TerraformVersion string    `mapstructure:"terraform_version"`
     Provider         *Provider `mapstructure:"provider"`
     Backend          *Backend  `mapstructure:"backend"`
-    Generate         *Generate `mapstructure:"generate"`
+    Templates        *Templates `mapstructure:"templates"`
+    Workflows        *Workflows `mapstructure:"workflows"`
 }
 
 type Provider struct {
@@ -475,13 +477,13 @@ type S3Backend struct {
     BucketName string `mapstructure:"bucket_name"`
 }
 
-// Generate holds add command specific configuration
-type Generate struct {
-    GithubWorkflows *GithubWorkflows `mapstructure:"github_workflows"`
-    TemplatesDir    string           `mapstructure:"templates_dir"`
+// Templates holds scaffold command specific template configuration
+type Templates struct {
+    Dir string `mapstructure:"dir"`
 }
 
-type GithubWorkflows struct {
+// Workflows holds GitHub Actions workflow configuration
+type Workflows struct {
     Create       bool   `mapstructure:"create"`
     NameTemplate string `mapstructure:"name_template"`
     AWSRoleName  string `mapstructure:"aws_role_name"`

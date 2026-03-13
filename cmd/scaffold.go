@@ -58,7 +58,7 @@ var (
 func init() {
 	rootCmd.AddCommand(scaffoldCmd)
 
-	// Required flags for generation
+	// Required flags for scaffolding
 	scaffoldCmd.Flags().StringVarP(&env, "env", "e", "", "target environment (e.g., dev, stg, prd) - required")
 	scaffoldCmd.Flags().StringVarP(&region, "region", "r", "", "AWS region (e.g., us-east-1, eu-central-1) - required")
 	// These are critical flags - errors should be handled during command setup, but cobra handles this internally
@@ -97,7 +97,7 @@ func runScaffold(cmd *cobra.Command, args []string) error {
 	// Get app directory from positional argument
 	appDir := args[0]
 
-	// Validate and trim generation parameters
+	// Validate and trim scaffolding parameters
 	trimmedEnv, trimmedRegion, trimmedAppDir, err := validateScaffoldParams(env, region, appDir)
 	if err != nil {
 		cmd.SilenceUsage = true
@@ -120,7 +120,7 @@ func runScaffold(cmd *cobra.Command, args []string) error {
 	// Create filesystem abstraction
 	filesystem := fs.NewOSFileSystem()
 
-	// Create and run the generator with trimmed generation parameters
+	// Create and run the generator with trimmed scaffolding parameters
 	generator := app.NewGenerator(cfg, filesystem, log)
 	if err := generator.Run(trimmedEnv, trimmedRegion, trimmedAppDir); err != nil {
 		cmd.SilenceUsage = true
@@ -131,7 +131,7 @@ func runScaffold(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// validateScaffoldParams validates and trims the generation parameters
+// validateScaffoldParams validates and trims the scaffolding parameters
 // Returns trimmed values if validation passes
 // For appDir, any spaces are replaced with hyphens after trimming
 func validateScaffoldParams(env, region, appDir string) (string, string, string, error) {

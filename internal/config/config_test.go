@@ -371,7 +371,7 @@ func TestWorkflows_Create(t *testing.T) {
 		expected bool
 	}{
 		{
-			name: "create_github_workflows enabled via config",
+			name: "workflows enabled via config",
 			config: &Config{
 				Workflows: &Workflows{
 					Create: true,
@@ -380,7 +380,7 @@ func TestWorkflows_Create(t *testing.T) {
 			expected: true,
 		},
 		{
-			name: "create_github_workflows disabled via config",
+			name: "workflows disabled via config",
 			config: &Config{
 				Workflows: &Workflows{
 					Create: false,
@@ -389,14 +389,14 @@ func TestWorkflows_Create(t *testing.T) {
 			expected: false,
 		},
 		{
-			name: "create_github_workflows not set (nil Workflows)",
+			name: "workflows not set (nil Workflows)",
 			config: &Config{
 				Workflows: nil,
 			},
 			expected: false,
 		},
 		{
-			name:     "create_github_workflows not set (empty config)",
+			name:     "workflows not set (empty config)",
 			config:   &Config{},
 			expected: false,
 		},
