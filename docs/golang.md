@@ -604,17 +604,17 @@ func (c *Config) GetAccountID(env string) (string, error) {
 **Error Propagation in CLI (cmd/generate.go)**:
 
 ```go
-func runGenerate(cmd *cobra.Command, args []string) error {
+func runScaffold(cmd *cobra.Command, args []string) error {
     log := logger.New(viper.GetBool("verbose"))
 
-    log.Debug("Starting generate command")
+    log.Debug("Starting scaffold command")
     log.Info("Starting Terraform directory scaffolding...")
 
     // Get app directory from positional argument
     appDir := args[0]
 
-    // Validate generation parameters
-    if err := validateGenerateParams(env, region, appDir); err != nil {
+    // Validate scaffolding parameters
+    if err := validateScaffoldParams(env, region, appDir); err != nil {
         cmd.SilenceUsage = true
         return fmt.Errorf("invalid parameters: %w", err)
     }
@@ -1197,9 +1197,9 @@ func processFile() error {
 }
 
 // Panic: Use for developer errors (not user errors)
-// Example from cmd/generate.go - flag binding errors are developer mistakes
+// Example from cmd/scaffold.go - flag binding errors are developer mistakes
 mustBindPFlag := func(key string, flagName string) {
-    if err := viper.BindPFlag(key, generateCmd.Flags().Lookup(flagName)); err != nil {
+    if err := viper.BindPFlag(key, scaffoldCmd.Flags().Lookup(flagName)); err != nil {
         // This should never happen unless code has a bug
         panic(fmt.Sprintf("failed to bind flag %s to config key %s: %v", flagName, key, err))
     }
@@ -1240,7 +1240,7 @@ _ = viper.BindPFlag("key", flag)
 
 // ✅ Good: Panic for developer errors during initialization
 mustBindPFlag := func(key string, flagName string) {
-    if err := viper.BindPFlag(key, generateCmd.Flags().Lookup(flagName)); err != nil {
+    if err := viper.BindPFlag(key, scaffoldCmd.Flags().Lookup(flagName)); err != nil {
         panic(fmt.Sprintf("failed to bind flag %s to config key %s: %v", flagName, key, err))
     }
 }

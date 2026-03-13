@@ -38,7 +38,7 @@ It gives you a clean, opinionated foundation that keeps your Terraform projects 
 ### Features
 
 1. Enforce consistent project structure across environments
-2. Add Terraform code using clean, maintainable templates
+2. Scaffold Terraform code using clean, maintainable templates
 3. Detect AWS provider and Terraform version drift across the entire repo
 4. Analyze Terraform plans to make reviews easier and safer with custom resources severity
 5. Stay vanilla — no wrappers, no lock-in, just Terraform
@@ -111,7 +111,7 @@ tfskel init --config /path/to/config.yaml
   <img src="assets/tfskel-init.gif" alt="tfskel init demo" width="600" />
 </p>
 
-### `tfskel add`
+### `tfskel scaffold`
 
 It accepts any subcommand as an input for target app-dir and creates per-application root module directories with a pre-configured `backend.tf` (S3 with state locking and encryption) and a `versions.tf` with pinned Terraform and AWS provider versions, plus optional GitHub Actions workflows. You can extend this with your own `.tmpl` files — any custom template you place in your templates directory is processed alongside the built-in defaults; if the same filename is provided, the custom template takes precedence.
 
@@ -121,27 +121,30 @@ It accepts any subcommand as an input for target app-dir and creates per-applica
 | `--region` | `-r` | *(required)* | AWS region (e.g. `us-east-1`, `eu-central-1`) |
 | `--templates-dir` | | `""` | Directory containing custom `.tmpl` template files |
 | `--s3-bucket-name` | | `""` | S3 bucket name for Terraform state (overrides config) |
-| `--create-github-workflows` | | `false` | Generate GitHub Actions workflow files from default templates |
+| `--workflows` | | `false` | Generate GitHub Actions workflow files from default templates |
 
 ```bash
-# Add structure for an app in dev/us-east-1
-tfskel add myapp --env dev --region us-east-1
+# Scaffold structure for an app in dev/us-east-1
+tfskel scaffold myapp --env dev --region us-east-1
 
-# Add with a custom templates directory
-tfskel add myapp --env stg --region eu-central-1 --templates-dir ./templates
+# Scaffold with a custom templates directory
+tfskel scaffold myapp --env stg --region eu-central-1 --templates-dir ./templates
 
 # Override S3 bucket name at runtime
-tfskel add myapp --env prd --region us-east-1 --s3-bucket-name my-tf-state-bucket
+tfskel scaffold myapp --env prd --region us-east-1 --s3-bucket-name my-tf-state-bucket
 
 # Also create GitHub Actions workflow files
-tfskel add myapp --env dev --region us-east-1 --create-github-workflows
+tfskel scaffold myapp --env dev --region us-east-1 --workflows
 
-# Add with a custom config file
-tfskel add myapp --config ./my-config.yaml --env dev --region us-east-1
+# Scaffold with a custom config file
+tfskel scaffold myapp --config ./my-config.yaml --env dev --region us-east-1
+
+# Using the short alias
+tfskel sc myapp --env dev --region us-east-1
 ```
 
 <p align="left">
-<img src="assets/tfskel-add.gif" alt="tfskel add demo" width="600" />
+<img src="assets/tfskel-scaffold.gif" alt="tfskel scaffold demo" width="600" />
 </p>
 
 > [!Note]
@@ -267,13 +270,13 @@ Create a `.tfskel.yaml` in your project root to customise defaults:
 
 ### Template context variables
 
-The following config fields accept Go template syntax: `backend.s3.bucket_name`, `generate.github_workflows.name_template`, `generate.github_workflows.aws_role_arn`, and `generate.github_workflows.aws_role_name`.
+The following config fields accept Go template syntax: `backend.s3.bucket_name`, `workflows.name_template`, `workflows.aws_role_arn`, and `workflows.aws_role_name`.
 
-All placeholders are populated from the `tfskel add` invocation:
+All placeholders are populated from the `tfskel scaffold` invocation:
 
 | Placeholder               | Source                                         | Description                                                                         | Example value                                          |
 |---------------------------|------------------------------------------------|-------------------------------------------------------------------------------------|--------------------------------------------------------|
-| `{{.AppDir}}`             | `<app-dir>` argument to `tfskel add`           | Application directory name. Path separators `/` are replaced with `-` in filenames. | `myapp`, `base-infra-ecs`                              |
+| `{{.AppDir}}`             | `<app-dir>` argument to `tfskel scaffold`      | Application directory name. Path separators `/` are replaced with `-` in filenames. | `myapp`, `base-infra-ecs`                              |
 | `{{.Env}}`                | `--env` / `-e` flag                            | Target environment.                                                                 | `dev`, `stg`, `prd`                                    |
 | `{{.Region}}`             | `--region` / `-r` flag                         | Full AWS region name.                                                               | `eu-central-1`, `us-east-1`                            |
 | `{{.ShortRegion}}`        | Derived from `--region` / `-r` flag            | Abbreviated region (e.g. `eu-central-1` → `euc1`).                                  | `euc1`, `use1`                                         |
