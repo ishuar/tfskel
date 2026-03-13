@@ -225,41 +225,6 @@ tfskel drift plan --plan-file plan.json --format json --no-color
 <img src="assets/tfskel-drift-plan.gif" alt="tfskel drift plan demo" width="600" />
 </p>
 
-#### `tfskel drift all`
-
-Run both version drift and plan analysis together and provide a unified summarised output. Ideal for pre-commit hooks, CI/CD pipelines, and code reviews.
-
-| Flag | Short | Default | Description |
-|---|---|---|---|
-| `--path` | `-p` | `.` (current dir) | Path to scan for Terraform files |
-| `--plan-file` | | `""` | Path to Terraform plan JSON file (optional) |
-| `--format` | `-f` | `table` | Output format: `table`, `json`, `csv` |
-| `--no-color` | | `false` | Disable colored output |
-| `--skip-plan` | | `false` | Skip plan analysis (run version drift only) |
-| `--skip-versions` | | `false` | Skip version drift analysis (run plan analysis only) |
-
-**Exit codes:**
-
-| Code | Meaning |
-|---|---|
-| `0` | No issues found |
-| `1` | Version drift or non-critical plan changes detected |
-| `2` | Critical changes (deletions/replacements) or major version drift |
-
-```bash
-# Run both version drift and plan analysis
-tfskel drift all --plan-file plan.json --path /path/to/your/terraform-directories
-
-# Skip plan analysis — version drift only
-tfskel drift all --skip-plan
-
-# Skip version drift — plan only
-tfskel drift all --plan-file plan.json --skip-versions
-
-# CI/CD usage with JSON output and no colors
-tfskel drift all --plan-file plan.json --format json --no-color
-```
-
 ## Configuration
 
 Create a `.tfskel.yaml` in your project root to customise defaults:
