@@ -1846,10 +1846,8 @@ func TestGenerator_generateWorkflowFileName(t *testing.T) {
 				ShortRegion: "use1",
 			},
 			config: &config.Config{
-				Generate: &config.Generate{
-					GithubWorkflows: &config.GithubWorkflows{
-						NameTemplate: "{{.AppDir}}-{{.Env}}",
-					},
+				Workflows: &config.Workflows{
+					NameTemplate: "{{.AppDir}}-{{.Env}}",
 				},
 			},
 			expectedOutput: "myapp-dev-lint.yaml",
@@ -1864,10 +1862,8 @@ func TestGenerator_generateWorkflowFileName(t *testing.T) {
 				ShortRegion: "use1",
 			},
 			config: &config.Config{
-				Generate: &config.Generate{
-					GithubWorkflows: &config.GithubWorkflows{
-						NameTemplate: "{{.AppDir",
-					},
+				Workflows: &config.Workflows{
+					NameTemplate: "{{.AppDir",
 				},
 			},
 			expectedOutput: "",
@@ -1985,10 +1981,8 @@ func TestGenerator_GitHubWorkflows_Integration(t *testing.T) {
 					BucketName: "test-bucket",
 				},
 			},
-			Generate: &config.Generate{
-				GithubWorkflows: &config.GithubWorkflows{
-					Create: true,
-				},
+			Workflows: &config.Workflows{
+				Create: true,
 			},
 		}
 
@@ -2045,10 +2039,8 @@ func TestGenerator_GitHubWorkflows_Integration(t *testing.T) {
 					BucketName: "test-bucket",
 				},
 			},
-			Generate: &config.Generate{
-				GithubWorkflows: &config.GithubWorkflows{
-					Create: false,
-				},
+			Workflows: &config.Workflows{
+				Create: false,
 			},
 		}
 
@@ -2100,7 +2092,7 @@ func TestGenerator_GitHubWorkflows_Integration(t *testing.T) {
 					BucketName: "test-bucket",
 				},
 			},
-			Generate: nil, // No Generate config provided
+			Workflows: nil, // No Workflows config provided
 		}
 
 		filesystem := fs.NewMemoryFileSystem()
@@ -2126,9 +2118,9 @@ func TestGenerator_GitHubWorkflows_Integration(t *testing.T) {
 		expectedTerraformWorkflow := ".github/workflows/testapp-dev-euc1-terraform.yaml"
 
 		assert.False(t, filesystem.FileExists(expectedLintWorkflow),
-			"lint workflow should not exist when Generate config is nil")
+			"lint workflow should not exist when Workflows config is nil")
 		assert.False(t, filesystem.FileExists(expectedTerraformWorkflow),
-			"terraform workflow should not exist when Generate config is nil")
+			"terraform workflow should not exist when Workflows config is nil")
 	})
 
 	t.Run("does not overwrite existing workflow files", func(t *testing.T) {
@@ -2147,10 +2139,8 @@ func TestGenerator_GitHubWorkflows_Integration(t *testing.T) {
 					BucketName: "test-bucket",
 				},
 			},
-			Generate: &config.Generate{
-				GithubWorkflows: &config.GithubWorkflows{
-					Create: true,
-				},
+			Workflows: &config.Workflows{
+				Create: true,
 			},
 		}
 
@@ -2199,10 +2189,8 @@ func TestGenerator_GitHubWorkflows_Integration(t *testing.T) {
 					BucketName: "test-bucket",
 				},
 			},
-			Generate: &config.Generate{
-				GithubWorkflows: &config.GithubWorkflows{
-					Create: true,
-				},
+			Workflows: &config.Workflows{
+				Create: true,
 			},
 		}
 
@@ -2267,11 +2255,9 @@ func TestGenerator_buildAWSRoleArn(t *testing.T) {
 						},
 					},
 				},
-				Generate: &config.Generate{
-					GithubWorkflows: &config.GithubWorkflows{
-						AWSRoleArn:  "arn:aws:iam::999999999999:role/CustomRole",
-						AWSRoleName: "ShouldBeIgnored",
-					},
+				Workflows: &config.Workflows{
+					AWSRoleArn:  "arn:aws:iam::999999999999:role/CustomRole",
+					AWSRoleName: "ShouldBeIgnored",
 				},
 			},
 			data: &templates.Data{
@@ -2294,10 +2280,8 @@ func TestGenerator_buildAWSRoleArn(t *testing.T) {
 						},
 					},
 				},
-				Generate: &config.Generate{
-					GithubWorkflows: &config.GithubWorkflows{
-						AWSRoleName: "TerraformDeployRole",
-					},
+				Workflows: &config.Workflows{
+					AWSRoleName: "TerraformDeployRole",
 				},
 			},
 			data: &templates.Data{
@@ -2320,9 +2304,7 @@ func TestGenerator_buildAWSRoleArn(t *testing.T) {
 						},
 					},
 				},
-				Generate: &config.Generate{
-					GithubWorkflows: &config.GithubWorkflows{},
-				},
+				Workflows: &config.Workflows{},
 			},
 			data: &templates.Data{
 				Env:         "dev",
@@ -2344,9 +2326,7 @@ func TestGenerator_buildAWSRoleArn(t *testing.T) {
 						},
 					},
 				},
-				Generate: &config.Generate{
-					GithubWorkflows: nil,
-				},
+				Workflows: nil,
 			},
 			data: &templates.Data{
 				Env:         "dev",
@@ -2368,7 +2348,7 @@ func TestGenerator_buildAWSRoleArn(t *testing.T) {
 						},
 					},
 				},
-				Generate: nil,
+				Workflows: nil,
 			},
 			data: &templates.Data{
 				Env:         "dev",
@@ -2391,10 +2371,8 @@ func TestGenerator_buildAWSRoleArn(t *testing.T) {
 						},
 					},
 				},
-				Generate: &config.Generate{
-					GithubWorkflows: &config.GithubWorkflows{
-						AWSRoleName: "TerraformDeployRole",
-					},
+				Workflows: &config.Workflows{
+					AWSRoleName: "TerraformDeployRole",
 				},
 			},
 			data: &templates.Data{
@@ -2417,10 +2395,8 @@ func TestGenerator_buildAWSRoleArn(t *testing.T) {
 						},
 					},
 				},
-				Generate: &config.Generate{
-					GithubWorkflows: &config.GithubWorkflows{
-						AWSRoleArn: "arn:aws:iam::{{.AccountID}}:role/terraform-{{.Env | toUpper}}-role",
-					},
+				Workflows: &config.Workflows{
+					AWSRoleArn: "arn:aws:iam::{{.AccountID}}:role/terraform-{{.Env | toUpper}}-role",
 				},
 			},
 			data: &templates.Data{
@@ -2443,10 +2419,8 @@ func TestGenerator_buildAWSRoleArn(t *testing.T) {
 						},
 					},
 				},
-				Generate: &config.Generate{
-					GithubWorkflows: &config.GithubWorkflows{
-						AWSRoleName: "terraform-{{.Env}}-deploy-role",
-					},
+				Workflows: &config.Workflows{
+					AWSRoleName: "terraform-{{.Env}}-deploy-role",
 				},
 			},
 			data: &templates.Data{
@@ -2469,10 +2443,8 @@ func TestGenerator_buildAWSRoleArn(t *testing.T) {
 						},
 					},
 				},
-				Generate: &config.Generate{
-					GithubWorkflows: &config.GithubWorkflows{
-						AWSRoleName: "TERRAFORM-{{.Env | toUpper}}-ROLE",
-					},
+				Workflows: &config.Workflows{
+					AWSRoleName: "TERRAFORM-{{.Env | toUpper}}-ROLE",
 				},
 			},
 			data: &templates.Data{
@@ -2495,10 +2467,8 @@ func TestGenerator_buildAWSRoleArn(t *testing.T) {
 						},
 					},
 				},
-				Generate: &config.Generate{
-					GithubWorkflows: &config.GithubWorkflows{
-						AWSRoleName: "terraform-{{.Env}}-{{.ShortRegion}}-role",
-					},
+				Workflows: &config.Workflows{
+					AWSRoleName: "terraform-{{.Env}}-{{.ShortRegion}}-role",
 				},
 			},
 			data: &templates.Data{
@@ -2521,10 +2491,8 @@ func TestGenerator_buildAWSRoleArn(t *testing.T) {
 						},
 					},
 				},
-				Generate: &config.Generate{
-					GithubWorkflows: &config.GithubWorkflows{
-						AWSRoleName: "{{.AppDir}}-{{.Env}}-deploy",
-					},
+				Workflows: &config.Workflows{
+					AWSRoleName: "{{.AppDir}}-{{.Env}}-deploy",
 				},
 			},
 			data: &templates.Data{
@@ -2547,10 +2515,8 @@ func TestGenerator_buildAWSRoleArn(t *testing.T) {
 						},
 					},
 				},
-				Generate: &config.Generate{
-					GithubWorkflows: &config.GithubWorkflows{
-						AWSRoleArn: "arn:aws:iam::{{.AccountID:role/invalid",
-					},
+				Workflows: &config.Workflows{
+					AWSRoleArn: "arn:aws:iam::{{.AccountID:role/invalid",
 				},
 			},
 			data: &templates.Data{
@@ -2573,10 +2539,8 @@ func TestGenerator_buildAWSRoleArn(t *testing.T) {
 						},
 					},
 				},
-				Generate: &config.Generate{
-					GithubWorkflows: &config.GithubWorkflows{
-						AWSRoleName: "terraform-{{.Env",
-					},
+				Workflows: &config.Workflows{
+					AWSRoleName: "terraform-{{.Env",
 				},
 			},
 			data: &templates.Data{
@@ -2599,10 +2563,8 @@ func TestGenerator_buildAWSRoleArn(t *testing.T) {
 						},
 					},
 				},
-				Generate: &config.Generate{
-					GithubWorkflows: &config.GithubWorkflows{
-						AWSRoleArn: "arn:aws:iam::999999999999:role/StaticRole",
-					},
+				Workflows: &config.Workflows{
+					AWSRoleArn: "arn:aws:iam::999999999999:role/StaticRole",
 				},
 			},
 			data: &templates.Data{
@@ -2847,10 +2809,8 @@ func TestGenerator_generateWorkflowFileName_WithSlashedAppDir(t *testing.T) {
 				ShortRegion: "euw1",
 			},
 			config: &config.Config{
-				Generate: &config.Generate{
-					GithubWorkflows: &config.GithubWorkflows{
-						NameTemplate: "{{.AppDir}}-{{.Env}}",
-					},
+				Workflows: &config.Workflows{
+					NameTemplate: "{{.AppDir}}-{{.Env}}",
 				},
 			},
 			expectedOutput: "base-infra-ecs-cluster-stg-lint.yaml",
@@ -2895,10 +2855,8 @@ func TestGenerator_GitHubWorkflows_SlashedAppDir_Integration(t *testing.T) {
 					BucketName: "test-bucket",
 				},
 			},
-			Generate: &config.Generate{
-				GithubWorkflows: &config.GithubWorkflows{
-					Create: true,
-				},
+			Workflows: &config.Workflows{
+				Create: true,
 			},
 		}
 

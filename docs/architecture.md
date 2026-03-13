@@ -23,9 +23,15 @@ tfskel follows a layered, modular architecture that separates concerns and promo
 ┌─────────────────────────────────────────────────────────────┐
 │                        CLI Layer                            │
 │                    (cmd/ package)                           │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐                   │
-│  │   init   │  │ generate │  │  version │                   │
-│  └──────────┘  └──────────┘  └──────────┘                   │
+│  ┌──────────┐  ┌──────────┐   ┌──────────┐                  │
+│  │   init   │  │ scaffold │   │  drift   │                  │
+│  └──────────┘  └──────────┘   └────┬─────┘                  │
+│                                    │                        │
+│                    ┌───────────────┼───────────────┐        │
+│                    │               │               │        │
+│             ┌──────▼──────┐ ┌──────▼──────┐ ┌───── ▼────┐   │
+│             │   version   │ │    plan     │ │    all    │   │
+│             └─────────────┘ └─────────────┘ └───────────┘   │
 └─────────────────────────────────────────────────────────────┘
                             │
                             ▼
@@ -57,14 +63,16 @@ tfskel follows a layered, modular architecture that separates concerns and promo
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                   Support Layer                             │
-│  ┌──────────────┐   ┌──────────────┐                        │
-│  │   Logger     │   │   Utilities  │                        │
-│  │ (internal/   │   │ (internal/   │                        │
-│  │  logger)     │   │  util)       │                        │
-│  │              │   │              │                        │
-│  │ - Structured │   │ - Transform  │                        │
-│  │   logging    │   │ - Validation │                        │
-│  └──────────────┘   └──────────────┘                        │
+│  ┌──────────────┐   ┌──────────────┐   ┌──────────────┐     │
+│  │   Logger     │   │   Drift      │   │   Utilities  │     │
+│  │ (internal/   │   │ (internal/   │   │ (internal/   │     │
+│  │  logger)     │   │   drift)     │   │   util)      │     │
+│  │              │   │              │   │              │     │
+│  │ - Structured │   │ - Version    │   │ - Transform  │     │
+│  │   logging    │   │   detection  │   │ - Validation │     │
+│  │              │   │ - Plan       │   │              │     │
+│  │              │   │   analysis   │   │              │     │
+│  └──────────────┘   └──────────────┘   └──────────────┘     │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -123,7 +131,7 @@ if err := fs.WriteFile(path, content); err != nil {
 ```go
 // Developer error - panic during init
 mustBindPFlag := func(key string, flagName string) {
-    if err := viper.BindPFlag(key, generateCmd.Flags().Lookup(flagName)); err != nil {
+    if err := viper.BindPFlag(key, scaffoldCmd.Flags().Lookup(flagName)); err != nil {
         panic(fmt.Sprintf("failed to bind flag %s to config key %s: %v", flagName, key, err))
     }
 }
@@ -152,7 +160,7 @@ Behavior is driven by configuration, not hardcoded:
 **Components**:
 - `root.go`: Root command and global flags
 - `init.go`: Initialize new project command
-- `generate.go`: Generate project command
+- `scaffold.go`: Scaffold Terraform project structure (generates env/region/app directories)
 - `version.go`: Version constant
 - `drift.go`: Parent drift command
 - `drift_version.go`: Version drift detection command
@@ -171,25 +179,57 @@ Behavior is driven by configuration, not hardcoded:
 - **Runtime errors**: Returned with context wrapping
 - **Consistent approach**: All commands use same error handling pattern
 
-**Flag Binding Pattern** (in `generate.go`):
+**Flag Binding Pattern** (in `scaffold.go`):
 ```go
 // Fail-fast helper for flag binding - panics on developer errors
 mustBindPFlag := func(key string, flagName string) {
-    if err := viper.BindPFlag(key, generateCmd.Flags().Lookup(flagName)); err != nil {
+    if err := viper.BindPFlag(key, scaffoldCmd.Flags().Lookup(flagName)); err != nil {
         panic(fmt.Sprintf("failed to bind flag %s to config key %s: %v", flagName, key, err))
     }
 }
 
 // Bind flags to viper with strict validation
-mustBindPFlag("generate.templates_dir", "templates-dir")
+mustBindPFlag("templates.dir", "templates-dir")
 mustBindPFlag("backend.s3.bucket_name", "s3-bucket-name")
-mustBindPFlag("generate.github_workflows.create", "create-github-workflows")
+mustBindPFlag("workflows.create", "workflows")
+```
+```
+
+**Sentinel Errors**:
+```go
+// scaffold.go
+// Input validation now uses util.TrimAndValidateInput and returns wrapped errors.
+// No exported sentinel errors are defined for this command.
+
+// init.go
+var (
+    ErrUnsupportedDataType   = errors.New("unsupported data type for template rendering")
+    ErrMissingAccountMapping = errors.New("provider.aws.account_mapping is missing or empty")
+)
+
+// drift_version.go
+var (
+    ErrPathDoesNotExist = errors.New("path does not exist")
+    ErrPathNotDirectory = errors.New("path is not a directory")
+)
+
+// drift_plan.go
+var (
+    ErrPlanFileRequired = errors.New("plan file is required")
+    ErrPlanFileNotFound = errors.New("plan file not found")
+)
+
+// drift_all.go
+var (
+    ErrAllAnalysisFailed = errors.New("one or more analyses failed")
+    ErrInvalidSkipFlags  = errors.New("invalid flags: cannot skip all analyses")
+)
 ```
 
 **Key Functions**:
 ```go
 // version.go
-const Version = "0.2.2"  // x-release-please-version (Updated by release-please)
+const Version = "0.3.0"  // x-release-please-version (Updated by release-please)
 
 // root.go
 var Commit, Date, BuildTime string  // Build metadata
@@ -199,8 +239,8 @@ func initConfig()
 // init.go
 func runInit(cmd *cobra.Command, _ []string) error
 
-// generate.go
-func runGenerate(cmd *cobra.Command, args []string) error
+// scaffold.go
+func runScaffold(cmd *cobra.Command, args []string) error
 
 // drift_version.go
 func runDriftVersions(cmd *cobra.Command, _ []string) error
@@ -210,6 +250,8 @@ func runDriftPlan(cmd *cobra.Command, _ []string) error
 
 // drift_all.go
 func runDriftAll(cmd *cobra.Command, _ []string) error
+func runVersionAnalysis(scanPath string, log *logger.Logger, cmd *cobra.Command) (*VersionDriftSummary, int, error)
+func runPlanAnalysisInternal(planFile string, log *logger.Logger) (*drift.PlanAnalysis, int, error)
 
 // errors.go
 type ExitError struct {
@@ -245,18 +287,20 @@ func (g *Generator) shouldRegenerateFile(filePath string, data map[string]string
 ```
 
 **Workflow**:
-1. Load configuration from .tfskel.yaml
-2. Validate configuration structure:
+1. Load configuration from .tfskel.yaml (via config.Load)
+2. Validate configuration structure (via cfg.Validate):
    - AWS provider exists with account_mapping
    - All account IDs are exactly 12-digit numbers (validateAccountIDs)
    - Backend S3 bucket_name is set and not placeholder
-3. Prepare template data for environment:
+3. Create Generator with validated config, filesystem, and logger
+4. Prepare template data for environment:
    - Call GetAccountID(env) to retrieve and validate account ID exists for environment
    - Returns descriptive error with available environments if not found
-4. Create directory structure
-5. Render templates with validated configuration data (guaranteed valid account ID)
-6. Write rendered files to file system
-7. Log progress and results
+5. Create directory structure (env/region/appDir hierarchy)
+6. Render templates with validated configuration data (guaranteed valid account ID)
+7. Write rendered files to file system
+8. Generate optional GitHub workflow files if requested
+9. Log progress and results
 
 **Error Handling Flow**:
 - Configuration validation errors stop execution before any file operations
@@ -410,7 +454,8 @@ type Config struct {
     TerraformVersion string    `mapstructure:"terraform_version"`
     Provider         *Provider `mapstructure:"provider"`
     Backend          *Backend  `mapstructure:"backend"`
-    Generate         *Generate `mapstructure:"generate"`
+    Templates        *Templates `mapstructure:"templates"`
+    Workflows        *Workflows `mapstructure:"workflows"`
 }
 
 type Provider struct {
@@ -432,13 +477,13 @@ type S3Backend struct {
     BucketName string `mapstructure:"bucket_name"`
 }
 
-// Generate holds generate command specific configuration
-type Generate struct {
-    GithubWorkflows *GithubWorkflows `mapstructure:"github_workflows"`
-    TemplatesDir    string           `mapstructure:"templates_dir"`
+// Templates holds scaffold command specific template configuration
+type Templates struct {
+    Dir string `mapstructure:"dir"`
 }
 
-type GithubWorkflows struct {
+// Workflows holds GitHub Actions workflow configuration
+type Workflows struct {
     Create       bool   `mapstructure:"create"`
     NameTemplate string `mapstructure:"name_template"`
     AWSRoleName  string `mapstructure:"aws_role_name"`
@@ -488,6 +533,29 @@ var funcMap = template.FuncMap{
     "join":            strings.Join,
     "split":           strings.Split,
     "stripConstraint": stripConstraint,  // Strips version constraint operators like ~>, >=, etc.
+}
+
+// stripConstraint removes version constraint operators and returns just the version number
+// Example: "~> 1.14.3" -> "1.14.3"
+func stripConstraint(version string) string
+```
+
+**Template Data Structure**:
+```go
+// Data holds all the data needed for template rendering
+type Data struct {
+    Env                string
+    Region             string
+    AppDir             string
+    AccountID          string
+    ShortRegion        string            // Compact region name (e.g., euc1)
+    S3BucketName       string
+    TerraformVersion   string
+    AWSProviderVersion string
+    DefaultTags        map[string]string
+    DefaultTagsJSON    string            // JSON string for metadata comments
+    AWSRoleArn         string            // AWS role ARN for terraform workflows
+    WorkflowFileName   string            // Generated workflow filename for self-reference
 }
 ```
 
@@ -611,12 +679,14 @@ func (l *Logger) Errorf(format string, args ...interface{})
 - `version_detector.go`: Scans directories for Terraform files and extracts version info
 - `version_analyzer.go`: Compares versions against expected configuration
 - `version_formatter.go`: Formats version drift results (table, JSON, CSV)
+- `version_models.go`: Data models for version analysis
 - `plan_parser.go`: Parses Terraform plan JSON files
 - `plan_analyzer.go`: Analyzes plan changes and categorizes severity
 - `plan_formatter.go`: Formats plan analysis results
+- `plan_models.go`: Data models for plan analysis
 - `config.go`: Drift-specific configuration
 - `critical_resources.go`: Defines critical AWS resources for severity analysis
-
+- `styles.go`: Terminal styling for formatted output
 
 **API**:
 ```go
@@ -628,6 +698,11 @@ func (d *Detector) ScanDirectory() ([]VersionInfo, error)
 func NewVersionAnalyzer(cfg *config.Config) *VersionAnalyzer
 func (a *VersionAnalyzer) Analyze(versionInfo []VersionInfo) *VersionsAnalysis
 
+// Version Formatting
+func FormatVersionsTable(analysis *VersionsAnalysis, noColor bool) (string, error)
+func FormatVersionsJSON(analysis *VersionsAnalysis) (string, error)
+func FormatVersionsCSV(analysis *VersionsAnalysis) (string, error)
+
 // Plan Parsing
 func ParsePlanFile(filename string) (*TerraformPlan, error)
 
@@ -635,6 +710,9 @@ func ParsePlanFile(filename string) (*TerraformPlan, error)
 func NewPlanAnalyzer() *PlanAnalyzer
 func NewPlanAnalyzerWithConfig(v *viper.Viper) *PlanAnalyzer
 func (a *PlanAnalyzer) Analyze(plan *TerraformPlan) *PlanAnalysis
+
+// Plan Formatting
+func FormatPlanAnalysis(analysis *PlanAnalysis, format OutputFormat, noColor bool) (string, error)
 
 // Critical Resources
 func DefaultCriticalResources() []string
@@ -644,13 +722,45 @@ func MergeCriticalResources(defaults, userDefined []string) []string
 func LoadDriftConfig(v *viper.Viper) *DriftConfig
 ```
 
+**Configuration Structure**:
+```go
+type DriftConfig struct {
+    CriticalResources []string `mapstructure:"critical_resources"`
+    TopNCount         int      `mapstructure:"top_n_count"`  // Default: 10
+}
+```
+
+**Output Format Constants**:
+```go
+type OutputFormat string
+
+const (
+    FormatTable OutputFormat = "table"
+    FormatJSON  OutputFormat = "json"
+    FormatCSV   OutputFormat = "csv"
+
+    // Terminal width constants
+    defaultTerminalWidth = 120
+    minDriftTableWidth   = 113
+    minPlanTableWidth    = 80
+    maxPlanTableWidth    = 150
+
+    // Summary display constants
+    defaultTopNCount  = 10  // Default number of items in top-N summaries
+    severityTopNCount = 0   // Show all severity items (no limit)
+)
+```
+
 **Features**:
 - HCL parsing for accurate version extraction
 - Multiple output formats (table, JSON, CSV)
 - Critical resource detection for risk assessment
 - Binary plan file detection and helpful error messages
 - Configurable critical resources via .tfskel.yaml
+- Configurable top-N count for summary displays
 - Auto-detection of terminal width for table formatting
+- Color-coded severity indicators (can be disabled with --no-color)
+- Combined analysis support (version + plan in single command)
 
 #### Utilities Package (internal/util)
 
@@ -673,42 +783,164 @@ func TransformRegionName(region string) string
 
 ## Data Flow
 
-### Generate Command Flow
+### Scaffold Command Flow
 
 ```
-User runs: tfskel generate --config tfskel.yaml
+User runs: tfskel scaffold myapp --env dev --region us-east-1
 
-1. CLI Layer (cmd/generate.go)
-   ├─ Parse flags
-   ├─ Create logger
-   └─ Load config file
+1. CLI Layer (cmd/scaffold.go)
+   ├─ Parse flags (env, region, templates-dir, etc.)
+   ├─ Extract app directory from args
+   └─ Validate required flags (env, region)
        │
        ▼
 2. Config Layer (internal/config)
-   ├─ Parse YAML
-   ├─ Validate structure
-   ├─ Apply defaults
-   └─ Return Config object
+   ├─ Load .tfskel.yaml via config.Load()
+   ├─ Apply flag overrides
+   ├─ Set defaults
+   └─ Validate configuration (cfg.Validate())
        │
        ▼
 3. Application Layer (internal/app)
-   ├─ Create Generator
-   ├─ Validate config
-   ├─ Create directories
-   │   └─> FileSystem: MkdirAll()
-   ├─ Render templates
-   │   └─> Templates: Render()
-   └─ Write files
-       └─> FileSystem: WriteFile()
-           │
-           ▼
-4. File System Layer (internal/fs)
-   ├─ Create directories on disk
-   └─ Write files to disk
+   ├─ Create Generator(cfg, fs, logger)
+   ├─ Prepare template data (env, region, appDir, accountID)
+   ├─ Validate account mapping exists for environment
+   └─ Call generator.Run(env, region, appDir)
+       │
+       ▼
+4. Template Layer (internal/templates)
+   ├─ Load templates (embedded or custom)
+   ├─ Render with template data
+   └─ Process metadata (output paths, categories)
+       │
+       ▼
+5. File System Layer (internal/fs)
+   ├─ Create directory structure (envs/env/region/appDir)
+   ├─ Write Terraform files (backend.tf, versions.tf)
+   └─ Write optional GitHub workflows
+       │
+       ▼
+6. Result
+   └─ Generated project structure:
+       envs/dev/us-east-1/myapp/
+       ├── backend.tf
+       ├── versions.tf
+       └── ...
+```
+
+### Init Command Flow
+
+```
+User runs: tfskel init
+
+1. CLI Layer (cmd/init.go)
+   ├─ Parse flags (dir, config)
+   └─ Determine target directory
+       │
+       ▼
+2. Configuration Creation
+   ├─ Check if .tfskel.yaml exists
+   ├─ Load or create default configuration
+   └─ Render .tfskel.yaml template
+       │
+       ▼
+3. Template Rendering
+   ├─ Render root-level templates (trivy.yaml)
+   ├─ Render GitHub workflow templates
+   └─ Write .tfskel.yaml config file
+       │
+       ▼
+4. Result
+   └─ Initialized project:
+       ├── .tfskel.yaml
+       ├── trivy.yaml
+       └── .github/workflows/
+```
+
+### Drift Command Flows
+
+#### Drift Version Flow
+```
+User runs: tfskel drift version --path ./envs
+
+1. CLI Layer (cmd/drift_version.go)
+   ├─ Parse flags (path, format, no-color)
+   └─ Validate path exists and is directory
+       │
+       ▼
+2. Config Layer (internal/config)
+   └─ Load expected versions from .tfskel.yaml
+       │
+       ▼
+3. Drift Detection (internal/drift)
+   ├─ Scan directory tree recursively
+   ├─ Parse .tf files with HCL parser
+   ├─ Extract version constraints
+   └─ Compare against expected versions
+       │
+       ▼
+4. Analysis and Formatting
+   ├─ Categorize drift (matches, mismatches, missing)
+   └─ Format output (table/JSON/CSV)
        │
        ▼
 5. Result
-   └─ Generated project structure
+   └─ Version drift report with exit code
+```
+
+#### Drift Plan Flow
+```
+User runs: tfskel drift plan --plan-file tfplan.json
+
+1. CLI Layer (cmd/drift_plan.go)
+   ├─ Parse flags (plan-file, format, no-color)
+   └─ Validate plan file exists
+       │
+       ▼
+2. Plan Parsing (internal/drift)
+   ├─ Read JSON plan file
+   ├─ Detect binary plans (error with helpful message)
+   └─ Parse resource changes
+       │
+       ▼
+3. Plan Analysis (internal/drift)
+   ├─ Categorize changes (add, change, delete, replace)
+   ├─ Calculate severity based on critical resources
+   └─ Generate summary statistics
+       │
+       ▼
+4. Formatting and Output
+   ├─ Format based on output type
+   └─ Display top-N resources by change type
+       │
+       ▼
+5. Result
+   └─ Plan analysis report with severity and exit code
+```
+
+#### Drift All Flow
+```
+User runs: tfskel drift all --path ./envs --plan-file tfplan.json
+
+1. CLI Layer (cmd/drift_all.go)
+   ├─ Parse flags (path, plan-file, format, skip options)
+   └─ Validate skip flags (both analyses can't be skipped)
+       │
+       ▼
+2. Combined Analysis
+   ├─ Run version analysis (if not skipped)
+   ├─ Run plan analysis (if not skipped)
+   └─ Combine results
+       │
+       ▼
+3. Aggregate Results
+   ├─ Calculate overall status (critical/warning/clean)
+   ├─ Determine exit code (max of both analyses)
+   └─ Format combined output
+       │
+       ▼
+4. Result
+   └─ Unified drift report with overall status
 ```
 
 ### Configuration Loading Flow
@@ -783,14 +1015,18 @@ Different file system implementations (OS vs Memory) for different contexts:
 
 ```go
 type FileSystem interface {
-    WriteFile(path, content string) error
+    WriteFile(path string, data []byte, perm os.FileMode) error
+    ReadFile(path string) ([]byte, error)
+    MkdirAll(path string, perm os.FileMode) error
+    FileExists(path string) bool
+    DirExists(path string) bool
 }
 
 // Production
-fs := &fs.OsFS{}
+fs := fs.NewOSFileSystem()
 
 // Testing
-fs := &fs.MemoryFS{}
+fs := fs.NewMemoryFileSystem()
 
 // Both work with same interface
 generator := app.NewGenerator(config, fs, logger)
@@ -801,7 +1037,7 @@ generator := app.NewGenerator(config, fs, logger)
 Generator orchestrates a fixed workflow, with customizable steps:
 
 ```go
-func (g *Generator) Run() error {
+func (g *Generator) Run(env, region, appDir string) error {
     // Fixed workflow
     if err := g.validateConfig(); err != nil {
         return err
@@ -926,11 +1162,11 @@ Extend generator workflow:
 
 ```go
 // In generator.go
-func (g *Generator) Run() error {
+func (g *Generator) Run(env, region, appDir string) error {
     // ... existing steps ...
 
     if g.config.CustomWorkflow {
-        if err := g.runCustomWorkflow(); err != nil {
+        if err := g.runCustomWorkflow(env, region, appDir); err != nil {
             return err
         }
     }
@@ -1011,22 +1247,28 @@ func TestGeneratorIntegration(t *testing.T) {
 Test complete CLI commands:
 
 ```go
-func TestGenerateCommand(t *testing.T) {
+func TestAddCommand(t *testing.T) {
     // Create temp directory
     tmpDir := t.TempDir()
 
     // Create config file
-    configPath := filepath.Join(tmpDir, "tfskel.yaml")
+    configPath := filepath.Join(tmpDir, ".tfskel.yaml")
     writeConfig(configPath, testConfig)
 
     // Run command
-    cmd := exec.Command("tfskel", "generate", "--config", configPath)
+    cmd := exec.Command("tfskel", "add", "myapp",
+        "--env", "dev",
+        "--region", "us-east-1",
+        "--config", configPath)
     output, err := cmd.CombinedOutput()
 
     // Assert
     assert.NoError(t, err)
-    assert.FileExists(t, filepath.Join(tmpDir, "main.tf"))
+    assert.DirExists(t, filepath.Join(tmpDir, "envs/dev/us-east-1/myapp"))
+    assert.FileExists(t, filepath.Join(tmpDir, "envs/dev/us-east-1/myapp/backend.tf"))
+    assert.FileExists(t, filepath.Join(tmpDir, "envs/dev/us-east-1/myapp/versions.tf"))
 }
+```
 ```
 
 ### Test Coverage
@@ -1164,7 +1406,7 @@ func (c *Config) Validate() error {
 Never log or display sensitive data:
 
 ```go
-func (g *Generator) Run() error {
+func (g *Generator) Run(env, region, appDir string) error {
     // Mask sensitive backend config
     maskedConfig := g.config.Backend.Mask()
     g.log.Info("Using backend", "type", g.config.Backend.Type, "config", maskedConfig)

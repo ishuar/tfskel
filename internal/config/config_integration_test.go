@@ -21,7 +21,7 @@ func TestLoadFromYAML(t *testing.T) {
 		validateFunc func(*testing.T, *Config)
 	}{
 		{
-			name: "full valid config with generate section",
+			name: "full valid config with templates and workflows sections",
 			yamlContent: `
 terraform_version: "~> 1.13"
 provider:
@@ -36,15 +36,12 @@ provider:
 backend:
   s3:
     bucket_name: my-terraform-state-bucket
-generate:
-  templates_dir: /custom/templates
-  extra_template_extensions:
-    - tf.tmpl
-    - md.tmpl
-  github_workflows:
-    create: true
-    name_template: "{{.AppDir}}-{{.Env}}"
-    aws_role_name: GitHubActionsRole
+templates:
+  dir: /custom/templates
+workflows:
+  create: true
+  name_template: "{{.AppDir}}-{{.Env}}"
+  aws_role_name: GitHubActionsRole
 `,
 			expectError: false,
 			validateFunc: func(t *testing.T, cfg *Config) {
@@ -54,15 +51,15 @@ generate:
 				assert.Equal(t, "123456789012", cfg.Provider.AWS.AccountMapping["dev"])
 				assert.Equal(t, "my-terraform-state-bucket", cfg.Backend.S3.BucketName)
 
-				// Test Generate section
-				require.NotNil(t, cfg.Generate)
-				assert.Equal(t, "/custom/templates", cfg.Generate.TemplatesDir)
+				// Test Templates section
+				require.NotNil(t, cfg.Templates)
+				assert.Equal(t, "/custom/templates", cfg.Templates.Dir)
 
-				// Test GithubWorkflows
-				require.NotNil(t, cfg.Generate.GithubWorkflows)
-				assert.True(t, cfg.Generate.GithubWorkflows.Create)
-				assert.Equal(t, "{{.AppDir}}-{{.Env}}", cfg.Generate.GithubWorkflows.NameTemplate)
-				assert.Equal(t, "GitHubActionsRole", cfg.Generate.GithubWorkflows.AWSRoleName)
+				// Test Workflows
+				require.NotNil(t, cfg.Workflows)
+				assert.True(t, cfg.Workflows.Create)
+				assert.Equal(t, "{{.AppDir}}-{{.Env}}", cfg.Workflows.NameTemplate)
+				assert.Equal(t, "GitHubActionsRole", cfg.Workflows.AWSRoleName)
 			},
 		},
 		{
@@ -84,15 +81,15 @@ extra_template_extensions:
 			expectError: false,
 			validateFunc: func(t *testing.T, cfg *Config) {
 				t.Helper()
-				// With old structure at root level, values won't be populated in Generate
+				// With old structure at root level, values won't be populated in Templates
 				// This validates the breaking change - old configs won't work
-				if cfg.Generate != nil {
-					assert.Empty(t, cfg.Generate.TemplatesDir, "Old YAML structure should not populate Generate.TemplatesDir")
+				if cfg.Templates != nil {
+					assert.Empty(t, cfg.Templates.Dir, "Old YAML structure should not populate Templates.Dir")
 				}
 			},
 		},
 		{
-			name: "minimal config without generate section",
+			name: "minimal config without templates or workflows sections",
 			yamlContent: `
 terraform_version: "~> 1.13"
 provider:
@@ -108,14 +105,14 @@ backend:
 			validateFunc: func(t *testing.T, cfg *Config) {
 				t.Helper()
 				assert.Equal(t, "~> 1.13", cfg.TerraformVersion)
-				// Generate section can be nil or empty
-				if cfg.Generate != nil {
-					assert.Empty(t, cfg.Generate.TemplatesDir)
+				// Templates section can be nil or empty
+				if cfg.Templates != nil {
+					assert.Empty(t, cfg.Templates.Dir)
 				}
 			},
 		},
 		{
-			name: "generate section with only github_workflows",
+			name: "workflows section only",
 			yamlContent: `
 terraform_version: "~> 1.13"
 provider:
@@ -126,20 +123,20 @@ provider:
 backend:
   s3:
     bucket_name: test-bucket
-generate:
-  github_workflows:
-    create: true
-    aws_role_arn: "arn:aws:iam::123456789012:role/MyRole"
+workflows:
+  create: true
+  aws_role_arn: "arn:aws:iam::123456789012:role/MyRole"
 `,
 			expectError: false,
 			validateFunc: func(t *testing.T, cfg *Config) {
 				t.Helper()
-				require.NotNil(t, cfg.Generate)
-				require.NotNil(t, cfg.Generate.GithubWorkflows)
-				assert.True(t, cfg.Generate.GithubWorkflows.Create)
-				assert.Equal(t, "arn:aws:iam::123456789012:role/MyRole", cfg.Generate.GithubWorkflows.AWSRoleArn)
+				require.NotNil(t, cfg.Workflows)
+				assert.True(t, cfg.Workflows.Create)
+				assert.Equal(t, "arn:aws:iam::123456789012:role/MyRole", cfg.Workflows.AWSRoleArn)
 				// templates_dir should have default/empty value
-				assert.Empty(t, cfg.Generate.TemplatesDir)
+				if cfg.Templates != nil {
+					assert.Empty(t, cfg.Templates.Dir)
+				}
 			},
 		},
 	}
@@ -213,14 +210,14 @@ func TestLoadExampleConfigFile(t *testing.T) {
 		// These should be set in the example
 		assert.NotEmpty(t, cfg.TerraformVersion)
 
-		// Generate section should exist and have the new structure
-		require.NotNil(t, cfg.Generate, "generate section must exist in example config")
+		// Templates section should exist and have the new structure
+		require.NotNil(t, cfg.Templates, "templates section must exist in example config")
 
-		// templates_dir should be under generate
-		assert.NotEmpty(t, cfg.Generate.TemplatesDir, "generate.templates_dir should be set in example")
+		// dir should be under templates
+		assert.NotEmpty(t, cfg.Templates.Dir, "templates.dir should be set in example")
 
-		// github_workflows should be under generate
-		require.NotNil(t, cfg.Generate.GithubWorkflows, "generate.github_workflows should exist")
+		// workflows should be separate
+		require.NotNil(t, cfg.Workflows, "workflows section should exist")
 	})
 }
 
@@ -236,17 +233,17 @@ func TestViperBindings(t *testing.T) {
 	}{
 		{
 			name:           "templates_dir binding",
-			viperKey:       "generate.templates_dir",
+			viperKey:       "templates.dir",
 			testValue:      "/test/path",
-			expectedStruct: "Generate.TemplatesDir",
-			description:    "templates-dir flag should bind to generate.templates_dir",
+			expectedStruct: "Templates.Dir",
+			description:    "templates-dir flag should bind to templates.dir",
 		},
 		{
-			name:           "github_workflows.create binding",
-			viperKey:       "generate.github_workflows.create",
+			name:           "workflows.create binding",
+			viperKey:       "workflows.create",
 			testValue:      true,
-			expectedStruct: "Generate.GithubWorkflows.Create",
-			description:    "create-github-workflows flag should bind to generate.github_workflows.create",
+			expectedStruct: "Workflows.Create",
+			description:    "workflows flag should bind to workflows.create",
 		},
 		{
 			name:           "s3 bucket binding",
@@ -312,12 +309,10 @@ provider:
 backend:
   s3:
     bucket_name: config-bucket
-generate:
-  templates_dir: /config/templates
-  extra_template_extensions:
-    - tf.tmpl
-  github_workflows:
-    create: false
+templates:
+  dir: /config/templates
+workflows:
+  create: false
 `
 
 	tmpDir := t.TempDir()
@@ -336,15 +331,14 @@ generate:
 	cmd := &cobra.Command{}
 	cmd.Flags().String("templates-dir", "", "templates directory")
 	cmd.Flags().String("s3-bucket-name", "", "S3 bucket")
-	cmd.Flags().Bool("create-github-workflows", false, "create workflows")
-	cmd.Flags().StringSlice("extra-template-extensions", []string{}, "extensions")
+	cmd.Flags().Bool("workflows", false, "create workflows")
 
 	// Simulate user setting flags
 	err = cmd.Flags().Set("templates-dir", "/flag/override")
 	require.NoError(t, err)
 	err = cmd.Flags().Set("s3-bucket-name", "flag-bucket")
 	require.NoError(t, err)
-	err = cmd.Flags().Set("create-github-workflows", "true")
+	err = cmd.Flags().Set("workflows", "true")
 	require.NoError(t, err)
 
 	// Load config
@@ -352,7 +346,7 @@ generate:
 	require.NoError(t, err)
 
 	// Verify flags override config file values
-	assert.Equal(t, "/flag/override", cfg.Generate.TemplatesDir, "Flag should override config file")
+	assert.Equal(t, "/flag/override", cfg.Templates.Dir, "Flag should override config file")
 	assert.Equal(t, "flag-bucket", cfg.Backend.S3.BucketName, "Flag should override config file")
-	assert.True(t, cfg.Generate.GithubWorkflows.Create, "Flag should override config file")
+	assert.True(t, cfg.Workflows.Create, "Flag should override config file")
 }

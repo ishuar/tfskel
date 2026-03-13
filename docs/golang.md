@@ -1876,7 +1876,7 @@ tfskel/
 ├── cmd/                       # CLI commands (Cobra)
 │   ├── root.go               # Root command & global config
 │   ├── init.go               # Initialize project structure
-│   └── generate.go           # Generate Terraform files
+│   └── scaffold.go           # Scaffold Terraform files
 └── internal/                  # Private packages
     ├── app/                  # Core application logic
     │   └── generator.go      # Orchestrates file generation
@@ -1948,7 +1948,7 @@ User Command
     ↓
 cmd/root.go (Parse flags, load config)
     ↓
-cmd/generate.go (Validate, create dependencies)
+cmd/scaffold.go (Validate, create dependencies)
     ↓
 app/generator.go (Orchestrate generation)
     ↓
