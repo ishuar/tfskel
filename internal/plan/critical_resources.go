@@ -1,4 +1,4 @@
-package drift
+package plan
 
 // DefaultCriticalResources returns the default list of AWS resources considered critical.
 // These resources are categorized by their risk level when modified or deleted.

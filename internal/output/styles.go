@@ -1,4 +1,4 @@
-package drift
+package output
 
 import "github.com/charmbracelet/lipgloss"
 

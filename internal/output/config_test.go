@@ -1,0 +1,89 @@
+package output
+
+import (
+	"testing"
+
+	"github.com/spf13/viper"
+	"github.com/stretchr/testify/assert"
+)
+
+func TestLoadDriftConfig(t *testing.T) {
+	tests := []struct {
+		name             string
+		viperSetup       func(*viper.Viper)
+		wantResources    []string
+		wantResourcesLen int
+		wantTopNCount    int
+	}{
+		{
+			name: "config with critical resources",
+			viperSetup: func(v *viper.Viper) {
+				v.Set("critical_resources", []string{"aws_iam_role", "aws_lambda_function"})
+			},
+			wantResources:    []string{"aws_iam_role", "aws_lambda_function"},
+			wantResourcesLen: 2,
+			wantTopNCount:    10, // default
+		},
+		{
+			name: "config without critical resources",
+			viperSetup: func(_ *viper.Viper) {
+				// Don't set any critical_resources
+			},
+			wantResources:    nil,
+			wantResourcesLen: 0,
+			wantTopNCount:    10, // default
+		},
+		{
+			name: "config with empty critical resources",
+			viperSetup: func(v *viper.Viper) {
+				v.Set("critical_resources", []string{})
+			},
+			wantResources:    []string{},
+			wantResourcesLen: 0,
+			wantTopNCount:    10, // default
+		},
+		{
+			name: "config with custom top_n_count",
+			viperSetup: func(v *viper.Viper) {
+				v.Set("top_n_count", 20)
+			},
+			wantResources:    nil,
+			wantResourcesLen: 0,
+			wantTopNCount:    20,
+		},
+		{
+			name: "config with zero top_n_count uses default",
+			viperSetup: func(v *viper.Viper) {
+				v.Set("top_n_count", 0)
+			},
+			wantResources:    nil,
+			wantResourcesLen: 0,
+			wantTopNCount:    10, // default, ignores 0
+		},
+		{
+			name: "config with negative top_n_count uses default",
+			viperSetup: func(v *viper.Viper) {
+				v.Set("top_n_count", -5)
+			},
+			wantResources:    nil,
+			wantResourcesLen: 0,
+			wantTopNCount:    10, // default, ignores negative
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v := viper.New()
+			tt.viperSetup(v)
+
+			cfg := LoadDriftConfig(v)
+
+			assert.NotNil(t, cfg)
+			assert.Len(t, cfg.CriticalResources, tt.wantResourcesLen)
+			if tt.wantResources != nil {
+				assert.Equal(t, tt.wantResources, cfg.CriticalResources)
+			}
+			assert.Equal(t, tt.wantTopNCount, cfg.TopNCount)
+		})
+	}
+}

@@ -1,4 +1,4 @@
-package drift
+package plan
 
 import (
 	"os"
