@@ -632,7 +632,7 @@ tfskel plan review [flags]
 **Flags**:
 - `--json-file`: Path to Terraform plan JSON file (required)
 - `--format, -f`: Output format: table, json, csv (default: table)
-- `--top-n, -n`: Show top N highest-impact resources (default: 10, use 0 for all)
+- `--top-resources-count`: Show top N highest-impact resources (default: 10, use 0 for all)
 - `--no-color`: Disable colored output
 - `--verbose, -v`: Enable verbose output
 
@@ -645,7 +645,7 @@ terraform show -json plan.bin > plan.json
 tfskel plan review --json-file plan.json
 
 # Show top 5 highest-impact changes
-tfskel plan review --json-file plan.json --top-n 5
+tfskel plan review --json-file plan.json --top-resources-count 5
 
 # Export as JSON for automation
 tfskel plan review --json-file plan.json --format json

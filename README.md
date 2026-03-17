@@ -152,7 +152,7 @@ tfskel sc myapp --env dev --region us-east-1
 
 #### `tfskel diff config`
 
-It scans all environments in the repository and reports Terraform and AWS provider version inconsistencies in one pass from the current directory. Results can be output as JSON, table, or CSV for use in CI/CD pipelines or automated checks.
+It scans all environments in the repository and reports Terraform and AWS provider version differences in one pass from the current directory. Results can be output as JSON, table, or CSV for use in CI/CD pipelines or automated checks.
 
 | Flag | Short | Default | Description |
 |---|---|---|---|
