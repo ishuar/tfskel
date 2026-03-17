@@ -4,13 +4,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Output format constants shared across diff subcommands
-const (
-	formatJSON  = "json"
-	formatCSV   = "csv"
-	formatTable = "table"
-)
-
 // diffCmd represents the diff command
 var diffCmd = &cobra.Command{
 	Use:     "diff",

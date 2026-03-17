@@ -110,7 +110,7 @@ func runPlanReview(cmd *cobra.Command, _ []string) error {
 	}
 
 	// Suppress logs for machine-readable formats
-	if planReviewFormat == formatJSON || planReviewFormat == formatCSV {
+	if planReviewFormat == string(output.FormatJSON) || planReviewFormat == string(output.FormatCSV) {
 		log.SetOutput(os.Stderr)
 	}
 

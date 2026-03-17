@@ -105,7 +105,7 @@ func runDiffConfig(cmd *cobra.Command, _ []string) error {
 	}
 
 	// Suppress logs for machine-readable formats (JSON/CSV)
-	if configFormat == formatJSON || configFormat == formatCSV {
+	if configFormat == string(output.FormatJSON) || configFormat == string(output.FormatCSV) {
 		log.SetOutput(os.Stderr)
 	}
 
