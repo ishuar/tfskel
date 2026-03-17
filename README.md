@@ -150,17 +150,13 @@ tfskel sc myapp --env dev --region us-east-1
 > [!Note]
 > `/` will be replaced with `-` in `<app-dir>` value for GitHub workflow file naming.
 
-### `tfskel drift`
+#### `tfskel diff config`
 
-`tfskel drift` has three subcommands: `version`, `plan`, and `all`.
-
-#### `tfskel drift version`
-
-Scans all environments in the repository and reports Terraform and AWS provider version inconsistencies in one pass from the current directory. Results can be output as JSON, table, or CSV for use in CI/CD pipelines or automated checks.
+It scans all environments in the repository and reports Terraform and AWS provider version inconsistencies in one pass from the current directory. Results can be output as JSON, table, or CSV for use in CI/CD pipelines or automated checks.
 
 | Flag | Short | Default | Description |
 |---|---|---|---|
-| `--path` | `-p` | `.` (current dir) | Path to scan for Terraform files (recursive) |
+| `--dir` | `-d` | `.` (current dir) | Directory to scan for Terraform files (recursive) |
 | `--format` | `-f` | `table` | Output format: `table`, `json`, `csv` |
 | `--no-color` | | `false` | Disable colored output |
 
@@ -174,29 +170,29 @@ Scans all environments in the repository and reports Terraform and AWS provider 
 
 ```bash
 # Check for drift in current directory
-tfskel drift version
+tfskel diff config
 
 # Check a specific subdirectory
-tfskel drift version --path ./envs
+tfskel diff config --dir ./envs
 
 # JSON output for CI/CD pipelines
-tfskel drift version --path ./envs --format json
+tfskel diff config --dir ./envs --format json
 
 # Generate a CSV report without ANSI colors
-tfskel drift version --format csv --no-color > drift-report.csv
+tfskel diff config --format csv --no-color > drift-report.csv
 ```
 
 <p align="left">
-<img src="assets/tfskel-drift-version.gif" alt="tfskel drift version demo" width="600" />
+<img src="assets/tfskel-diff-config.gif" alt="tfskel diff config demo" width="600" />
 </p>
 
-#### `tfskel drift plan`
+#### `tfskel plan review`
 
 Reads a `plan.json` file, summarizes resource changes, flags high-severity updates based on a configurable list of critical resources, and produces a structured report. Output can be exported as CSV, table, or JSON for reporting.
 
 | Flag | Short | Default | Description |
 |---|---|---|---|
-| `--plan-file` | | *(required)* | Path to the Terraform plan JSON file |
+| `--json-file` | | *(required)* | Path to the Terraform plan JSON file |
 | `--format` | `-f` | `table` | Output format: `table`, `json`, `csv` |
 | `--no-color` | | `false` | Disable colored output |
 
@@ -212,22 +208,22 @@ Reads a `plan.json` file, summarizes resource changes, flags high-severity updat
 # Generate and analyze a Terraform plan
 terraform plan -out plan.bin
 terraform show -json plan.bin > plan.json
-tfskel drift plan --plan-file plan.json
+tfskel plan review --json-file plan.json
 
 # Export as CSV for reporting
-tfskel drift plan --plan-file plan.json --format csv
+tfskel plan review --json-file plan.json --format csv
 
 # JSON output without colors (suitable for log files)
-tfskel drift plan --plan-file plan.json --format json --no-color
+tfskel plan review --json-file plan.json --format json --no-color
 ```
 
 <p align="left">
-<img src="assets/tfskel-drift-plan.gif" alt="tfskel drift plan demo" width="600" />
+<img src="assets/tfskel-plan-review.gif" alt="tfskel plan review demo" width="600" />
 </p>
 
 ## Configuration
 
-Create a `.tfskel.yaml` in your project root to customise defaults:
+Create a `.tfskel.yaml` in your project root to customize defaults:
 
 > [!TIP]
 > Use [.tfskel.example.yaml](.tfskel.example.yaml) for a full annotated reference.

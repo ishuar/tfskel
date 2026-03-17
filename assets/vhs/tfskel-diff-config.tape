@@ -55,7 +55,7 @@
 #   Hide                            Hide the subsequent commands from the output
 #   Show                            Show the subsequent commands in the output
 
-Output "~/workspaces/personal/demo-gifs/tfskel-drift-version.gif"
+Output "../assets/tfskel-diff-config.gif"
 
 Require echo
 Set Margin 10
@@ -63,15 +63,19 @@ Set MarginFill "#6B50FF"
 Set Padding 10
 
 Set Shell "zsh"
-Set FontSize 16
+Set FontSize 14
 Set Width 1200
-Set Height 1200
-Set PlaybackSpeed 0.5
+Set Height 600
+Set PlaybackSpeed 0.7
 
 Type "echo 'Welcome to tfskel!'" Sleep 500ms  Enter
-Type "echo 'tfskel.yaml version config' && grep 'terraform_version:' .tfskel.yaml
+Type "echo 'tfskel.yaml version config' && grep -E 'terraform_version:|version:' .tfskel.yaml"
 Sleep 500ms  Enter
-Type "echo 'version config in repo' && grep -r 'required_version' envs
-Sleep 500ms  Enter
-Type "tfskel drift version --path envs" Sleep 500ms  Enter
-Sleep 5s
+Type "echo 'version config in repo' && grep -E -r 'required_version|version ' envs" Enter
+Sleep 2s
+Type "clear" Sleep 500ms  Enter
+Type "tfskel diff config --dir envs" Sleep 500ms  Enter
+ScrollUp 10
+Sleep 2s
+ScrollDown 10
+Sleep 2s

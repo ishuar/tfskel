@@ -102,7 +102,7 @@ tfskel scaffold myapp --env dev --region us-east-1
 3. **Check for version drift**:
 
 ```bash
-tfskel drift version
+tfskel diff config
 ```
 
 ---
@@ -552,28 +552,26 @@ tfskel scaffold api --env prd --region eu-central-1
 8. Only creates new files, preserves existing ones
 9. Updates files if configuration metadata has changed
 
-### `tfskel drift`
+### `tfskel diff`
 
-Parent command for drift detection capabilities. Use subcommands for specific analyses.
+Parent command for diff detection capabilities. Use subcommands for specific analyses.
 
 **Subcommands**:
-- `version` - Detect Terraform and provider version drift
-- `plan` - Analyze Terraform plan JSON for resource changes
-- `all` - Run both version drift and plan analysis
+- `config` - Detect Terraform and provider version drift
 
 ---
 
-### `tfskel drift version`
+### `tfskel diff config`
 
 Detect Terraform and provider version drift across your repository.
 
 **Usage**:
 ```bash
-tfskel drift version [flags]
+tfskel diff config [flags]
 ```
 
 **Flags**:
-- `--path, -p`: Path to scan for Terraform files (default: current directory)
+- `--dir, -d`: Directory to scan for Terraform files (default: current directory)
 - `--format, -f`: Output format: table, json, csv (default: table)
 - `--no-color`: Disable colored output
 - `--config`: Path to config file for expected versions (default: .tfskel.yaml)
@@ -583,16 +581,16 @@ tfskel drift version [flags]
 
 ```bash
 # Check version drift in current directory
-tfskel drift version
+tfskel diff config
 
 # Check specific subdirectory
-tfskel drift version --path ./envs
+tfskel diff config --dir ./envs
 
 # Output as JSON for CI/CD
-tfskel drift version --format json > drift-report.json
+tfskel diff config --format json > drift-report.json
 
 # Output as CSV
-tfskel drift version --format csv --no-color > drift.csv
+tfskel diff config --format csv --no-color > drift.csv
 ```
 
 **What it does**:
@@ -621,17 +619,17 @@ tfskel drift version --format csv --no-color > drift.csv
 
 ---
 
-### `tfskel drift plan`
+### `tfskel plan review`
 
 Analyze Terraform plan JSON to identify resource changes, impact severity, and potential risks.
 
 **Usage**:
 ```bash
-tfskel drift plan [flags]
+tfskel plan review [flags]
 ```
 
 **Flags**:
-- `--plan-file`: Path to Terraform plan JSON file (required)
+- `--json-file`: Path to Terraform plan JSON file (required)
 - `--format, -f`: Output format: table, json, csv (default: table)
 - `--top-n, -n`: Show top N highest-impact resources (default: 10, use 0 for all)
 - `--no-color`: Disable colored output
@@ -643,16 +641,16 @@ tfskel drift plan [flags]
 # Generate and analyze a plan
 terraform plan -out=plan.bin
 terraform show -json plan.bin > plan.json
-tfskel drift plan --plan-file plan.json
+tfskel plan review --json-file plan.json
 
 # Show top 5 highest-impact changes
-tfskel drift plan --plan-file plan.json --top-n 5
+tfskel plan review --json-file plan.json --top-n 5
 
 # Export as JSON for automation
-tfskel drift plan --plan-file plan.json --format json
+tfskel plan review --json-file plan.json --format json
 
 # Export as CSV for reporting
-tfskel drift plan --plan-file plan.json --format csv > changes.csv
+tfskel plan review --json-file plan.json --format csv > changes.csv
 ```
 
 **What it does**:
@@ -1438,16 +1436,16 @@ Detect and fix version inconsistencies:
 
 ```bash
 # Check for drift
-tfskel drift version
+tfskel diff config
 
 # Export drift report to CSV
-tfskel drift version --format csv --no-color > drift-report.csv
+tfskel diff config --format csv --no-color > drift-report.csv
 
 # Check specific environment
-tfskel drift version --path ./envs/prd
+tfskel diff config --dir ./envs/prd
 
 # Output as JSON for automated processing
-tfskel drift version --format json > drift.json
+tfskel diff config --format json > drift.json
 ```
 
 **Common Drift Scenarios**:
