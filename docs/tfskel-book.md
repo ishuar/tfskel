@@ -299,9 +299,10 @@ Configure drift detection behavior for version and plan analysis:
   - Default critical resources include databases (RDS, DynamoDB), S3 buckets, VPCs, security groups, IAM roles, KMS keys, WAF rules, etc.
   - User-defined resources are merged with defaults without duplicates
   - Critical resource changes are marked with "Critical" severity in plan analysis
-- `top_n_count`: Maximum number of items to display in drift summaries (default: 10)
+- `top_resources_count`: Maximum number of resources to display in plan analysis summaries (default: 10)
   - Applies to resource type groupings, module groupings, and action counts
   - Set to 0 to show all items without limit
+  - Can also be set via `--top-resources-count` flag for `plan review` command
 
 ---
 

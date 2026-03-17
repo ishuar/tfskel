@@ -13,9 +13,10 @@ import (
 )
 
 var (
-	planReviewFile    string
-	planReviewFormat  string
-	planReviewNoColor bool
+	planReviewFile         string
+	planReviewFormat       string
+	planReviewNoColor      bool
+	planReviewTopResources int
 )
 
 var (
@@ -59,7 +60,10 @@ Severity Levels:
   tfskel plan review --json-file tfplan.json --format csv > plan-analysis.csv
 
   # Analyze without colors (for logs)
-  tfskel plan review --json-file tfplan.json --no-color`,
+  tfskel plan review --json-file tfplan.json --no-color
+
+  # Limit top resource summaries to 5 items
+  tfskel plan review --json-file tfplan.json --top-resources-count 5`,
 	RunE: runPlanReview,
 }
 
@@ -76,6 +80,8 @@ func init() {
 		"Output format: table, json, csv")
 	planReviewCmd.Flags().BoolVar(&planReviewNoColor, "no-color", false,
 		"Disable colored output")
+	planReviewCmd.Flags().IntVar(&planReviewTopResources, "top-resources-count", 0,
+		"Number of resources to show in top-N summaries (default: 10, or value from config)")
 }
 
 func runPlanReview(cmd *cobra.Command, _ []string) error {
@@ -133,8 +139,14 @@ func runPlanReview(cmd *cobra.Command, _ []string) error {
 	// Load drift config for formatter settings
 	driftConfig := output.LoadDriftConfig(viper.GetViper())
 
+	// Override config with flag if provided
+	topResourcesCount := driftConfig.TopResourcesCount
+	if planReviewTopResources > 0 {
+		topResourcesCount = planReviewTopResources
+	}
+
 	// Format and output using internal package
-	formatter := plan.NewPlanFormatterWithConfig(!planReviewNoColor, driftConfig.TopNCount)
+	formatter := plan.NewPlanFormatterWithConfig(!planReviewNoColor, topResourcesCount)
 	if err := formatter.Format(analysis, output.OutputFormat(planReviewFormat), os.Stdout); err != nil {
 		log.Errorf("Failed to format output: %v", err)
 		cmd.SilenceUsage = true

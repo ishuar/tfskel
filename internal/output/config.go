@@ -42,23 +42,23 @@ const (
 )
 
 const (
-	// DefaultTopNCount is the default number of items to show in top-N summaries
-	DefaultTopNCount = 10
-	// SeverityTopNCount shows all severity items (0 = no limit)
-	SeverityTopNCount = 0
+	// DefaultTopResourcesCount is the default number of resources to show in top-N summaries
+	DefaultTopResourcesCount = 10
+	// SeverityTopResourcesCount shows all severity items (0 = no limit)
+	SeverityTopResourcesCount = 0
 )
 
 // DriftConfig holds drift-specific configuration
 type DriftConfig struct {
 	CriticalResources []string `mapstructure:"critical_resources"`
-	TopNCount         int      `mapstructure:"top_n_count"`
+	TopResourcesCount int      `mapstructure:"top_resources_count"`
 }
 
 // LoadDriftConfig loads drift configuration from viper.
 // Returns a config with user-defined critical resources, or empty list if not configured.
 func LoadDriftConfig(v *viper.Viper) *DriftConfig {
 	cfg := &DriftConfig{
-		TopNCount: DefaultTopNCount, // Default to 10
+		TopResourcesCount: DefaultTopResourcesCount, // Default to 10
 	}
 
 	// Check if the key exists in config
@@ -66,10 +66,10 @@ func LoadDriftConfig(v *viper.Viper) *DriftConfig {
 		cfg.CriticalResources = v.GetStringSlice("critical_resources")
 	}
 
-	// Check if top_n_count is configured
-	if v.IsSet("top_n_count") {
-		if topN := v.GetInt("top_n_count"); topN > 0 {
-			cfg.TopNCount = topN
+	// Check if top_resources_count is configured
+	if v.IsSet("top_resources_count") {
+		if topN := v.GetInt("top_resources_count"); topN > 0 {
+			cfg.TopResourcesCount = topN
 		}
 	}
 

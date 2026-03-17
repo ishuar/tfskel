@@ -714,7 +714,7 @@ func LoadDriftConfig(v *viper.Viper) *DriftConfig
 ```go
 type DriftConfig struct {
     CriticalResources []string `mapstructure:"critical_resources"`
-    TopNCount         int      `mapstructure:"top_n_count"`  // Default: 10
+    TopResourcesCount int      `mapstructure:"top_resources_count"`  // Default: 10
 }
 ```
 
@@ -734,8 +734,8 @@ const (
     maxPlanTableWidth    = 150
 
     // Summary display constants
-    defaultTopNCount  = 10  // Default number of items in top-N summaries
-    severityTopNCount = 0   // Show all severity items (no limit)
+    defaultTopResourcesCount  = 10  // Default number of resources in top-N summaries
+    severityTopResourcesCount = 0   // Show all severity items (no limit)
 )
 ```
 
@@ -745,7 +745,7 @@ const (
 - Critical resource detection for risk assessment
 - Binary plan file detection and helpful error messages
 - Configurable critical resources via .tfskel.yaml
-- Configurable top-N count for summary displays
+- Configurable top-N resource count for summary displays
 - Auto-detection of terminal width for table formatting
 - Color-coded severity indicators (can be disabled with --no-color)
 - Combined analysis support (version + plan in single command)
@@ -849,7 +849,7 @@ User runs: tfskel init
 
 #### Drift Version Flow
 ```
-User runs: tfskel drift version --path ./envs
+User runs: tfskel diff config --dir ./envs
 
 1. CLI Layer (cmd/drift_version.go)
    ├─ Parse flags (path, format, no-color)
@@ -860,7 +860,7 @@ User runs: tfskel drift version --path ./envs
    └─ Load expected versions from .tfskel.yaml
        │
        ▼
-3. Drift Detection (internal/drift)
+3. Drift Detection (internal/diff)
    ├─ Scan directory tree recursively
    ├─ Parse .tf files with HCL parser
    ├─ Extract version constraints
@@ -878,7 +878,7 @@ User runs: tfskel drift version --path ./envs
 
 #### Drift Plan Flow
 ```
-User runs: tfskel drift plan --plan-file tfplan.json
+User runs: tfskel plan review --json-file tfplan.json
 
 1. CLI Layer (cmd/drift_plan.go)
    ├─ Parse flags (plan-file, format, no-color)

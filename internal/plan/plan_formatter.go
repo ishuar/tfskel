@@ -33,10 +33,10 @@ const (
 
 // PlanFormatter handles formatting of plan analysis results
 type PlanFormatter struct {
-	useColor      bool
-	terminalWidth int
-	tableWidth    int // Consistent width for all tables
-	topNCount     int // Number of items to show in top-N summaries
+	useColor          bool
+	terminalWidth     int
+	tableWidth        int // Consistent width for all tables
+	topResourcesCount int // Number of resources to show in top-N summaries
 }
 
 // NewPlanFormatter creates a new plan formatter with auto-detected terminal width
@@ -48,29 +48,29 @@ func NewPlanFormatter(useColor bool) *PlanFormatter {
 		}
 	}
 	return &PlanFormatter{
-		useColor:      useColor,
-		terminalWidth: width,
-		tableWidth:    0,                       // Will be calculated during formatting
-		topNCount:     output.DefaultTopNCount, // Default to 10
+		useColor:          useColor,
+		terminalWidth:     width,
+		tableWidth:        0,                               // Will be calculated during formatting
+		topResourcesCount: output.DefaultTopResourcesCount, // Default to 10
 	}
 }
 
 // NewPlanFormatterWithConfig creates a new plan formatter with configuration
-func NewPlanFormatterWithConfig(useColor bool, topNCount int) *PlanFormatter {
+func NewPlanFormatterWithConfig(useColor bool, topResourcesCount int) *PlanFormatter {
 	width := output.DefaultTerminalWidth
 	if fd := int(os.Stdout.Fd()); term.IsTerminal(fd) {
 		if w, _, err := term.GetSize(fd); err == nil && w > 0 {
 			width = w
 		}
 	}
-	if topNCount <= 0 {
-		topNCount = output.DefaultTopNCount
+	if topResourcesCount <= 0 {
+		topResourcesCount = output.DefaultTopResourcesCount
 	}
 	return &PlanFormatter{
-		useColor:      useColor,
-		terminalWidth: width,
-		tableWidth:    0, // Will be calculated during formatting
-		topNCount:     topNCount,
+		useColor:          useColor,
+		terminalWidth:     width,
+		tableWidth:        0, // Will be calculated during formatting
+		topResourcesCount: topResourcesCount,
 	}
 }
 
@@ -220,21 +220,21 @@ func (f *PlanFormatter) writeTableSummary(w io.Writer, analysis *PlanAnalysis, s
 func (f *PlanFormatter) writeTableGroupings(w io.Writer, analysis *PlanAnalysis, styles output.CommonStyles) error {
 	// Changes by Resource Type
 	if len(analysis.ByType) > 0 {
-		if err := f.printGroupSummary(w, styles, "Changes by Resource Type", analysis.ByType, f.topNCount); err != nil {
+		if err := f.printGroupSummary(w, styles, "Changes by Resource Type", analysis.ByType, f.topResourcesCount); err != nil {
 			return err
 		}
 	}
 
 	// Changes by Module
 	if len(analysis.ByModule) > 1 { // Only show if more than root module
-		if err := f.printGroupSummary(w, styles, "Changes by Module", analysis.ByModule, f.topNCount); err != nil {
+		if err := f.printGroupSummary(w, styles, "Changes by Module", analysis.ByModule, f.topResourcesCount); err != nil {
 			return err
 		}
 	}
 
 	// Changes by Severity
 	if len(analysis.BySeverity) > 0 {
-		if err := f.printGroupSummary(w, styles, "Changes by Severity", analysis.BySeverity, output.SeverityTopNCount); err != nil {
+		if err := f.printGroupSummary(w, styles, "Changes by Severity", analysis.BySeverity, output.SeverityTopResourcesCount); err != nil {
 			return err
 		}
 	}
