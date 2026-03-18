@@ -309,7 +309,7 @@ Configure drift detection behavior for version and plan analysis:
 - `top_resources_count`: Maximum number of resources to display in plan analysis summaries (default: 10)
   - Applies to resource type groupings, module groupings, and action counts
   - Set to 0 to show all items without limit
-  - Can also be set via `--top-resources-count` flag for `plan review` command
+  - Can also be set via `--top-resources-count` flag for `review plan` command
 
 ---
 
@@ -627,13 +627,13 @@ tfskel diff config --format csv --no-color > drift.csv
 
 ---
 
-### `tfskel plan review`
+### `tfskel review plan`
 
 Analyze Terraform plan JSON to identify resource changes, impact severity, and potential risks.
 
 **Usage**:
 ```bash
-tfskel plan review [flags]
+tfskel review plan [flags]
 ```
 
 **Flags**:
@@ -649,16 +649,16 @@ tfskel plan review [flags]
 # Generate and analyze a plan
 terraform plan -out=plan.bin
 terraform show -json plan.bin > plan.json
-tfskel plan review --json-file plan.json
+tfskel review plan --json-file plan.json
 
 # Show top 5 highest-impact changes
-tfskel plan review --json-file plan.json --top-resources-count 5
+tfskel review plan --json-file plan.json --top-resources-count 5
 
 # Export as JSON for automation
-tfskel plan review --json-file plan.json --format json
+tfskel review plan --json-file plan.json --format json
 
 # Export as CSV for reporting
-tfskel plan review --json-file plan.json --format csv > changes.csv
+tfskel review plan --json-file plan.json --format csv > changes.csv
 ```
 
 **What it does**:

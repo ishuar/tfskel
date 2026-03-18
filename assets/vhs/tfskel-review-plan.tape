@@ -55,7 +55,7 @@
 #   Hide                            Hide the subsequent commands from the output
 #   Show                            Show the subsequent commands in the output
 
-Output "../assets/tfskel-plan-review.gif"
+Output "../assets/tfskel-review-plan.gif"
 
 Require echo
 Set Margin 10
@@ -69,7 +69,7 @@ Set Height 600
 Set PlaybackSpeed 0.7
 
 Type "echo 'Welcome to tfskel!'" Sleep 500ms  Enter
-Type "tfskel plan review --json-file envs/dev/eu-central-1/test1/plan.json" Sleep 500ms  Enter
+Type "tfskel review plan --json-file envs/dev/eu-central-1/test1/plan.json" Sleep 500ms  Enter
 ScrollUp 50
 Sleep 2s
 ScrollDown 51
