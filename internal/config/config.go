@@ -272,4 +272,7 @@ func checkDeprecatedConfig(v *viper.Viper) {
 	if v.IsSet("extra_template_extensions") {
 		log.Warn("DEPRECATION: 'extra_template_extensions' is no longer supported - all .tmpl files are now processed as templates")
 	}
+	if v.IsSet("top_n_count") {
+		log.Warn("DEPRECATION: 'top_n_count' is no longer supported - use 'top_resources_count' instead")
+	}
 }
