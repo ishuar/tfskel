@@ -99,11 +99,14 @@ func TestReviewPlanCommand_CommandSetup(t *testing.T) {
 		assert.NotNil(t, formatFlag, "--format flag should exist")
 		assert.Equal(t, "table", formatFlag.DefValue, "default format should be 'table'")
 
-		noColorFlag := reviewPlanCmd.Flags().Lookup("no-color")
-		assert.NotNil(t, noColorFlag, "--no-color flag should exist")
-
 		topResourcesFlag := reviewPlanCmd.Flags().Lookup("top-resources-count")
 		assert.NotNil(t, topResourcesFlag, "--top-resources-count flag should exist")
+	})
+
+	t.Run("inherits global flags from root", func(t *testing.T) {
+		// --no-color is now a persistent flag on root command
+		noColorFlag := rootCmd.PersistentFlags().Lookup("no-color")
+		assert.NotNil(t, noColorFlag, "--no-color flag should exist on root")
 	})
 
 	t.Run("command has help text", func(t *testing.T) {

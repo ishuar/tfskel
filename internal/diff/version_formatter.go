@@ -14,7 +14,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
 	"github.com/ishuar/tfskel/internal/format"
-	"github.com/muesli/termenv"
 	"golang.org/x/term"
 )
 
@@ -44,15 +43,6 @@ func NewFormatter(useColor bool) *Formatter {
 			width = w
 		}
 	}
-
-	// Force lipgloss to render colors even in non-TTY environments (e.g., CI/CD)
-	// lipgloss has its own TTY detection that we need to override
-	if useColor {
-		lipgloss.SetColorProfile(termenv.TrueColor)
-	} else {
-		lipgloss.SetColorProfile(termenv.Ascii)
-	}
-
 	return &Formatter{
 		useColor:      useColor,
 		terminalWidth: width,

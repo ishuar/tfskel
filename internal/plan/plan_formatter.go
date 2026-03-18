@@ -15,7 +15,6 @@ import (
 	"github.com/charmbracelet/lipgloss/table"
 	"github.com/ishuar/tfskel/internal/config"
 	"github.com/ishuar/tfskel/internal/format"
-	"github.com/muesli/termenv"
 	"golang.org/x/term"
 )
 
@@ -49,15 +48,6 @@ func NewPlanFormatter(useColor bool) *PlanFormatter {
 			width = w
 		}
 	}
-
-	// Force lipgloss to render colors even in non-TTY environments (e.g., CI/CD)
-	// lipgloss has its own TTY detection that we need to override
-	if useColor {
-		lipgloss.SetColorProfile(termenv.TrueColor)
-	} else {
-		lipgloss.SetColorProfile(termenv.Ascii)
-	}
-
 	return &PlanFormatter{
 		useColor:          useColor,
 		terminalWidth:     width,
@@ -78,15 +68,6 @@ func NewPlanFormatterWithConfig(useColor bool, topResourcesCount int) *PlanForma
 	if topResourcesCount < 0 {
 		topResourcesCount = config.DefaultTopResourcesCount
 	}
-
-	// Force lipgloss to render colors even in non-TTY environments (e.g., CI/CD)
-	// lipgloss has its own TTY detection that we need to override
-	if useColor {
-		lipgloss.SetColorProfile(termenv.TrueColor)
-	} else {
-		lipgloss.SetColorProfile(termenv.Ascii)
-	}
-
 	return &PlanFormatter{
 		useColor:          useColor,
 		terminalWidth:     width,

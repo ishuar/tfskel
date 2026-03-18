@@ -15,9 +15,9 @@ import (
 )
 
 var (
-	configFormat  string
-	configNoColor bool
-	configDir     string
+	configFormat string
+
+	configDir string
 )
 
 var (
@@ -56,8 +56,6 @@ func init() {
 
 	diffConfigCmd.Flags().StringVarP(&configFormat, "format", "f", "table",
 		"Output format: table, json, csv")
-	diffConfigCmd.Flags().BoolVar(&configNoColor, "no-color", false,
-		"Disable colored output")
 	diffConfigCmd.Flags().StringVarP(&configDir, "dir", "d", ".",
 		"Directory to scan for Terraform files (default: current directory)")
 }
@@ -135,8 +133,10 @@ func runDiffConfig(cmd *cobra.Command, _ []string) error {
 	// Format and output
 	outputFormat := format.OutputFormat(configFormat)
 
-	// Determine color usage based on flags and environment variables
-	useColor := format.ShouldUseColor(configNoColor)
+	// Color profile already initialized in root PersistentPreRunE
+	// Use the global noColor flag value
+	useColor := format.ShouldUseColor(noColor)
+
 	formatter := diff.NewFormatter(useColor)
 
 	if err := formatter.Format(report, outputFormat, os.Stdout); err != nil {
