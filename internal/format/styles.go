@@ -1,6 +1,10 @@
 package format
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"os"
+
+	"github.com/charmbracelet/lipgloss"
+)
 
 // CommonStyles holds shared lipgloss styles for table formatting
 type CommonStyles struct {
@@ -39,4 +43,30 @@ func NewCommonStyles(useColor bool) CommonStyles {
 		HeaderColor: headerColor,
 		RowColor:    rowColor,
 	}
+}
+
+// ShouldUseColor determines if colored output should be used based on flags and environment variables.
+// It respects standard conventions: NO_COLOR (disables), FORCE_COLOR (enables), and falls back to the flag.
+//
+// Precedence order (highest to lowest):
+//  1. NO_COLOR environment variable - always disables colors if set
+//  2. FORCE_COLOR environment variable - enables colors if set to non-zero/non-false value
+//  3. noColorFlag parameter - used as fallback if no environment variables are set
+//
+// References:
+//   - NO_COLOR standard: https://no-color.org/
+//   - FORCE_COLOR convention: common in CI/CD tools like GitHub Actions
+func ShouldUseColor(noColorFlag bool) bool {
+	// Check NO_COLOR environment variable (standard: https://no-color.org/)
+	if _, ok := os.LookupEnv("NO_COLOR"); ok {
+		return false
+	}
+
+	// Check FORCE_COLOR environment variable
+	if forceColor := os.Getenv("FORCE_COLOR"); forceColor != "" && forceColor != "0" && forceColor != "false" {
+		return true
+	}
+
+	// Fall back to flag value
+	return !noColorFlag
 }

@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/charmbracelet/lipgloss"
+	"github.com/ishuar/tfskel/internal/format"
+	"github.com/muesli/termenv"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -11,12 +14,17 @@ import (
 var (
 	cfgFile string
 	verbose bool
+	noColor bool
 	// Commit is the git commit hash of the build
 	Commit = "unknown"
 	// Date is the build date
 	Date = "unknown"
 	// BuildTime is the build timestamp
 	BuildTime = "unknown"
+
+	// useColor stores the color decision made in PersistentPreRunE
+	// It's reused by subcommands to avoid redundant env var lookups
+	useColor bool
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -28,6 +36,18 @@ not managing folder structures, drift, or plan reviews. It provides clean, consi
 and scalable Terraform layouts with built-in best practices.`,
 
 	Version: Version,
+	PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
+		// Initialize lipgloss color profile once for all commands
+		// Respects NO_COLOR, FORCE_COLOR env vars and --no-color flag
+		// Store the decision to avoid redundant env var lookups in subcommands
+		useColor = format.ShouldUseColor(noColor)
+		if useColor {
+			lipgloss.SetColorProfile(termenv.TrueColor)
+		} else {
+			lipgloss.SetColorProfile(termenv.Ascii)
+		}
+		return nil
+	},
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		return cmd.Help()
 	},
@@ -51,6 +71,7 @@ func init() {
 	// Global flags
 	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file (default is .tfskel.yaml in current directory)")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "enable verbose output")
+	rootCmd.PersistentFlags().BoolVar(&noColor, "no-color", false, "disable colored output (respects NO_COLOR and FORCE_COLOR env vars)")
 
 	// Bind flags to viper
 	if err := viper.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose")); err != nil {

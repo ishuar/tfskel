@@ -16,7 +16,6 @@ import (
 var (
 	reviewPlanFile         string
 	reviewPlanFormat       string
-	reviewPlanNoColor      bool
 	reviewPlanTopResources int
 )
 
@@ -81,8 +80,6 @@ func init() {
 
 	reviewPlanCmd.Flags().StringVarP(&reviewPlanFormat, "format", "f", "table",
 		"Output format: table, json, csv")
-	reviewPlanCmd.Flags().BoolVar(&reviewPlanNoColor, "no-color", false,
-		"Disable colored output")
 	reviewPlanCmd.Flags().IntVar(&reviewPlanTopResources, "top-resources-count", -1,
 		"Number of resources to show in top-N summaries (default: 10, 0 = unlimited)")
 }
@@ -151,8 +148,9 @@ func runReviewPlan(cmd *cobra.Command, _ []string) error {
 		topResourcesCount = reviewPlanTopResources
 	}
 
+	// Color profile already initialized in root PersistentPreRunE
 	// Format and output using internal package
-	formatter := plan.NewPlanFormatterWithConfig(!reviewPlanNoColor, topResourcesCount)
+	formatter := plan.NewPlanFormatterWithConfig(useColor, topResourcesCount)
 	if err := formatter.Format(analysis, format.OutputFormat(reviewPlanFormat), os.Stdout); err != nil {
 		log.Errorf("Failed to format output: %v", err)
 		cmd.SilenceUsage = true
