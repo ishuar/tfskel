@@ -1,4 +1,4 @@
-package output
+package config
 
 import (
 	"testing"
@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestLoadDriftConfig(t *testing.T) {
+func TestLoadPlanAnalysisConfig(t *testing.T) {
 	tests := []struct {
 		name                  string
 		viperSetup            func(*viper.Viper)
@@ -76,7 +76,7 @@ func TestLoadDriftConfig(t *testing.T) {
 			v := viper.New()
 			tt.viperSetup(v)
 
-			cfg := LoadDriftConfig(v)
+			cfg := LoadPlanAnalysisConfig(v)
 
 			assert.NotNil(t, cfg)
 			assert.Len(t, cfg.CriticalResources, tt.wantResourcesLen)

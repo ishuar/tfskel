@@ -8,8 +8,8 @@ import (
 
 	"github.com/ishuar/tfskel/internal/config"
 	"github.com/ishuar/tfskel/internal/diff"
+	"github.com/ishuar/tfskel/internal/format"
 	"github.com/ishuar/tfskel/internal/logger"
-	"github.com/ishuar/tfskel/internal/output"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -24,7 +24,7 @@ var (
 	// ErrDirDoesNotExist indicates the specified directory does not exist
 	ErrDirDoesNotExist = errors.New("directory does not exist")
 	// ErrDirNotDirectory indicates the specified path is not a directory
-	ErrDirNotDirectory = errors.New("path is not a directory")
+	ErrDirNotDirectory = errors.New("target is not a directory")
 )
 
 // diffConfigCmd represents the diff config command
@@ -85,7 +85,7 @@ func runDiffConfig(cmd *cobra.Command, _ []string) error {
 	}
 
 	if !fileInfo.IsDir() {
-		log.Errorf("Path is not a directory: %s", scanDir)
+		log.Errorf("Target is not a directory: %s", scanDir)
 		cmd.SilenceUsage = true
 		return fmt.Errorf("%w: %s", ErrDirNotDirectory, scanDir)
 	}
@@ -105,7 +105,7 @@ func runDiffConfig(cmd *cobra.Command, _ []string) error {
 	}
 
 	// Suppress logs for machine-readable formats (JSON/CSV)
-	if configFormat == string(output.FormatJSON) || configFormat == string(output.FormatCSV) {
+	if configFormat == string(format.FormatJSON) || configFormat == string(format.FormatCSV) {
 		log.SetOutput(os.Stderr)
 	}
 
@@ -133,10 +133,10 @@ func runDiffConfig(cmd *cobra.Command, _ []string) error {
 	report := analyzer.Analyze(absPath, versionInfos)
 
 	// Format and output
-	format := output.OutputFormat(configFormat)
+	outputFormat := format.OutputFormat(configFormat)
 	formatter := diff.NewFormatter(!configNoColor)
 
-	if err := formatter.Format(report, format, os.Stdout); err != nil {
+	if err := formatter.Format(report, outputFormat, os.Stdout); err != nil {
 		log.Errorf("Failed to format output: %v", err)
 		cmd.SilenceUsage = true
 		return fmt.Errorf("failed to format output: %w", err)

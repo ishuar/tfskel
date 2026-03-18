@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ishuar/tfskel/internal/config"
+	"github.com/ishuar/tfskel/internal/format"
 	"github.com/ishuar/tfskel/internal/logger"
-	"github.com/ishuar/tfskel/internal/output"
 	"github.com/ishuar/tfskel/internal/plan"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -80,19 +81,12 @@ func init() {
 		"Output format: table, json, csv")
 	planReviewCmd.Flags().BoolVar(&planReviewNoColor, "no-color", false,
 		"Disable colored output")
-	planReviewCmd.Flags().IntVar(&planReviewTopResources, "top-resources-count", 0,
+	planReviewCmd.Flags().IntVar(&planReviewTopResources, "top-resources-count", config.DefaultTopResourcesCount,
 		"Number of resources to show in top-N summaries (default: 10, or value from config)")
 }
 
 func runPlanReview(cmd *cobra.Command, _ []string) error {
 	log := logger.New(viper.GetBool("verbose"))
-
-	// Validate plan file path
-	if planReviewFile == "" {
-		log.Error("JSON plan file is required. Use --json-file flag to specify the path.")
-		cmd.SilenceUsage = true
-		return ErrFileRequired
-	}
 
 	// Check if file exists
 	if _, err := os.Stat(planReviewFile); err != nil {
@@ -110,7 +104,7 @@ func runPlanReview(cmd *cobra.Command, _ []string) error {
 	}
 
 	// Suppress logs for machine-readable formats
-	if planReviewFormat == string(output.FormatJSON) || planReviewFormat == string(output.FormatCSV) {
+	if planReviewFormat == string(format.FormatJSON) || planReviewFormat == string(format.FormatCSV) {
 		log.SetOutput(os.Stderr)
 	}
 
@@ -136,18 +130,18 @@ func runPlanReview(cmd *cobra.Command, _ []string) error {
 
 	log.Infof("Found %d resource changes", analysis.TotalChanges)
 
-	// Load drift config for formatter settings
-	driftConfig := output.LoadDriftConfig(viper.GetViper())
+	// Load plan analysis config for formatter settings
+	planConfig := config.LoadPlanAnalysisConfig(viper.GetViper())
 
 	// Override config with flag if provided
-	topResourcesCount := driftConfig.TopResourcesCount
+	topResourcesCount := planConfig.TopResourcesCount
 	if planReviewTopResources > 0 {
 		topResourcesCount = planReviewTopResources
 	}
 
 	// Format and output using internal package
 	formatter := plan.NewPlanFormatterWithConfig(!planReviewNoColor, topResourcesCount)
-	if err := formatter.Format(analysis, output.OutputFormat(planReviewFormat), os.Stdout); err != nil {
+	if err := formatter.Format(analysis, format.OutputFormat(planReviewFormat), os.Stdout); err != nil {
 		log.Errorf("Failed to format output: %v", err)
 		cmd.SilenceUsage = true
 		return fmt.Errorf("failed to format output: %w", err)

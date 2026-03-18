@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/ishuar/tfskel/internal/output"
+	"github.com/ishuar/tfskel/internal/config"
 	"github.com/spf13/viper"
 )
 
@@ -24,8 +24,8 @@ func NewPlanAnalyzer() *PlanAnalyzer {
 // merged with user-defined resources from viper config.
 // This allows extending the default list via .tfskel.yaml configuration.
 func NewPlanAnalyzerWithConfig(v *viper.Viper) *PlanAnalyzer {
-	driftConfig := output.LoadDriftConfig(v)
-	criticalResources := MergeCriticalResources(DefaultCriticalResources(), driftConfig.CriticalResources)
+	planConfig := config.LoadPlanAnalysisConfig(v)
+	criticalResources := MergeCriticalResources(DefaultCriticalResources(), planConfig.CriticalResources)
 	return &PlanAnalyzer{
 		criticalResourceTypes: criticalResources,
 	}

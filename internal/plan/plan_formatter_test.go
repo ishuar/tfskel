@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ishuar/tfskel/internal/output"
+	"github.com/ishuar/tfskel/internal/format"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -76,7 +76,7 @@ func TestPlanFormatter_Format(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		format      output.OutputFormat
+		format      format.OutputFormat
 		useColor    bool
 		validate    func(t *testing.T, output string)
 		wantErr     bool
@@ -84,7 +84,7 @@ func TestPlanFormatter_Format(t *testing.T) {
 	}{
 		{
 			name:     "JSON format",
-			format:   output.FormatJSON,
+			format:   format.FormatJSON,
 			useColor: false,
 			validate: func(t *testing.T, output string) {
 				t.Helper()
@@ -112,7 +112,7 @@ func TestPlanFormatter_Format(t *testing.T) {
 		},
 		{
 			name:     "CSV format",
-			format:   output.FormatCSV,
+			format:   format.FormatCSV,
 			useColor: false,
 			validate: func(t *testing.T, output string) {
 				t.Helper()
@@ -162,7 +162,7 @@ func TestPlanFormatter_Format(t *testing.T) {
 		},
 		{
 			name:     "table format without color",
-			format:   output.FormatTable,
+			format:   format.FormatTable,
 			useColor: false,
 			validate: func(t *testing.T, output string) {
 				t.Helper()
@@ -206,7 +206,7 @@ func TestPlanFormatter_Format(t *testing.T) {
 		},
 		{
 			name:     "table format with color",
-			format:   output.FormatTable,
+			format:   format.FormatTable,
 			useColor: true,
 			validate: func(t *testing.T, output string) {
 				t.Helper()
@@ -222,7 +222,7 @@ func TestPlanFormatter_Format(t *testing.T) {
 		},
 		{
 			name:        "unsupported format",
-			format:      output.OutputFormat("invalid"),
+			format:      format.OutputFormat("invalid"),
 			useColor:    false,
 			wantErr:     true,
 			errContains: "unsupported format",
@@ -262,12 +262,12 @@ func TestPlanFormatter_FormatEmptyAnalysis(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		format   output.OutputFormat
+		format   format.OutputFormat
 		validate func(t *testing.T, output string)
 	}{
 		{
 			name:   "empty JSON",
-			format: output.FormatJSON,
+			format: format.FormatJSON,
 			validate: func(t *testing.T, output string) {
 				t.Helper()
 				var result map[string]any
@@ -281,7 +281,7 @@ func TestPlanFormatter_FormatEmptyAnalysis(t *testing.T) {
 		},
 		{
 			name:   "empty CSV",
-			format: output.FormatCSV,
+			format: format.FormatCSV,
 			validate: func(t *testing.T, output string) {
 				t.Helper()
 				lines := strings.Split(strings.TrimSpace(output), "\n")
@@ -304,7 +304,7 @@ func TestPlanFormatter_FormatEmptyAnalysis(t *testing.T) {
 		},
 		{
 			name:   "empty table",
-			format: output.FormatTable,
+			format: format.FormatTable,
 			validate: func(t *testing.T, output string) {
 				t.Helper()
 				assert.Contains(t, output, "Terraform Plan Analysis")
@@ -432,9 +432,9 @@ func TestPlanFormatter_colorizeSeverity(t *testing.T) {
 
 func TestOutputFormat_Constants(t *testing.T) {
 	// Verify output format constants are correctly defined
-	assert.Equal(t, output.FormatJSON, output.OutputFormat("json"))
-	assert.Equal(t, output.FormatCSV, output.OutputFormat("csv"))
-	assert.Equal(t, output.FormatTable, output.OutputFormat("table"))
+	assert.Equal(t, format.FormatJSON, format.OutputFormat("json"))
+	assert.Equal(t, format.FormatCSV, format.OutputFormat("csv"))
+	assert.Equal(t, format.FormatTable, format.OutputFormat("table"))
 }
 
 func TestSeverityOrder(t *testing.T) {

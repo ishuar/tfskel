@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ishuar/tfskel/internal/output"
+	"github.com/ishuar/tfskel/internal/format"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -37,7 +37,7 @@ func TestFormatter_Format(t *testing.T) {
 
 	formatter := NewFormatter(false)
 	buf := &bytes.Buffer{}
-	err := formatter.Format(report, output.FormatTable, buf)
+	err := formatter.Format(report, format.FormatTable, buf)
 	assert.NoError(t, err)
 }
 
@@ -52,7 +52,7 @@ func TestFormatter_Format_UnsupportedFormat(t *testing.T) {
 
 	formatter := NewFormatter(false)
 	buf := &bytes.Buffer{}
-	err := formatter.Format(report, output.OutputFormat("invalid"), buf)
+	err := formatter.Format(report, format.OutputFormat("invalid"), buf)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "unsupported format")
@@ -86,7 +86,7 @@ func TestFormatter_FormatJSON(t *testing.T) {
 
 	formatter := NewFormatter(false)
 	buf := &bytes.Buffer{}
-	err := formatter.Format(report, output.FormatJSON, buf)
+	err := formatter.Format(report, format.FormatJSON, buf)
 
 	require.NoError(t, err)
 
@@ -130,7 +130,7 @@ func TestFormatter_FormatCSV(t *testing.T) {
 
 	formatter := NewFormatter(false)
 	buf := &bytes.Buffer{}
-	err := formatter.Format(report, output.FormatCSV, buf)
+	err := formatter.Format(report, format.FormatCSV, buf)
 
 	require.NoError(t, err)
 
@@ -233,7 +233,7 @@ func TestFormatter_FormatTable_WithDrift(t *testing.T) {
 
 	formatter := NewFormatter(false)
 	buf := &bytes.Buffer{}
-	err := formatter.Format(report, output.FormatTable, buf)
+	err := formatter.Format(report, format.FormatTable, buf)
 
 	require.NoError(t, err)
 
@@ -273,7 +273,7 @@ func TestFormatter_FormatTable_NoDrift(t *testing.T) {
 
 	formatter := NewFormatter(false)
 	buf := &bytes.Buffer{}
-	err := formatter.Format(report, output.FormatTable, buf)
+	err := formatter.Format(report, format.FormatTable, buf)
 
 	require.NoError(t, err)
 
@@ -304,7 +304,7 @@ func TestFormatter_FormatTable_WithErrors(t *testing.T) {
 
 	formatter := NewFormatter(false)
 	buf := &bytes.Buffer{}
-	err := formatter.Format(report, output.FormatTable, buf)
+	err := formatter.Format(report, format.FormatTable, buf)
 
 	require.NoError(t, err)
 
@@ -341,7 +341,7 @@ func TestFormatter_FormatTable_LongPaths(t *testing.T) {
 
 	formatter := NewFormatter(false)
 	buf := &bytes.Buffer{}
-	err := formatter.Format(report, output.FormatTable, buf)
+	err := formatter.Format(report, format.FormatTable, buf)
 
 	require.NoError(t, err)
 	// Should not error even with long paths
@@ -362,8 +362,8 @@ func TestFormatter_CalculateOptimalWidth(t *testing.T) {
 			report: &DriftReport{
 				Records: []DriftRecord{},
 			},
-			expectedMin: output.MinDriftTableWidth,
-			expectedMax: output.MinDriftTableWidth,
+			expectedMin: format.MinDriftTableWidth,
+			expectedMax: format.MinDriftTableWidth,
 		},
 		{
 			name:          "wide terminal with short paths",
@@ -373,8 +373,8 @@ func TestFormatter_CalculateOptimalWidth(t *testing.T) {
 					{FilePath: "short.tf", HasDrift: true},
 				},
 			},
-			expectedMin: output.MinDriftTableWidth,
-			expectedMax: output.MinDriftTableWidth,
+			expectedMin: format.MinDriftTableWidth,
+			expectedMax: format.MinDriftTableWidth,
 		},
 		{
 			name:          "narrow terminal",

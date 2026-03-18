@@ -13,7 +13,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
-	"github.com/ishuar/tfskel/internal/output"
+	"github.com/ishuar/tfskel/internal/format"
 	"golang.org/x/term"
 )
 
@@ -51,30 +51,30 @@ func NewFormatter(useColor bool) *Formatter {
 }
 
 // Format formats the drift report in the specified format
-func (f *Formatter) Format(report *DriftReport, format output.OutputFormat, writer io.Writer) error {
-	switch format {
-	case output.FormatTable:
+func (f *Formatter) Format(report *DriftReport, outputFormat format.OutputFormat, writer io.Writer) error {
+	switch outputFormat {
+	case format.FormatTable:
 		return f.formatTable(report, writer)
-	case output.FormatJSON:
+	case format.FormatJSON:
 		return f.formatJSON(report, writer)
-	case output.FormatCSV:
+	case format.FormatCSV:
 		return f.formatCSV(report, writer)
 	default:
-		return fmt.Errorf("%w: %s", ErrUnsupportedFormat, format)
+		return fmt.Errorf("%w: %s", ErrUnsupportedFormat, outputFormat)
 	}
 }
 
 // calculateOptimalWidth determines the best width for all tables
 func (f *Formatter) calculateOptimalWidth(report *DriftReport) int {
 	// Calculate minimum width needed for drift table (the widest)
-	minRequired := output.MinDriftTableWidth
+	minRequired := format.MinDriftTableWidth
 
 	// Check if we have long file paths that need more space
 	for _, record := range report.Records {
-		if record.HasDrift && len(record.FilePath) > output.BaseFilePathWidth {
+		if record.HasDrift && len(record.FilePath) > format.BaseFilePathWidth {
 			// Add extra space for longer paths, up to a reasonable limit
-			extraSpace := (len(record.FilePath) - output.BaseFilePathWidth) / output.PathDivisor
-			extraSpace = min(extraSpace, output.MaxExtraSpaceForPaths)
+			extraSpace := (len(record.FilePath) - format.BaseFilePathWidth) / format.PathDivisor
+			extraSpace = min(extraSpace, format.MaxExtraSpaceForPaths)
 			minRequired += extraSpace
 			break
 		}
@@ -90,7 +90,7 @@ func (f *Formatter) calculateOptimalWidth(report *DriftReport) int {
 // formatTable outputs a human-readable table
 func (f *Formatter) formatTable(report *DriftReport, writer io.Writer) error {
 	buf := &bytes.Buffer{}
-	styles := output.NewCommonStyles(f.useColor)
+	styles := format.NewCommonStyles(f.useColor)
 
 	// Calculate consistent width for all tables
 	f.tableWidth = f.calculateOptimalWidth(report)
@@ -127,7 +127,7 @@ func (f *Formatter) formatTable(report *DriftReport, writer io.Writer) error {
 }
 
 // tableStyles is an alias for CommonStyles for backward compatibility in this file
-type tableStyles = output.CommonStyles
+type tableStyles = format.CommonStyles
 
 // writeHeader writes the report header
 func (f *Formatter) writeHeader(writer io.Writer, report *DriftReport, styles tableStyles) error {
@@ -153,7 +153,7 @@ func (f *Formatter) writeSummary(writer io.Writer, report *DriftReport, styles t
 
 	// Calculate column widths to fill the table width evenly
 	// Subtract borders and padding
-	availableWidth := f.tableWidth - output.TableBorderPadding
+	availableWidth := f.tableWidth - format.TableBorderPadding
 	labelWidth := availableWidth / 2
 	valueWidth := availableWidth - labelWidth
 

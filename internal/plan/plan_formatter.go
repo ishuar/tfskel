@@ -13,7 +13,8 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
-	"github.com/ishuar/tfskel/internal/output"
+	"github.com/ishuar/tfskel/internal/config"
+	"github.com/ishuar/tfskel/internal/format"
 	"golang.org/x/term"
 )
 
@@ -41,7 +42,7 @@ type PlanFormatter struct {
 
 // NewPlanFormatter creates a new plan formatter with auto-detected terminal width
 func NewPlanFormatter(useColor bool) *PlanFormatter {
-	width := output.DefaultTerminalWidth
+	width := format.DefaultTerminalWidth
 	if fd := int(os.Stdout.Fd()); term.IsTerminal(fd) {
 		if w, _, err := term.GetSize(fd); err == nil && w > 0 {
 			width = w
@@ -51,20 +52,20 @@ func NewPlanFormatter(useColor bool) *PlanFormatter {
 		useColor:          useColor,
 		terminalWidth:     width,
 		tableWidth:        0,                               // Will be calculated during formatting
-		topResourcesCount: output.DefaultTopResourcesCount, // Default to 10
+		topResourcesCount: config.DefaultTopResourcesCount, // Default to 10
 	}
 }
 
 // NewPlanFormatterWithConfig creates a new plan formatter with configuration
 func NewPlanFormatterWithConfig(useColor bool, topResourcesCount int) *PlanFormatter {
-	width := output.DefaultTerminalWidth
+	width := format.DefaultTerminalWidth
 	if fd := int(os.Stdout.Fd()); term.IsTerminal(fd) {
 		if w, _, err := term.GetSize(fd); err == nil && w > 0 {
 			width = w
 		}
 	}
 	if topResourcesCount <= 0 {
-		topResourcesCount = output.DefaultTopResourcesCount
+		topResourcesCount = config.DefaultTopResourcesCount
 	}
 	return &PlanFormatter{
 		useColor:          useColor,
@@ -75,16 +76,16 @@ func NewPlanFormatterWithConfig(useColor bool, topResourcesCount int) *PlanForma
 }
 
 // Format outputs the plan analysis in the specified format
-func (f *PlanFormatter) Format(analysis *PlanAnalysis, format output.OutputFormat, w io.Writer) error {
-	switch format {
-	case output.FormatJSON:
+func (f *PlanFormatter) Format(analysis *PlanAnalysis, outputFormat format.OutputFormat, w io.Writer) error {
+	switch outputFormat {
+	case format.FormatJSON:
 		return f.formatJSON(analysis, w)
-	case output.FormatCSV:
+	case format.FormatCSV:
 		return f.formatCSV(analysis, w)
-	case output.FormatTable:
+	case format.FormatTable:
 		return f.formatTable(analysis, w)
 	default:
-		return fmt.Errorf("%w: %s", ErrUnsupportedPlanFormat, format)
+		return fmt.Errorf("%w: %s", ErrUnsupportedPlanFormat, outputFormat)
 	}
 }
 
@@ -142,7 +143,7 @@ func (f *PlanFormatter) formatCSV(analysis *PlanAnalysis, w io.Writer) error {
 
 // formatTable outputs analysis as a formatted table with color styling
 func (f *PlanFormatter) formatTable(analysis *PlanAnalysis, w io.Writer) error {
-	styles := output.NewCommonStyles(f.useColor)
+	styles := format.NewCommonStyles(f.useColor)
 
 	// Calculate optimal width for all tables
 	f.tableWidth = f.calculateOptimalWidth()
@@ -171,7 +172,7 @@ func (f *PlanFormatter) formatTable(analysis *PlanAnalysis, w io.Writer) error {
 }
 
 // writeTableHeader writes the table header section
-func (f *PlanFormatter) writeTableHeader(w io.Writer, analysis *PlanAnalysis, styles output.CommonStyles) error {
+func (f *PlanFormatter) writeTableHeader(w io.Writer, analysis *PlanAnalysis, styles format.CommonStyles) error {
 	if _, err := fmt.Fprintln(w, styles.TitleStyle.Render("━━━ Terraform Plan Analysis ━━━")); err != nil {
 		return fmt.Errorf("failed to write title: %w", err)
 	}
@@ -182,7 +183,7 @@ func (f *PlanFormatter) writeTableHeader(w io.Writer, analysis *PlanAnalysis, st
 }
 
 // writeTableSummary writes the summary statistics table
-func (f *PlanFormatter) writeTableSummary(w io.Writer, analysis *PlanAnalysis, styles output.CommonStyles) error {
+func (f *PlanFormatter) writeTableSummary(w io.Writer, analysis *PlanAnalysis, styles format.CommonStyles) error {
 	if _, err := fmt.Fprintln(w, styles.HeaderStyle.Render("Summary")); err != nil {
 		return fmt.Errorf("failed to write summary header: %w", err)
 	}
@@ -217,7 +218,7 @@ func (f *PlanFormatter) writeTableSummary(w io.Writer, analysis *PlanAnalysis, s
 }
 
 // writeTableGroupings writes all grouping sections
-func (f *PlanFormatter) writeTableGroupings(w io.Writer, analysis *PlanAnalysis, styles output.CommonStyles) error {
+func (f *PlanFormatter) writeTableGroupings(w io.Writer, analysis *PlanAnalysis, styles format.CommonStyles) error {
 	// Changes by Resource Type
 	if len(analysis.ByType) > 0 {
 		if err := f.printGroupSummary(w, styles, "Changes by Resource Type", analysis.ByType, f.topResourcesCount); err != nil {
@@ -234,7 +235,7 @@ func (f *PlanFormatter) writeTableGroupings(w io.Writer, analysis *PlanAnalysis,
 
 	// Changes by Severity
 	if len(analysis.BySeverity) > 0 {
-		if err := f.printGroupSummary(w, styles, "Changes by Severity", analysis.BySeverity, output.SeverityTopResourcesCount); err != nil {
+		if err := f.printGroupSummary(w, styles, "Changes by Severity", analysis.BySeverity, format.SeverityTopResourcesCount); err != nil {
 			return err
 		}
 	}
@@ -243,7 +244,7 @@ func (f *PlanFormatter) writeTableGroupings(w io.Writer, analysis *PlanAnalysis,
 }
 
 // writeTableResourceDetails writes the detailed resource changes table
-func (f *PlanFormatter) writeTableResourceDetails(w io.Writer, analysis *PlanAnalysis, styles output.CommonStyles) error {
+func (f *PlanFormatter) writeTableResourceDetails(w io.Writer, analysis *PlanAnalysis, styles format.CommonStyles) error {
 	if _, err := fmt.Fprintln(w, styles.HeaderStyle.Render("Resource Changes (detailed)")); err != nil {
 		return fmt.Errorf("failed to write resource changes header: %w", err)
 	}
@@ -368,11 +369,11 @@ func (f *PlanFormatter) buildResourceData(resources []AnalyzedResource) [][]stri
 func (f *PlanFormatter) calculateOptimalWidth() int {
 	// For plan analysis, we want tables to use most of the terminal width
 	// but with some reasonable constraints
-	minWidth := output.MinPlanTableWidth
-	maxWidth := output.MaxPlanTableWidth
+	minWidth := format.MinPlanTableWidth
+	maxWidth := format.MaxPlanTableWidth
 
 	// Use 95% of terminal width to leave some margin
-	optimalWidth := (f.terminalWidth * output.PercentageWidthFactor) / output.PercentageDivisor
+	optimalWidth := (f.terminalWidth * format.PercentageWidthFactor) / format.PercentageDivisor
 
 	if optimalWidth < minWidth {
 		return minWidth
@@ -387,7 +388,7 @@ func (f *PlanFormatter) calculateOptimalWidth() int {
 // The groups map contains category names and their counts.
 // If topN is > 0, only the top N items by count are displayed.
 // Returns an error if writing to the output fails.
-func (f *PlanFormatter) printGroupSummary(w io.Writer, styles output.CommonStyles, title string, groups map[string]int, topN int) error {
+func (f *PlanFormatter) printGroupSummary(w io.Writer, styles format.CommonStyles, title string, groups map[string]int, topN int) error {
 	if _, err := fmt.Fprintln(w, styles.HeaderStyle.Render(title)); err != nil {
 		return fmt.Errorf("failed to write group summary title: %w", err)
 	}
