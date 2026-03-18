@@ -25,6 +25,8 @@ var (
 	ErrFileRequired = errors.New("json plan file is required")
 	// ErrFileNotFound indicates the specified file does not exist
 	ErrFileNotFound = errors.New("json plan file not found")
+	// ErrInvalidFormat indicates an unsupported output format was specified
+	ErrInvalidFormat = errors.New("invalid format: must be one of table, json, csv")
 )
 
 // planReviewCmd represents the plan review command
@@ -87,6 +89,16 @@ func init() {
 
 func runPlanReview(cmd *cobra.Command, _ []string) error {
 	log := logger.New(viper.GetBool("verbose"))
+
+	// Validate output format
+	switch format.OutputFormat(planReviewFormat) {
+	case format.FormatTable, format.FormatJSON, format.FormatCSV:
+		// valid format
+	default:
+		log.Errorf("Invalid format: %s", planReviewFormat)
+		cmd.SilenceUsage = true
+		return fmt.Errorf("%w", ErrInvalidFormat)
+	}
 
 	// Check if file exists
 	if _, err := os.Stat(planReviewFile); err != nil {
