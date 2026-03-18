@@ -151,14 +151,21 @@ The generator (`internal/app`) orchestrates the entire generation process:
 5. Detects and handles configuration changes
 6. Reports progress and errors
 
-#### 5. Drift Detection
+#### 5. Version Drift & Plan Analysis
 
-The drift detection system (`internal/drift`) provides:
+The version drift detection (`internal/diff`) provides:
 - HCL parsing of Terraform files
 - Version extraction from terraform and required_providers blocks
 - Comparison against .tfskel.yaml configuration
 - Multi-format output (table, JSON, CSV)
 - Comprehensive reporting with drift categorization
+
+The plan analysis (`internal/plan`) provides:
+- JSON plan file parsing
+- Resource change categorization
+- Critical resource detection
+- Severity assessment
+- Multi-format output (table, JSON, CSV)
 
 #### 6. Logger
 
