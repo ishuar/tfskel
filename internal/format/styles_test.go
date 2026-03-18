@@ -1,7 +1,6 @@
 package format
 
 import (
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -9,20 +8,6 @@ import (
 
 // TestShouldUseColor verifies color detection logic with flags and environment variables
 func TestShouldUseColor(t *testing.T) {
-	// Helper to save and restore environment variables
-	saveEnv := func(key string) (string, bool) {
-		val, exists := os.LookupEnv(key)
-		return val, exists
-	}
-
-	restoreEnv := func(key string, val string, existed bool) {
-		if existed {
-			os.Setenv(key, val)
-		} else {
-			os.Unsetenv(key)
-		}
-	}
-
 	tests := []struct {
 		name           string
 		noColorFlag    bool
@@ -118,25 +103,13 @@ func TestShouldUseColor(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Save original env vars
-			origNoColor, noColorExisted := saveEnv("NO_COLOR")
-			origForceColor, forceColorExisted := saveEnv("FORCE_COLOR")
-
-			// Clean up after test
-			defer func() {
-				restoreEnv("NO_COLOR", origNoColor, noColorExisted)
-				restoreEnv("FORCE_COLOR", origForceColor, forceColorExisted)
-			}()
-
-			// Set up test environment
-			os.Unsetenv("NO_COLOR")
-			os.Unsetenv("FORCE_COLOR")
-
+			// Use t.Setenv for automatic, race-safe cleanup (Go 1.17+)
+			// It automatically restores the original value after the test
 			if tt.noColorEnv != "" {
-				os.Setenv("NO_COLOR", tt.noColorEnv)
+				t.Setenv("NO_COLOR", tt.noColorEnv)
 			}
 			if tt.forceColorEnv != "" {
-				os.Setenv("FORCE_COLOR", tt.forceColorEnv)
+				t.Setenv("FORCE_COLOR", tt.forceColorEnv)
 			}
 
 			// Test the function

@@ -149,9 +149,6 @@ func runReviewPlan(cmd *cobra.Command, _ []string) error {
 	}
 
 	// Color profile already initialized in root PersistentPreRunE
-	// Use the global noColor flag value
-	useColor := format.ShouldUseColor(noColor)
-
 	// Format and output using internal package
 	formatter := plan.NewPlanFormatterWithConfig(useColor, topResourcesCount)
 	if err := formatter.Format(analysis, format.OutputFormat(reviewPlanFormat), os.Stdout); err != nil {

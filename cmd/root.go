@@ -21,6 +21,10 @@ var (
 	Date = "unknown"
 	// BuildTime is the build timestamp
 	BuildTime = "unknown"
+
+	// useColor stores the color decision made in PersistentPreRunE
+	// It's reused by subcommands to avoid redundant env var lookups
+	useColor bool
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -35,7 +39,8 @@ and scalable Terraform layouts with built-in best practices.`,
 	PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
 		// Initialize lipgloss color profile once for all commands
 		// Respects NO_COLOR, FORCE_COLOR env vars and --no-color flag
-		useColor := format.ShouldUseColor(noColor)
+		// Store the decision to avoid redundant env var lookups in subcommands
+		useColor = format.ShouldUseColor(noColor)
 		if useColor {
 			lipgloss.SetColorProfile(termenv.TrueColor)
 		} else {

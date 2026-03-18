@@ -16,8 +16,7 @@ import (
 
 var (
 	configFormat string
-
-	configDir string
+	configDir    string
 )
 
 var (
@@ -134,9 +133,7 @@ func runDiffConfig(cmd *cobra.Command, _ []string) error {
 	outputFormat := format.OutputFormat(configFormat)
 
 	// Color profile already initialized in root PersistentPreRunE
-	// Use the global noColor flag value
-	useColor := format.ShouldUseColor(noColor)
-
+	// Reuse the global useColor decision to avoid redundant env var checks
 	formatter := diff.NewFormatter(useColor)
 
 	if err := formatter.Format(report, outputFormat, os.Stdout); err != nil {
