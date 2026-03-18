@@ -104,9 +104,13 @@ func TestReviewPlanCommand_CommandSetup(t *testing.T) {
 	})
 
 	t.Run("inherits global flags from root", func(t *testing.T) {
-		// --no-color is now a persistent flag on root command
+		// --no-color is a persistent flag on root command
 		noColorFlag := rootCmd.PersistentFlags().Lookup("no-color")
 		assert.NotNil(t, noColorFlag, "--no-color flag should exist on root")
+
+		// Verify it's available to review plan command (inherited)
+		inheritedNoColorFlag := reviewPlanCmd.Flag("no-color")
+		assert.NotNil(t, inheritedNoColorFlag, "review plan should inherit --no-color flag")
 	})
 
 	t.Run("command has help text", func(t *testing.T) {
