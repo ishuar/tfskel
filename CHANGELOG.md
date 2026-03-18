@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.0](https://github.com/ishuar/tfskel/compare/v0.4.0...v0.5.0) (2026-03-18)
+
+
+### ⚠ BREAKING CHANGES
+
+* **plan:** tfskel plan cmd is removed
+    - `tfskel plan review` is renamed to `tfskel review plan`
+
+### ✨ Features
+
+* **plan:** rename tfskel plan review to tfskel review plan ([#48](https://github.com/ishuar/tfskel/issues/48)) ([ce3bcdb](https://github.com/ishuar/tfskel/commit/ce3bcdbeab8402fa66e87bc78b30e49eceb09b81))
+
 ## [0.4.0](https://github.com/ishuar/tfskel/compare/v0.3.0...v0.4.0) (2026-03-18)
 
 
