@@ -58,7 +58,7 @@ func NewCommonStyles(useColor bool) CommonStyles {
 //   - FORCE_COLOR convention: common in CI/CD tools like GitHub Actions
 func ShouldUseColor(noColorFlag bool) bool {
 	// Check NO_COLOR environment variable (standard: https://no-color.org/)
-	if os.Getenv("NO_COLOR") != "" {
+	if _, ok := os.LookupEnv("NO_COLOR"); ok {
 		return false
 	}
 
