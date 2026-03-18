@@ -14,10 +14,10 @@ import (
 )
 
 var (
-	planReviewFile         string
-	planReviewFormat       string
-	planReviewNoColor      bool
-	planReviewTopResources int
+	reviewPlanFile         string
+	reviewPlanFormat       string
+	reviewPlanNoColor      bool
+	reviewPlanTopResources int
 )
 
 var (
@@ -29,9 +29,9 @@ var (
 	ErrInvalidFormat = errors.New("invalid format: must be one of table, json, csv")
 )
 
-// planReviewCmd represents the plan review command
-var planReviewCmd = &cobra.Command{
-	Use:   "review",
+// reviewPlanCmd represents the review plan command
+var reviewPlanCmd = &cobra.Command{
+	Use:   "plan",
 	Short: "Analyze Terraform plan JSON file & output a human-readable Terraform plan summary",
 	Long: `Analyze a Terraform plan JSON file to detect and
 categorize infrastructure changes. This command helps you
@@ -54,61 +54,61 @@ Severity Levels:
   - Low       - Additions only`,
 
 	Example: `  # Analyze a plan file
-  tfskel plan review --json-file tfplan.json
+  tfskel review plan --json-file tfplan.json
 
   # Export analysis as JSON for CI/CD
-  tfskel plan review --json-file tfplan.json --format json
+  tfskel review plan --json-file tfplan.json --format json
 
   # Generate CSV report
-  tfskel plan review --json-file tfplan.json --format csv > plan-analysis.csv
+  tfskel review plan --json-file tfplan.json --format csv > plan-analysis.csv
 
   # Analyze without colors (for logs)
-  tfskel plan review --json-file tfplan.json --no-color
+  tfskel review plan --json-file tfplan.json --no-color
 
   # Limit top resource summaries to 5 items
-  tfskel plan review --json-file tfplan.json --top-resources-count 5`,
-	RunE: runPlanReview,
+  tfskel review plan --json-file tfplan.json --top-resources-count 5`,
+	RunE: runReviewPlan,
 }
 
 func init() {
-	planCmd.AddCommand(planReviewCmd)
+	reviewCmd.AddCommand(reviewPlanCmd)
 
-	planReviewCmd.Flags().StringVar(&planReviewFile, "json-file", "",
+	reviewPlanCmd.Flags().StringVar(&reviewPlanFile, "json-file", "",
 		"Path to Terraform plan JSON file (required)")
-	if err := planReviewCmd.MarkFlagRequired("json-file"); err != nil {
+	if err := reviewPlanCmd.MarkFlagRequired("json-file"); err != nil {
 		panic(fmt.Sprintf("failed to mark JSON plan file as required: %v", err))
 	}
 
-	planReviewCmd.Flags().StringVarP(&planReviewFormat, "format", "f", "table",
+	reviewPlanCmd.Flags().StringVarP(&reviewPlanFormat, "format", "f", "table",
 		"Output format: table, json, csv")
-	planReviewCmd.Flags().BoolVar(&planReviewNoColor, "no-color", false,
+	reviewPlanCmd.Flags().BoolVar(&reviewPlanNoColor, "no-color", false,
 		"Disable colored output")
-	planReviewCmd.Flags().IntVar(&planReviewTopResources, "top-resources-count", -1,
+	reviewPlanCmd.Flags().IntVar(&reviewPlanTopResources, "top-resources-count", -1,
 		"Number of resources to show in top-N summaries (default: 10, 0 = unlimited)")
 }
 
-func runPlanReview(cmd *cobra.Command, _ []string) error {
+func runReviewPlan(cmd *cobra.Command, _ []string) error {
 	log := logger.New(viper.GetBool("verbose"))
 
 	// Validate output format
-	switch format.OutputFormat(planReviewFormat) {
+	switch format.OutputFormat(reviewPlanFormat) {
 	case format.FormatTable, format.FormatJSON, format.FormatCSV:
 		// valid format
 	default:
-		log.Errorf("Invalid format: %s", planReviewFormat)
+		log.Errorf("Invalid format: %s", reviewPlanFormat)
 		cmd.SilenceUsage = true
 		return fmt.Errorf("%w", ErrInvalidFormat)
 	}
 
 	// Check if file exists
-	if _, err := os.Stat(planReviewFile); err != nil {
+	if _, err := os.Stat(reviewPlanFile); err != nil {
 		if os.IsNotExist(err) {
-			log.Errorf("JSON plan file not found: %s", planReviewFile)
+			log.Errorf("JSON plan file not found: %s", reviewPlanFile)
 			log.Info("Generate plan with:")
 			log.Info("  terraform plan -out=tfplan.binary")
 			log.Info("  terraform show -json tfplan.binary > tfplan.json")
 			cmd.SilenceUsage = true
-			return fmt.Errorf("%w: %s", ErrFileNotFound, planReviewFile)
+			return fmt.Errorf("%w: %s", ErrFileNotFound, reviewPlanFile)
 		}
 		log.Errorf("Failed to access file: %v", err)
 		cmd.SilenceUsage = true
@@ -116,15 +116,15 @@ func runPlanReview(cmd *cobra.Command, _ []string) error {
 	}
 
 	// Suppress logs for machine-readable formats
-	if planReviewFormat == string(format.FormatJSON) || planReviewFormat == string(format.FormatCSV) {
+	if reviewPlanFormat == string(format.FormatJSON) || reviewPlanFormat == string(format.FormatCSV) {
 		log.SetOutput(os.Stderr)
 	}
 
-	log.Info("Analyzing terraform plan...")
-	log.Infof("JSON plan file: %s", planReviewFile)
+	log.Info("Reviewing terraform plan...")
+	log.Infof("JSON plan file: %s", reviewPlanFile)
 
 	// Parse plan file using internal package
-	planData, err := plan.ParsePlanFile(planReviewFile)
+	planData, err := plan.ParsePlanFile(reviewPlanFile)
 	if err != nil {
 		log.Errorf("Failed to parse plan file: %v", err)
 		cmd.SilenceUsage = true
@@ -148,17 +148,16 @@ func runPlanReview(cmd *cobra.Command, _ []string) error {
 	// Override config with flag if explicitly set
 	topResourcesCount := planConfig.TopResourcesCount
 	if cmd.Flags().Changed("top-resources-count") {
-		topResourcesCount = planReviewTopResources
+		topResourcesCount = reviewPlanTopResources
 	}
 
 	// Format and output using internal package
-	formatter := plan.NewPlanFormatterWithConfig(!planReviewNoColor, topResourcesCount)
-	if err := formatter.Format(analysis, format.OutputFormat(planReviewFormat), os.Stdout); err != nil {
+	formatter := plan.NewPlanFormatterWithConfig(!reviewPlanNoColor, topResourcesCount)
+	if err := formatter.Format(analysis, format.OutputFormat(reviewPlanFormat), os.Stdout); err != nil {
 		log.Errorf("Failed to format output: %v", err)
 		cmd.SilenceUsage = true
 		return fmt.Errorf("failed to format output: %w", err)
 	}
-
 	// Return ExitError if changes detected for proper exit code handling
 	exitCode := analysis.ExitCode()
 	if exitCode != 0 {

@@ -186,7 +186,7 @@ tfskel diff config --format csv --no-color > drift-report.csv
 <img src="assets/tfskel-diff-config.gif" alt="tfskel diff config demo" width="600" />
 </p>
 
-#### `tfskel plan review`
+#### `tfskel review plan`
 
 Reads a `plan.json` file, summarizes resource changes, flags high-severity updates based on a configurable list of critical resources, and produces a structured report. Output can be exported as CSV, table, or JSON for reporting.
 
@@ -208,17 +208,17 @@ Reads a `plan.json` file, summarizes resource changes, flags high-severity updat
 # Generate and analyze a Terraform plan
 terraform plan -out plan.bin
 terraform show -json plan.bin > plan.json
-tfskel plan review --json-file plan.json
+tfskel review plan --json-file plan.json
 
 # Export as CSV for reporting
-tfskel plan review --json-file plan.json --format csv
+tfskel review plan --json-file plan.json --format csv
 
 # JSON output without colors (suitable for log files)
-tfskel plan review --json-file plan.json --format json --no-color
+tfskel review plan --json-file plan.json --format json --no-color
 ```
 
 <p align="left">
-<img src="assets/tfskel-plan-review.gif" alt="tfskel plan review demo" width="600" />
+<img src="assets/tfskel-review-plan.gif" alt="tfskel review plan demo" width="600" />
 </p>
 
 ## Configuration

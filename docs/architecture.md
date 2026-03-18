@@ -878,7 +878,7 @@ User runs: tfskel diff config --dir ./envs
 
 #### Drift Plan Flow
 ```
-User runs: tfskel plan review --json-file tfplan.json
+User runs: tfskel review plan --json-file tfplan.json
 
 1. CLI Layer (cmd/drift_plan.go)
    ├─ Parse flags (plan-file, format, no-color)
