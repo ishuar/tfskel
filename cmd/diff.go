@@ -9,9 +9,8 @@ var diffCmd = &cobra.Command{
 	Use:     "diff",
 	GroupID: "main",
 	Short:   "Analyze Terraform configuration drift and plan changes",
-	Long: `The diff command helps you analyze terraform plan
-and detect terraform & provider versions discrepancies in your
-Terraform infrastructure.`,
+	Long: `The diff command helps you detect .tfskel config, Terraform
+& provider versions discrepancies in your Terraform infrastructure.`,
 }
 
 func init() {
