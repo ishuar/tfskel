@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.4.0](https://github.com/ishuar/tfskel/compare/v0.3.0...v0.4.0) (2026-03-18)
+
+
+### ⚠ BREAKING CHANGES
+
+* **drift:** Split `tfskel drift` command into two separate commands:
+    - `tfskel drift version --path | -p` is replaced with `tfskel diff config --dir | -d`
+    - `tfskel drift plan --plan-file` is replaced with `tfskel plan review --json-file`
+    - Removed `top_n_count` from .tfskel.yaml config
+      - use `top_resources_count` or `--top-resources-count` instead with `tfskel plan review --json-file <JSON-PLAN-FILE>`
+* **drift:** removed tfskel drift all command. tfskel drift version and tfskel drift plan command can be used individually to have the same results
+* **generate:** generate cmd is renamed to scaffold cmd. Additionally generate.* .tfskel.yaml configs are not available anymore.
+    - generate.templates_dir is moved to templates.dir
+    - generate.github_workflows.* is moved to workflows.*
+    - --create-github-workflows is replaced by --workflows
+
+### ✨ Features
+
+* **drift:** removed all subcommand from drift command ([#45](https://github.com/ishuar/tfskel/issues/45)) ([20d16fb](https://github.com/ishuar/tfskel/commit/20d16fbed1aa89240754b73f67007a121500bab3))
+* **drift:** split drift command into diff and plan commands ([#47](https://github.com/ishuar/tfskel/issues/47)) ([5c5725e](https://github.com/ishuar/tfskel/commit/5c5725e65e2ca59a8cf4f9f657bb0e595a7c4702))
+* **generate:** rename generate cmd to scaffold cmd ([#43](https://github.com/ishuar/tfskel/issues/43)) ([87840db](https://github.com/ishuar/tfskel/commit/87840db882faffa669ef77dc4975b90817ae3bf1))
+
 ## [0.3.0](https://github.com/ishuar/tfskel/compare/v0.2.2...v0.3.0) (2026-03-05)
 
 
