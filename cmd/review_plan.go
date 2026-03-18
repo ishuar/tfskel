@@ -151,8 +151,11 @@ func runReviewPlan(cmd *cobra.Command, _ []string) error {
 		topResourcesCount = reviewPlanTopResources
 	}
 
+	// Determine color usage based on flags and environment variables
+	useColor := format.ShouldUseColor(reviewPlanNoColor)
+
 	// Format and output using internal package
-	formatter := plan.NewPlanFormatterWithConfig(!reviewPlanNoColor, topResourcesCount)
+	formatter := plan.NewPlanFormatterWithConfig(useColor, topResourcesCount)
 	if err := formatter.Format(analysis, format.OutputFormat(reviewPlanFormat), os.Stdout); err != nil {
 		log.Errorf("Failed to format output: %v", err)
 		cmd.SilenceUsage = true

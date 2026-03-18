@@ -134,7 +134,10 @@ func runDiffConfig(cmd *cobra.Command, _ []string) error {
 
 	// Format and output
 	outputFormat := format.OutputFormat(configFormat)
-	formatter := diff.NewFormatter(!configNoColor)
+
+	// Determine color usage based on flags and environment variables
+	useColor := format.ShouldUseColor(configNoColor)
+	formatter := diff.NewFormatter(useColor)
 
 	if err := formatter.Format(report, outputFormat, os.Stdout); err != nil {
 		log.Errorf("Failed to format output: %v", err)
