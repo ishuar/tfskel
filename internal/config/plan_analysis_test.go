@@ -52,13 +52,13 @@ func TestLoadPlanAnalysisConfig(t *testing.T) {
 			wantTopResourcesCount: 20,
 		},
 		{
-			name: "config with zero top_resources_count uses default",
+			name: "config with zero top_resources_count means unlimited",
 			viperSetup: func(v *viper.Viper) {
 				v.Set("top_resources_count", 0)
 			},
 			wantResources:         nil,
 			wantResourcesLen:      0,
-			wantTopResourcesCount: 10, // default, ignores 0
+			wantTopResourcesCount: 0, // 0 = unlimited (show all)
 		},
 		{
 			name: "config with negative top_resources_count uses default",

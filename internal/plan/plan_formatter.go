@@ -64,7 +64,8 @@ func NewPlanFormatterWithConfig(useColor bool, topResourcesCount int) *PlanForma
 			width = w
 		}
 	}
-	if topResourcesCount <= 0 {
+	// 0 = show all (unlimited), negative = use default (10), positive = use that limit
+	if topResourcesCount < 0 {
 		topResourcesCount = config.DefaultTopResourcesCount
 	}
 	return &PlanFormatter{

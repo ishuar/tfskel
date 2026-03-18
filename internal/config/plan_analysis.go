@@ -26,8 +26,9 @@ func LoadPlanAnalysisConfig(v *viper.Viper) *PlanAnalysisConfig {
 	}
 
 	// Check if top_resources_count is configured
+	// 0 = show all (unlimited), negative = use default (10), positive = use that limit
 	if v.IsSet("top_resources_count") {
-		if topN := v.GetInt("top_resources_count"); topN > 0 {
+		if topN := v.GetInt("top_resources_count"); topN >= 0 {
 			cfg.TopResourcesCount = topN
 		}
 	}

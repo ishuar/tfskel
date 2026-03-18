@@ -30,9 +30,9 @@ var (
 // planReviewCmd represents the plan review command
 var planReviewCmd = &cobra.Command{
 	Use:   "review",
-	Short: "Analyze Terraform plan json file & output a human-readable terraform plan summary",
-	Long: `Analyze a terraform plan JSON file to detect and
-categorize infrastructure changes.This command helps you
+	Short: "Analyze Terraform plan JSON file & output a human-readable Terraform plan summary",
+	Long: `Analyze a Terraform plan JSON file to detect and
+categorize infrastructure changes. This command helps you
 understand the impact of planned changes before applying them.
 
 The plan file must be in JSON format, generated with:
@@ -72,7 +72,7 @@ func init() {
 	planCmd.AddCommand(planReviewCmd)
 
 	planReviewCmd.Flags().StringVar(&planReviewFile, "json-file", "",
-		"Path to terraform plan JSON file (required)")
+		"Path to Terraform plan JSON file (required)")
 	if err := planReviewCmd.MarkFlagRequired("json-file"); err != nil {
 		panic(fmt.Sprintf("failed to mark JSON plan file as required: %v", err))
 	}
@@ -81,8 +81,8 @@ func init() {
 		"Output format: table, json, csv")
 	planReviewCmd.Flags().BoolVar(&planReviewNoColor, "no-color", false,
 		"Disable colored output")
-	planReviewCmd.Flags().IntVar(&planReviewTopResources, "top-resources-count", config.DefaultTopResourcesCount,
-		"Number of resources to show in top-N summaries (default: 10, or value from config)")
+	planReviewCmd.Flags().IntVar(&planReviewTopResources, "top-resources-count", -1,
+		"Number of resources to show in top-N summaries (default: 10, 0 = unlimited)")
 }
 
 func runPlanReview(cmd *cobra.Command, _ []string) error {
@@ -133,9 +133,9 @@ func runPlanReview(cmd *cobra.Command, _ []string) error {
 	// Load plan analysis config for formatter settings
 	planConfig := config.LoadPlanAnalysisConfig(viper.GetViper())
 
-	// Override config with flag if provided
+	// Override config with flag if explicitly set
 	topResourcesCount := planConfig.TopResourcesCount
-	if planReviewTopResources > 0 {
+	if cmd.Flags().Changed("top-resources-count") {
 		topResourcesCount = planReviewTopResources
 	}
 
