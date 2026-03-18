@@ -7,28 +7,29 @@ import (
 	"path/filepath"
 
 	"github.com/ishuar/tfskel/internal/config"
-	"github.com/ishuar/tfskel/internal/drift"
+	"github.com/ishuar/tfskel/internal/diff"
+	"github.com/ishuar/tfskel/internal/format"
 	"github.com/ishuar/tfskel/internal/logger"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
 var (
-	versionsFormat  string
-	versionsNoColor bool
-	versionsPath    string
+	configFormat  string
+	configNoColor bool
+	configDir     string
 )
 
 var (
-	// ErrPathDoesNotExist indicates the specified path does not exist
-	ErrPathDoesNotExist = errors.New("path does not exist")
-	// ErrPathNotDirectory indicates the specified path is not a directory
-	ErrPathNotDirectory = errors.New("path is not a directory")
+	// ErrDirDoesNotExist indicates the specified directory does not exist
+	ErrDirDoesNotExist = errors.New("directory does not exist")
+	// ErrDirNotDirectory indicates the specified path is not a directory
+	ErrDirNotDirectory = errors.New("target is not a directory")
 )
 
-// driftVersionCmd represents the drift version command
-var driftVersionCmd = &cobra.Command{
-	Use:   "version",
+// diffConfigCmd represents the diff config command
+var diffConfigCmd = &cobra.Command{
+	Use:   "config",
 	Short: "Detect version drift across Terraform configurations",
 	Long: `Detect and report version inconsistencies for Terraform
 and providers across your workspace. This command recursively
@@ -39,60 +40,60 @@ Results can be output as JSON, table, or CSV
 Note: Hidden directories (starting with .) are automatically skipped.`,
 
 	Example: `  # Check for drift in current directory and all subdirectories
-  tfskel drift version
-  tfskel drift version --path ./
+  tfskel diff config
+  tfskel diff config --dir ./
 
   # Check specific subdirectory
-  tfskel drift version --path ./envs
+  tfskel diff config --dir ./envs
 
   # Check home directory with JSON output
-  tfskel drift version --path ~/terraform --format json`,
-	RunE: runDriftVersions,
+  tfskel diff config --dir ~/terraform --format json`,
+	RunE: runDiffConfig,
 }
 
 func init() {
-	driftCmd.AddCommand(driftVersionCmd)
+	diffCmd.AddCommand(diffConfigCmd)
 
-	driftVersionCmd.Flags().StringVarP(&versionsFormat, "format", "f", "table",
+	diffConfigCmd.Flags().StringVarP(&configFormat, "format", "f", "table",
 		"Output format: table, json, csv")
-	driftVersionCmd.Flags().BoolVar(&versionsNoColor, "no-color", false,
+	diffConfigCmd.Flags().BoolVar(&configNoColor, "no-color", false,
 		"Disable colored output")
-	driftVersionCmd.Flags().StringVarP(&versionsPath, "path", "p", ".",
-		"Path to scan for Terraform files (default: current directory)")
+	diffConfigCmd.Flags().StringVarP(&configDir, "dir", "d", ".",
+		"Directory to scan for Terraform files (default: current directory)")
 }
 
-func runDriftVersions(cmd *cobra.Command, _ []string) error {
+func runDiffConfig(cmd *cobra.Command, _ []string) error {
 	log := logger.New(viper.GetBool("verbose"))
 
-	// Validate and normalize path
-	scanPath := versionsPath
-	if scanPath == "" {
-		scanPath = "."
+	// Validate and normalize directory
+	scanDir := configDir
+	if scanDir == "" {
+		scanDir = "."
 	}
 
-	// Check if path exists
-	fileInfo, err := os.Stat(scanPath)
+	// Check if directory exists
+	fileInfo, err := os.Stat(scanDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			log.Errorf("Path does not exist: %s", scanPath)
-			cmd.SilenceUsage = true // Don't show usage for validation errors
-			return fmt.Errorf("%w: %s", ErrPathDoesNotExist, scanPath)
+			log.Errorf("Directory does not exist: %s", scanDir)
+			cmd.SilenceUsage = true
+			return fmt.Errorf("%w: %s", ErrDirDoesNotExist, scanDir)
 		}
-		log.Errorf("Failed to access path %s: %v", scanPath, err)
+		log.Errorf("Failed to access directory %s: %v", scanDir, err)
 		cmd.SilenceUsage = true
-		return fmt.Errorf("failed to access path: %w", err)
+		return fmt.Errorf("failed to access directory: %w", err)
 	}
 
 	if !fileInfo.IsDir() {
-		log.Errorf("Path is not a directory: %s", scanPath)
+		log.Errorf("Target is not a directory: %s", scanDir)
 		cmd.SilenceUsage = true
-		return fmt.Errorf("%w: %s", ErrPathNotDirectory, scanPath)
+		return fmt.Errorf("%w: %s", ErrDirNotDirectory, scanDir)
 	}
 
 	// Get absolute path for clearer logging
-	absPath, err := filepath.Abs(scanPath)
+	absPath, err := filepath.Abs(scanDir)
 	if err != nil {
-		absPath = scanPath // fallback to original path if absolute path fails
+		absPath = scanDir
 	}
 
 	// Load configuration
@@ -104,15 +105,15 @@ func runDriftVersions(cmd *cobra.Command, _ []string) error {
 	}
 
 	// Suppress logs for machine-readable formats (JSON/CSV)
-	if versionsFormat == formatJSON || versionsFormat == formatCSV {
+	if configFormat == string(format.FormatJSON) || configFormat == string(format.FormatCSV) {
 		log.SetOutput(os.Stderr)
 	}
 
 	log.Info("Starting tfskel version drift detection...")
-	log.Infof("Scanning path: %s", absPath)
+	log.Infof("Scanning directory: %s", absPath)
 
 	// Create detector and scan
-	detector := drift.NewDetector(scanPath)
+	detector := diff.NewDetector(scanDir)
 	versionInfos, err := detector.ScanDirectory()
 	if err != nil {
 		log.Errorf("Failed to scan directory: %v", err)
@@ -128,14 +129,14 @@ func runDriftVersions(cmd *cobra.Command, _ []string) error {
 	log.Infof("Found %d files with version information", len(versionInfos))
 
 	// Analyze drift
-	analyzer := drift.NewAnalyzer(cfg)
+	analyzer := diff.NewAnalyzer(cfg)
 	report := analyzer.Analyze(absPath, versionInfos)
 
 	// Format and output
-	format := drift.OutputFormat(versionsFormat)
-	formatter := drift.NewFormatter(!versionsNoColor)
+	outputFormat := format.OutputFormat(configFormat)
+	formatter := diff.NewFormatter(!configNoColor)
 
-	if err := formatter.Format(report, format, os.Stdout); err != nil {
+	if err := formatter.Format(report, outputFormat, os.Stdout); err != nil {
 		log.Errorf("Failed to format output: %v", err)
 		cmd.SilenceUsage = true
 		return fmt.Errorf("failed to format output: %w", err)

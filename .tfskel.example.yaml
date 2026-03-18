@@ -46,10 +46,10 @@ critical_resources: []
   # Example: Add CloudFront as critical
   # - aws_cloudfront_distribution
 
-# Top N count for summary tables (optional, default: 10)
-# Controls how many items to show in "Changes by Resource Type" and "Changes by Module" tables
+# Top resources count for summary tables (optional, default: 10)
+# Controls how many resources to show in "Changes by Resource Type" and "Changes by Module" tables
 # Set to 0 to show all items (not recommended for large projects)
-top_n_count: 10
+top_resources_count: 10
 
 # Custom templates directory configuration
 templates:

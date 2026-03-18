@@ -102,7 +102,7 @@ tfskel scaffold myapp --env dev --region us-east-1
 3. **Check for version drift**:
 
 ```bash
-tfskel drift version
+tfskel diff config
 ```
 
 ---
@@ -151,14 +151,21 @@ The generator (`internal/app`) orchestrates the entire generation process:
 5. Detects and handles configuration changes
 6. Reports progress and errors
 
-#### 5. Drift Detection
+#### 5. Version Drift & Plan Analysis
 
-The drift detection system (`internal/drift`) provides:
+The version drift detection (`internal/diff`) provides:
 - HCL parsing of Terraform files
 - Version extraction from terraform and required_providers blocks
 - Comparison against .tfskel.yaml configuration
 - Multi-format output (table, JSON, CSV)
 - Comprehensive reporting with drift categorization
+
+The plan analysis (`internal/plan`) provides:
+- JSON plan file parsing
+- Resource change categorization
+- Critical resource detection
+- Severity assessment
+- Multi-format output (table, JSON, CSV)
 
 #### 6. Logger
 
@@ -299,9 +306,10 @@ Configure drift detection behavior for version and plan analysis:
   - Default critical resources include databases (RDS, DynamoDB), S3 buckets, VPCs, security groups, IAM roles, KMS keys, WAF rules, etc.
   - User-defined resources are merged with defaults without duplicates
   - Critical resource changes are marked with "Critical" severity in plan analysis
-- `top_n_count`: Maximum number of items to display in drift summaries (default: 10)
+- `top_resources_count`: Maximum number of resources to display in plan analysis summaries (default: 10)
   - Applies to resource type groupings, module groupings, and action counts
   - Set to 0 to show all items without limit
+  - Can also be set via `--top-resources-count` flag for `plan review` command
 
 ---
 
@@ -552,28 +560,26 @@ tfskel scaffold api --env prd --region eu-central-1
 8. Only creates new files, preserves existing ones
 9. Updates files if configuration metadata has changed
 
-### `tfskel drift`
+### `tfskel diff`
 
-Parent command for drift detection capabilities. Use subcommands for specific analyses.
+Parent command for diff detection capabilities. Use subcommands for specific analyses.
 
 **Subcommands**:
-- `version` - Detect Terraform and provider version drift
-- `plan` - Analyze Terraform plan JSON for resource changes
-- `all` - Run both version drift and plan analysis
+- `config` - Detect Terraform and provider version drift
 
 ---
 
-### `tfskel drift version`
+### `tfskel diff config`
 
 Detect Terraform and provider version drift across your repository.
 
 **Usage**:
 ```bash
-tfskel drift version [flags]
+tfskel diff config [flags]
 ```
 
 **Flags**:
-- `--path, -p`: Path to scan for Terraform files (default: current directory)
+- `--dir, -d`: Directory to scan for Terraform files (default: current directory)
 - `--format, -f`: Output format: table, json, csv (default: table)
 - `--no-color`: Disable colored output
 - `--config`: Path to config file for expected versions (default: .tfskel.yaml)
@@ -583,16 +589,16 @@ tfskel drift version [flags]
 
 ```bash
 # Check version drift in current directory
-tfskel drift version
+tfskel diff config
 
 # Check specific subdirectory
-tfskel drift version --path ./envs
+tfskel diff config --dir ./envs
 
 # Output as JSON for CI/CD
-tfskel drift version --format json > drift-report.json
+tfskel diff config --format json > drift-report.json
 
 # Output as CSV
-tfskel drift version --format csv --no-color > drift.csv
+tfskel diff config --format csv --no-color > drift.csv
 ```
 
 **What it does**:
@@ -621,19 +627,19 @@ tfskel drift version --format csv --no-color > drift.csv
 
 ---
 
-### `tfskel drift plan`
+### `tfskel plan review`
 
 Analyze Terraform plan JSON to identify resource changes, impact severity, and potential risks.
 
 **Usage**:
 ```bash
-tfskel drift plan [flags]
+tfskel plan review [flags]
 ```
 
 **Flags**:
-- `--plan-file`: Path to Terraform plan JSON file (required)
+- `--json-file`: Path to Terraform plan JSON file (required)
 - `--format, -f`: Output format: table, json, csv (default: table)
-- `--top-n, -n`: Show top N highest-impact resources (default: 10, use 0 for all)
+- `--top-resources-count`: Show top N highest-impact resources (default: 10, use 0 for all)
 - `--no-color`: Disable colored output
 - `--verbose, -v`: Enable verbose output
 
@@ -643,16 +649,16 @@ tfskel drift plan [flags]
 # Generate and analyze a plan
 terraform plan -out=plan.bin
 terraform show -json plan.bin > plan.json
-tfskel drift plan --plan-file plan.json
+tfskel plan review --json-file plan.json
 
 # Show top 5 highest-impact changes
-tfskel drift plan --plan-file plan.json --top-n 5
+tfskel plan review --json-file plan.json --top-resources-count 5
 
 # Export as JSON for automation
-tfskel drift plan --plan-file plan.json --format json
+tfskel plan review --json-file plan.json --format json
 
 # Export as CSV for reporting
-tfskel drift plan --plan-file plan.json --format csv > changes.csv
+tfskel plan review --json-file plan.json --format csv > changes.csv
 ```
 
 **What it does**:
@@ -1438,16 +1444,16 @@ Detect and fix version inconsistencies:
 
 ```bash
 # Check for drift
-tfskel drift version
+tfskel diff config
 
 # Export drift report to CSV
-tfskel drift version --format csv --no-color > drift-report.csv
+tfskel diff config --format csv --no-color > drift-report.csv
 
 # Check specific environment
-tfskel drift version --path ./envs/prd
+tfskel diff config --dir ./envs/prd
 
 # Output as JSON for automated processing
-tfskel drift version --format json > drift.json
+tfskel diff config --format json > drift.json
 ```
 
 **Common Drift Scenarios**:

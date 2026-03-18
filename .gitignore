@@ -45,3 +45,5 @@ temp/
 # Test fixtures output
 tests/fixtures/output/
 tfskel-function-test
+custom-templates
+tfskel-demo
