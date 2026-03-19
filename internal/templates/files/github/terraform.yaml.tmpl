@@ -40,11 +40,6 @@ on:
 
 jobs:
   terraform-plan-apply:
-    permissions:
-      id-token: write # Required to authenticate with AWS using OIDC
-      contents: read # Required to checkout the code from the repository
-      pull-requests: write # Required to post comments on the pull request with terraform plan output
-
     uses: ./.github/workflows/reusable-terraform-plan-apply.yaml
     secrets: inherit
     with:
@@ -54,3 +49,6 @@ jobs:
       environment: {{.Env}}
       auto_apply: ${{"{{"}} inputs.auto_apply || false {{"}}"}} # Set to true to enable auto-apply on PR. Keep false for production unless using approval gates.
       tfskel_version: ${{"{{"}} inputs.tfskel_version || 'latest' {{"}}"}}
+#   secrets:
+#     Pass the SSH key as a secret to download modules from private repositories
+#     terraform_modules_ssh_deploy_key: <REPLACE_ME_WITH_SECRET_NAME>

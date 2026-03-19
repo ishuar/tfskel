@@ -27,9 +27,6 @@ on:
         type: string
         default: 'v0.59.1'
 
-permissions:
-  contents: read
-
 concurrency:
   group: 'lint-${{ inputs.terraform_files_path }}-${{ github.event.pull_request.number || github.ref_name }}'
   cancel-in-progress: true
@@ -38,6 +35,7 @@ jobs:
   lint:
     permissions:
       pull-requests: write
+      contents: read
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
