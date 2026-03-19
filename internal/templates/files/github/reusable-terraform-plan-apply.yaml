@@ -27,7 +27,6 @@ on:
       aws_region:
         type: string
         required: true
-        default: eu-west-1
         description: The AWS region in which terraform resources should be deployed.
       aws_role_to_assume:
         type: string
@@ -47,16 +46,25 @@ on:
         required: false
         default: 'latest'
         description: The version of tfskel to use for plan analysis.
+      tfskel_force_color:
+        type: boolean
+        required: false
+        default: true
+        description: Force color output in tfskel operations.
+    secrets:
+      terraform_modules_ssh_deploy_key:
+        required: false
+        description: |-
+          SSH private key for accessing private terraform modules,
+          if applicable. Ensure the corresponding public key is added to the repository deploy keys with read access.
+          For enhanced security, consider using a dedicated deploy key with limited permissions.
 
 env:
   # verbosity setting for Terraform logs
   TF_LOG: ${{ inputs.terraform_log_level }}
-  ##! https://developer.hashicorp.com/terraform/cli/config/environment-variables
-  TF_PLUGIN_CACHE_DIR: '${{ github.workspace }}/.terraform-plugin-cache'
   TF_IN_AUTOMATION: true
   TF_INPUT: false
   GITHUB_TOKEN: ${{ github.token }}
-  TERRAFORM_SSH_KEY: ${{ secrets.TERRAFORM_MODULES_SSH_DEPLOY_KEY }}
 
 permissions:
   pull-requests: write
@@ -88,16 +96,12 @@ jobs:
           aws-region: ${{ inputs.aws_region }}
 
       - uses: actions/cache@v5
-        name: 'Terraform cache'
+        name: 'cache terraform plugins'
         id: cache
         with:
-          path: ${{ env.TF_PLUGIN_CACHE_DIR }}
-          key: ${{ runner.os }}-${{ inputs.terraform_files_path }}-${{ hashFiles(format('{0}/{1}', inputs.terraform_files_path , inputs.cache_hash_file)) }}
-
-      - if: ${{ steps.cache.outputs.cache-hit != 'true' }}
-        name: Create TF_PLUGIN_CACHE_DIR
-        shell: bash
-        run: mkdir -p ${{ env.TF_PLUGIN_CACHE_DIR }}
+          # ref: https://github.com/dflook/terraform-github-actions/issues/105
+          path: ${{ runner.temp }}/_github_home/.terraform.d/plugin-cache
+          key: ${{ runner.os }}-${{ hashFiles(format('{0}/{1}', inputs.terraform_files_path , inputs.cache_hash_file)) }}
 
       ## dflook/terraform-plan stores a hash of the generated plan inside a hidden
       ## PR comment. On merge, dflook/terraform-apply finds the PR by its merge
@@ -111,6 +115,8 @@ jobs:
           path: ${{ inputs.terraform_files_path }}
           label: ${{ inputs.terraform_files_path }}
           add_github_comment: true
+        env:
+          TERRAFORM_SSH_KEY: ${{ secrets.terraform_modules_ssh_deploy_key }}
 
       - name: Set up Go for tfskel analysis
         uses: actions/setup-go@v6
@@ -121,16 +127,18 @@ jobs:
           cache-dependency-path: |
             ${{ inputs.terraform_files_path }}/.terraform.lock.hcl
 
-      - name: Install tfskel & analyze plan
-        id: analyze-plan
+      - name: Install tfskel & review plan
+        id: review-plan
         if: steps.plan.outputs.changes == 'true'
         ## tfskel exit with non-zero code as per plan analysis results.
         ## but we don't want to fail the job because of that
         continue-on-error: true
+        env:
+          FORCE_COLOR: ${{ inputs.tfskel_force_color }}
         run: |
           go install github.com/ishuar/tfskel@${{ inputs.tfskel_version }}
-          which tfskel && tfskel --version
-          tfskel drift plan --plan-file ${{ steps.plan.outputs.json_plan_path }}
+          tfskel --version
+          tfskel review plan --json-file ${{ steps.plan.outputs.json_plan_path }}
 
   apply:
     name: Terraform Apply Stage
@@ -169,11 +177,14 @@ jobs:
         name: 'Terraform cache'
         id: cache
         with:
-          path: ${{ env.TF_PLUGIN_CACHE_DIR }}
-          key: ${{ runner.os }}-${{ inputs.terraform_files_path }}-${{ hashFiles(format('{0}/{1}', inputs.terraform_files_path, inputs.cache_hash_file)) }}
+          # ref: https://github.com/dflook/terraform-github-actions/issues/105
+          path: ${{ runner.temp }}/_github_home/.terraform.d/plugin-cache
+          key: ${{ runner.os }}-${{ hashFiles(format('{0}/{1}', inputs.terraform_files_path , inputs.cache_hash_file)) }}
 
       - name: Terraform apply
         uses: dflook/terraform-apply@v2.2.3
         with:
           path: ${{ inputs.terraform_files_path }}
           label: ${{ inputs.terraform_files_path }}
+        env:
+          TERRAFORM_SSH_KEY: ${{ secrets.terraform_modules_ssh_deploy_key }}
