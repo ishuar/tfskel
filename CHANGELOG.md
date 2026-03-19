@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.5.1](https://github.com/ishuar/tfskel/compare/v0.5.0...v0.5.1) (2026-03-19)
+
+
+### 🐞 Bug Fixes
+
+* **format:** force lipgloss to render colors even in non-TTY environments ([#50](https://github.com/ishuar/tfskel/issues/50)) ([a9746f7](https://github.com/ishuar/tfskel/commit/a9746f7926714df1bde73418e46a370f0a656a0f))
+* **template:** added `content.read` permissions to job and removed extras in lint workflow ([59c5559](https://github.com/ishuar/tfskel/commit/59c5559004284004fd80cb401b5714af45c9ea58))
+* **template:** fixed cache, sshKey for private modules and tfskel usage in the re-usable tf workflow ([#53](https://github.com/ishuar/tfskel/issues/53)) ([59c5559](https://github.com/ishuar/tfskel/commit/59c5559004284004fd80cb401b5714af45c9ea58))
+
+
+### 🧪 Tests
+
+* **cmd/diff:** added tests for config subcommand in diff command ([#54](https://github.com/ishuar/tfskel/issues/54)) ([a1adb2e](https://github.com/ishuar/tfskel/commit/a1adb2e1b399b1f3a73c2c2df934d91c4c827b4f))
+
 ## [0.5.0](https://github.com/ishuar/tfskel/compare/v0.4.0...v0.5.0) (2026-03-18)
 
 
