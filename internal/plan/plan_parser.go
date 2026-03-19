@@ -67,7 +67,7 @@ func ParsePlanFile(filename string) (*TerraformPlan, error) {
 // Common scenario:
 //   - User runs: terraform plan -out=tfplan.binary
 //   - User forgets: terraform show -json tfplan.binary > tfplan.json
-//   - User tries: tfskel drift plan --plan-file tfplan.binary
+//   - User tries: tfskel review plan --json-file tfplan.binary
 //   - Without this check: cryptic JSON parse error
 //   - With this check: clear error with fix command
 //
