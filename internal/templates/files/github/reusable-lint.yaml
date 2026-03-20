@@ -63,7 +63,7 @@ jobs:
           # Export as step output
           echo "TF_VERSION=$TF_VERSION" >> $GITHUB_OUTPUT
 
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
         name: Setup Terraform
         with:
           terraform_version: ${{ steps.get-tf-version.outputs.TF_VERSION }}

@@ -41,11 +41,14 @@ on:
 jobs:
   terraform-plan-apply:
     uses: ./.github/workflows/reusable-terraform-plan-apply.yaml
-    secrets: inherit
+    permissions:
+      pull-requests: write
+      contents: read
+      id-token: write
     with:
       terraform_files_path: 'envs/{{.Env}}/{{.Region}}/{{.AppDir}}'
       aws_region: {{.Region}}
-      aws_role_to_assume: "{{.AWSRoleArn}}" # Cyclic dependency for bootstrap, need local apply for the first time.
+      aws_role_to_assume: "{{.AWSRoleArn}}" # This role should pre-exist and have necessary permissions to perform terraform actions
       environment: {{.Env}}
       auto_apply: ${{"{{"}} inputs.auto_apply || false {{"}}"}} # Set to true to enable auto-apply on PR. Keep false for production unless using approval gates.
       tfskel_version: ${{"{{"}} inputs.tfskel_version || 'latest' {{"}}"}}
