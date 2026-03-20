@@ -46,6 +46,10 @@ It gives you a clean, opinionated foundation that keeps your Terraform projects 
 > [!NOTE]
 > *⭐️ If you find tfskel useful, consider starring the repo to stay updated and support the project. ⭐️*
 
+### Demo
+👉 Check out this https://github.com/ishuar/tfskel-demo/pull/2 to see _how to initialize a new terraform monorepo in just 4 steps and leverage the built-in GitHub Actions workflows_:
+
+
 ## Installation
 
 ```bash
