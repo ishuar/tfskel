@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.2](https://github.com/ishuar/tfskel/compare/v0.5.1...v0.5.2) (2026-03-20)
+
+
+### 🐞 Bug Fixes
+
+* **template:** added missing permissions to caller terraform github workflow template ([#55](https://github.com/ishuar/tfskel/issues/55)) ([ad2d348](https://github.com/ishuar/tfskel/commit/ad2d3486b64174cb3d4248d9783bc01fc01a493d))
+
 ## [0.5.1](https://github.com/ishuar/tfskel/compare/v0.5.0...v0.5.1) (2026-03-19)
 
 
