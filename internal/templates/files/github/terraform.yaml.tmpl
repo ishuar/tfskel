@@ -11,7 +11,7 @@
 ## Delegates all logic to reusable-terraform-plan-apply.yaml.
 ## Expects an AWS OIDC role and a GitHub environment '{{.Env}}' with appropriate protection rules.
 
-name: {{.Env}}: TF Plan and Apply
+name: "{{.Env}}: TF plan & apply"
 on:
   pull_request:
     branches:
