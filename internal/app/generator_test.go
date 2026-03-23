@@ -1789,19 +1789,7 @@ func TestGenerator_generateWorkflowFileName(t *testing.T) {
 		expectError      bool
 	}{
 		{
-			name:             "lint workflow with standard data",
-			originalFileName: "lint.yaml",
-			data: &templates.Data{
-				AppDir:      "myapp",
-				Env:         "dev",
-				ShortRegion: "euc1",
-			},
-			config:         &config.Config{},
-			expectedOutput: "myapp-dev-euc1-lint.yaml",
-			expectError:    false,
-		},
-		{
-			name:             "terraform workflow with standard data",
+			name:             "default terraform workflow includes env prefix",
 			originalFileName: "terraform.yaml",
 			data: &templates.Data{
 				AppDir:      "backend-api",
@@ -1809,36 +1797,24 @@ func TestGenerator_generateWorkflowFileName(t *testing.T) {
 				ShortRegion: "use1",
 			},
 			config:         &config.Config{},
-			expectedOutput: "backend-api-prd-use1-terraform.yaml",
+			expectedOutput: "prd-terraform-plan-apply.yaml",
 			expectError:    false,
 		},
 		{
-			name:             "workflow with hyphenated app name",
-			originalFileName: "lint.yaml",
-			data: &templates.Data{
-				AppDir:      "my-complex-app",
-				Env:         "stg",
-				ShortRegion: "euw1",
-			},
-			config:         &config.Config{},
-			expectedOutput: "my-complex-app-stg-euw1-lint.yaml",
-			expectError:    false,
-		},
-		{
-			name:             "workflow with underscore app name",
+			name:             "default terraform workflow dev env",
 			originalFileName: "terraform.yaml",
 			data: &templates.Data{
-				AppDir:      "test_app",
+				AppDir:      "myapp",
 				Env:         "dev",
-				ShortRegion: "apse2",
+				ShortRegion: "euc1",
 			},
 			config:         &config.Config{},
-			expectedOutput: "test_app-dev-apse2-terraform.yaml",
+			expectedOutput: "dev-terraform-plan-apply.yaml",
 			expectError:    false,
 		},
 		{
-			name:             "custom name template renders correctly",
-			originalFileName: "lint.yaml",
+			name:             "custom name template produces env-prefixed filename",
+			originalFileName: "terraform.yaml",
 			data: &templates.Data{
 				AppDir:      "myapp",
 				Env:         "dev",
@@ -1847,15 +1823,32 @@ func TestGenerator_generateWorkflowFileName(t *testing.T) {
 			},
 			config: &config.Config{
 				Workflows: &config.Workflows{
-					NameTemplate: "{{.AppDir}}-{{.Env}}",
+					NameTemplate: "my-custom",
 				},
 			},
-			expectedOutput: "myapp-dev-lint.yaml",
+			expectedOutput: "dev-my-custom.yaml",
 			expectError:    false,
 		},
 		{
-			name:             "invalid custom template returns error",
-			originalFileName: "lint.yaml",
+			name:             "custom name template with prd env",
+			originalFileName: "terraform.yaml",
+			data: &templates.Data{
+				AppDir:      "myapp",
+				Env:         "prd",
+				Region:      "eu-central-1",
+				ShortRegion: "euc1",
+			},
+			config: &config.Config{
+				Workflows: &config.Workflows{
+					NameTemplate: "my-terraform",
+				},
+			},
+			expectedOutput: "prd-my-terraform.yaml",
+			expectError:    false,
+		},
+		{
+			name:             "custom name template with .yaml suffix is normalized",
+			originalFileName: "terraform.yaml",
 			data: &templates.Data{
 				AppDir:      "myapp",
 				Env:         "dev",
@@ -1863,7 +1856,23 @@ func TestGenerator_generateWorkflowFileName(t *testing.T) {
 			},
 			config: &config.Config{
 				Workflows: &config.Workflows{
-					NameTemplate: "{{.AppDir",
+					NameTemplate: "my-terraform.yaml",
+				},
+			},
+			expectedOutput: "dev-my-terraform.yaml",
+			expectError:    false,
+		},
+		{
+			name:             "Go template syntax in name_template returns error",
+			originalFileName: "terraform.yaml",
+			data: &templates.Data{
+				AppDir:      "myapp",
+				Env:         "dev",
+				ShortRegion: "use1",
+			},
+			config: &config.Config{
+				Workflows: &config.Workflows{
+					NameTemplate: "{{.AppDir}}-{{.Env}}-{{.ShortRegion}}",
 				},
 			},
 			expectedOutput: "",
@@ -1899,19 +1908,19 @@ func TestGenerator_determineOutputPath_GitHubWorkflows(t *testing.T) {
 		expectedOK   bool
 	}{
 		{
-			name:     "github lint workflow creates dynamic name",
-			tmplPath: "github/lint.yaml.tmpl",
+			name:     "github terraform workflow creates dynamic name with env prefix",
+			tmplPath: "github/terraform.yaml.tmpl",
 			appPath:  "envs/dev/eu-central-1/myapp",
 			data: &templates.Data{
 				AppDir:      "myapp",
 				Env:         "dev",
 				ShortRegion: "euc1",
 			},
-			expectedPath: ".github/workflows/myapp-dev-euc1-lint.yaml",
+			expectedPath: ".github/workflows/dev-terraform-plan-apply.yaml",
 			expectedOK:   true,
 		},
 		{
-			name:     "github terraform workflow creates dynamic name",
+			name:     "github terraform workflow prd env",
 			tmplPath: "github/terraform.yaml.tmpl",
 			appPath:  "envs/prd/us-west-2/api",
 			data: &templates.Data{
@@ -1919,7 +1928,7 @@ func TestGenerator_determineOutputPath_GitHubWorkflows(t *testing.T) {
 				Env:         "prd",
 				ShortRegion: "usw2",
 			},
-			expectedPath: ".github/workflows/api-prd-usw2-terraform.yaml",
+			expectedPath: ".github/workflows/prd-terraform-plan-apply.yaml",
 			expectedOK:   true,
 		},
 		{
@@ -2005,19 +2014,12 @@ func TestGenerator_GitHubWorkflows_Integration(t *testing.T) {
 		assert.True(t, filesystem.FileExists(filepath.Join(appPath, "versions.tf")))
 
 		// Verify github workflow files were created with correct dynamic names
-		expectedLintWorkflow := ".github/workflows/testapp-dev-euc1-lint.yaml"
-		expectedTerraformWorkflow := ".github/workflows/testapp-dev-euc1-terraform.yaml"
+		expectedTerraformWorkflow := ".github/workflows/dev-terraform-plan-apply.yaml"
 
-		assert.True(t, filesystem.FileExists(expectedLintWorkflow),
-			"expected lint workflow to exist at %s", expectedLintWorkflow)
 		assert.True(t, filesystem.FileExists(expectedTerraformWorkflow),
 			"expected terraform workflow to exist at %s", expectedTerraformWorkflow)
 
-		// Verify workflow files have content
-		lintContent, err := filesystem.ReadFile(expectedLintWorkflow)
-		assert.NoError(t, err)
-		assert.NotEmpty(t, lintContent, "lint workflow should have content")
-
+		// Verify workflow file has content
 		terraformContent, err := filesystem.ReadFile(expectedTerraformWorkflow)
 		assert.NoError(t, err)
 		assert.NotEmpty(t, terraformContent, "terraform workflow should have content")
@@ -2063,11 +2065,8 @@ func TestGenerator_GitHubWorkflows_Integration(t *testing.T) {
 		assert.True(t, filesystem.FileExists(filepath.Join(appPath, "versions.tf")))
 
 		// Verify github workflow files were NOT created
-		expectedLintWorkflow := ".github/workflows/testapp-dev-euc1-lint.yaml"
-		expectedTerraformWorkflow := ".github/workflows/testapp-dev-euc1-terraform.yaml"
+		expectedTerraformWorkflow := ".github/workflows/dev-terraform-plan-apply.yaml"
 
-		assert.False(t, filesystem.FileExists(expectedLintWorkflow),
-			"lint workflow should not exist when flag is disabled")
 		assert.False(t, filesystem.FileExists(expectedTerraformWorkflow),
 			"terraform workflow should not exist when flag is disabled")
 
@@ -2114,11 +2113,8 @@ func TestGenerator_GitHubWorkflows_Integration(t *testing.T) {
 		assert.True(t, filesystem.FileExists(filepath.Join(appPath, "versions.tf")))
 
 		// Verify github workflow files were NOT created
-		expectedLintWorkflow := ".github/workflows/testapp-dev-euc1-lint.yaml"
-		expectedTerraformWorkflow := ".github/workflows/testapp-dev-euc1-terraform.yaml"
+		expectedTerraformWorkflow := ".github/workflows/dev-terraform-plan-apply.yaml"
 
-		assert.False(t, filesystem.FileExists(expectedLintWorkflow),
-			"lint workflow should not exist when Workflows config is nil")
 		assert.False(t, filesystem.FileExists(expectedTerraformWorkflow),
 			"terraform workflow should not exist when Workflows config is nil")
 	})
@@ -2152,7 +2148,7 @@ func TestGenerator_GitHubWorkflows_Integration(t *testing.T) {
 		_ = filesystem.MkdirAll(appPath, 0755)
 
 		// Create existing workflow file with custom content
-		existingWorkflowPath := ".github/workflows/testapp-dev-euc1-lint.yaml"
+		existingWorkflowPath := ".github/workflows/dev-terraform-plan-apply.yaml"
 		existingContent := "# Custom workflow content - do not overwrite"
 		_ = filesystem.MkdirAll(filepath.Dir(existingWorkflowPath), 0755)
 		err := filesystem.WriteFile(existingWorkflowPath, []byte(existingContent), 0644)
@@ -2215,23 +2211,17 @@ func TestGenerator_GitHubWorkflows_Integration(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify both sets of workflows were created with different names
-		devLintWorkflow := ".github/workflows/myapp-dev-euc1-lint.yaml"
-		devTerraformWorkflow := ".github/workflows/myapp-dev-euc1-terraform.yaml"
-		prdLintWorkflow := ".github/workflows/myapp-prd-use1-lint.yaml"
-		prdTerraformWorkflow := ".github/workflows/myapp-prd-use1-terraform.yaml"
+		devTerraformWorkflow := ".github/workflows/dev-terraform-plan-apply.yaml"
+		prdTerraformWorkflow := ".github/workflows/prd-terraform-plan-apply.yaml"
 
-		assert.True(t, filesystem.FileExists(devLintWorkflow),
-			"dev lint workflow should exist")
 		assert.True(t, filesystem.FileExists(devTerraformWorkflow),
 			"dev terraform workflow should exist")
-		assert.True(t, filesystem.FileExists(prdLintWorkflow),
-			"prd lint workflow should exist")
 		assert.True(t, filesystem.FileExists(prdTerraformWorkflow),
 			"prd terraform workflow should exist")
 
-		// Verify they are different files
-		devContent, _ := filesystem.ReadFile(devLintWorkflow)
-		prdContent, _ := filesystem.ReadFile(prdLintWorkflow)
+		// Verify they are different files with content
+		devContent, _ := filesystem.ReadFile(devTerraformWorkflow)
+		prdContent, _ := filesystem.ReadFile(prdTerraformWorkflow)
 		assert.NotEmpty(t, devContent)
 		assert.NotEmpty(t, prdContent)
 	})
@@ -2683,85 +2673,6 @@ func TestSanitizeWorkflowFileName(t *testing.T) {
 	}
 }
 
-// TestSanitizeAppDirForFilename verifies that sanitizeAppDirForFilename correctly
-// converts AppDir values containing path separators into flat, filename-safe strings.
-func TestSanitizeAppDirForFilename(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		expected string
-	}{
-		{
-			name:     "plain app dir without separators is unchanged",
-			input:    "myapp",
-			expected: "myapp",
-		},
-		{
-			name:     "single forward slash is replaced with dash",
-			input:    "base-infra/ecs-cluster",
-			expected: "base-infra-ecs-cluster",
-		},
-		{
-			name:     "multiple forward slashes are all replaced",
-			input:    "platform/base-infra/ecs-cluster",
-			expected: "platform-base-infra-ecs-cluster",
-		},
-		{
-			name:     "leading slash is replaced",
-			input:    "/leading-slash-app",
-			expected: "-leading-slash-app",
-		},
-		{
-			name:     "trailing slash is replaced",
-			input:    "trailing-slash-app/",
-			expected: "trailing-slash-app-",
-		},
-		{
-			name:     "empty string returns empty string",
-			input:    "",
-			expected: "",
-		},
-		{
-			name:     "app dir with only slashes becomes all dashes",
-			input:    "///",
-			expected: "---",
-		},
-		{
-			name:     "app dir with hyphens and no slashes is unchanged",
-			input:    "my-complex-app",
-			expected: "my-complex-app",
-		},
-		{
-			name:     "app dir with underscores and no slashes is unchanged",
-			input:    "my_app",
-			expected: "my_app",
-		},
-		{
-			name:     "mixed slashes and hyphens",
-			input:    "a/b-c/d",
-			expected: "a-b-c-d",
-		},
-		{
-			name:     "consecutive slashes become consecutive dashes",
-			input:    "a//b",
-			expected: "a--b",
-		},
-		{
-			name:     "numeric segments are preserved",
-			input:    "service/v2/api",
-			expected: "service-v2-api",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := sanitizeAppDirForFilename(tt.input)
-			assert.Equal(t, tt.expected, result,
-				"sanitizeAppDirForFilename(%q) = %q, want %q", tt.input, result, tt.expected)
-		})
-	}
-}
-
 // TestGenerator_generateWorkflowFileName_WithSlashedAppDir verifies that the workflow
 // filename is generated correctly when AppDir contains path separators.
 func TestGenerator_generateWorkflowFileName_WithSlashedAppDir(t *testing.T) {
@@ -2774,19 +2685,19 @@ func TestGenerator_generateWorkflowFileName_WithSlashedAppDir(t *testing.T) {
 		expectError      bool
 	}{
 		{
-			name:             "single-level nested AppDir uses sanitized name in filename",
-			originalFileName: "lint.yaml",
+			name:             "default terraform workflow ignores AppDir",
+			originalFileName: "terraform.yaml",
 			data: &templates.Data{
 				AppDir:      "base-infra/ecs-cluster",
 				Env:         "dev",
 				ShortRegion: "euc1",
 			},
 			config:         &config.Config{},
-			expectedOutput: "base-infra-ecs-cluster-dev-euc1-lint.yaml",
+			expectedOutput: "dev-terraform-plan-apply.yaml",
 			expectError:    false,
 		},
 		{
-			name:             "multi-level nested AppDir uses sanitized name in filename",
+			name:             "multi-level nested AppDir default workflow",
 			originalFileName: "terraform.yaml",
 			data: &templates.Data{
 				AppDir:      "platform/base-infra/ecs-cluster",
@@ -2794,14 +2705,29 @@ func TestGenerator_generateWorkflowFileName_WithSlashedAppDir(t *testing.T) {
 				ShortRegion: "use1",
 			},
 			config:         &config.Config{},
-			expectedOutput: "platform-base-infra-ecs-cluster-prd-use1-terraform.yaml",
+			expectedOutput: "prd-terraform-plan-apply.yaml",
 			expectError:    false,
 		},
 		{
-			// AppDir is sanitized before being substituted into the NameTemplate,
-			// so the slash becomes a dash in the rendered output too.
-			name:             "custom name template with slashed AppDir sanitizes AppDir",
-			originalFileName: "lint.yaml",
+			name:             "custom plain name template with slashed AppDir",
+			originalFileName: "terraform.yaml",
+			data: &templates.Data{
+				AppDir:      "base-infra/ecs-cluster",
+				Env:         "stg",
+				Region:      "eu-west-1",
+				ShortRegion: "euw1",
+			},
+			config: &config.Config{
+				Workflows: &config.Workflows{
+					NameTemplate: "infra-cluster",
+				},
+			},
+			expectedOutput: "stg-infra-cluster.yaml",
+			expectError:    false,
+		},
+		{
+			name:             "Go template syntax in name_template is rejected even with slashed AppDir",
+			originalFileName: "terraform.yaml",
 			data: &templates.Data{
 				AppDir:      "base-infra/ecs-cluster",
 				Env:         "stg",
@@ -2813,8 +2739,8 @@ func TestGenerator_generateWorkflowFileName_WithSlashedAppDir(t *testing.T) {
 					NameTemplate: "{{.AppDir}}-{{.Env}}",
 				},
 			},
-			expectedOutput: "base-infra-ecs-cluster-stg-lint.yaml",
-			expectError:    false,
+			expectedOutput: "",
+			expectError:    true,
 		},
 	}
 
@@ -2874,17 +2800,14 @@ func TestGenerator_GitHubWorkflows_SlashedAppDir_Integration(t *testing.T) {
 		err = gen.generateFiles(appPath, "dev", "eu-central-1", "base-infra/ecs-cluster")
 		require.NoError(t, err)
 
-		// Filename must use the sanitized (flat) AppDir — no nested path under .github/workflows/
-		expectedLintWorkflow := ".github/workflows/base-infra-ecs-cluster-dev-euc1-lint.yaml"
-		expectedTerraformWorkflow := ".github/workflows/base-infra-ecs-cluster-dev-euc1-terraform.yaml"
+		// Filename uses env prefix only — no AppDir or region in name
+		expectedTerraformWorkflow := ".github/workflows/dev-terraform-plan-apply.yaml"
 
-		assert.True(t, filesystem.FileExists(expectedLintWorkflow),
-			"lint workflow should exist at sanitized path %s", expectedLintWorkflow)
 		assert.True(t, filesystem.FileExists(expectedTerraformWorkflow),
-			"terraform workflow should exist at sanitized path %s", expectedTerraformWorkflow)
+			"terraform workflow should exist at path %s", expectedTerraformWorkflow)
 
-		lintContent, readErr := filesystem.ReadFile(expectedLintWorkflow)
+		terraformContent, readErr := filesystem.ReadFile(expectedTerraformWorkflow)
 		assert.NoError(t, readErr)
-		assert.NotEmpty(t, lintContent, "lint workflow should have non-empty content")
+		assert.NotEmpty(t, terraformContent, "terraform workflow should have non-empty content")
 	})
 }

@@ -1,0 +1,35 @@
+name: 'Reusable: Detect Changes in Terraform Files'
+on:
+  workflow_call:
+    inputs:
+      terraform_files_pattern:
+        required: true
+        description: Path to the terraform files to check for changes, for example 'envs/**/*.tf'
+        type: string
+    outputs:
+      matrix:
+        description: JSON array of objects with path, region, and environment for use in a matrix strategy
+        value: ${{ jobs.changes.outputs.matrix }}
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.enrich.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+      - uses: tj-actions/changed-files@22103cc46bda19c2b464ffe86db46df6922fd323 # v47.0.5
+        id: changed
+        with:
+          files: ${{ inputs.terraform_files_pattern }}
+          dir_names: "true"
+          matrix: "true"
+      - name: Enrich matrix with region and environment
+        id: enrich
+        run: |
+          matrix=$(echo '${{ steps.changed.outputs.all_changed_files }}' | jq -c \
+            '[.[] | {path: ., region: split("/")[2], environment: split("/")[1]}]')
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"

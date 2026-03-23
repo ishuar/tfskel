@@ -1,0 +1,28 @@
+name: Lint Terraform Files
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'envs/**'
+      - '.github/workflows/lint.yaml'
+
+jobs:
+  detect:
+    uses: ./.github/workflows/reusable-detect-changes.yaml
+    with:
+      terraform_files_pattern: 'envs/**/*.tf'
+
+  lint:
+    needs: detect
+    permissions:
+      pull-requests: write
+      contents: read
+    if: needs.detect.outputs.matrix != '[]'
+    strategy:
+      matrix:
+        include: ${{ fromJson(needs.detect.outputs.matrix) }}
+      fail-fast: false
+    uses: ./.github/workflows/reusable-lint.yaml
+    with:
+      terraform_files_path: ${{ matrix.path }}

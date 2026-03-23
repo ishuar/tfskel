@@ -64,13 +64,11 @@ templates:
 workflows:
   # Enable GitHub Actions workflow generation
   create: false
-  # GitHub workflow filename stem. Accepts Go template syntax.
-  # Available placeholders: {{.AppDir}}, {{.Env}}, {{.Region}}, {{.ShortRegion}}, {{.AccountID}}
-  # Template functions: toLower, toUpper, replace, trimSpace, trimPrefix, trimSuffix, stripConstraint, etc.
-  # The workflow type suffix (-lint, -terraform) and .yaml extension are appended automatically.
-  # Example: "{{.AppDir}}-{{.Env}}-{{.ShortRegion}}" -> "myapp-dev-euc1-terraform.yaml"
-  # See README "Template context variables" section for the full reference.
-  name_template: "{{.AppDir}}-{{.Env}}-{{.ShortRegion}}"
+  # GitHub workflow filename stem. Must be a plain string (Go template syntax is NOT supported).
+  # The env prefix and .yaml extension are added automatically.
+  # Example: "my-terraform" -> "dev-my-terraform.yaml"
+  # Lint workflow is always named "lint.yaml" (static, unaffected by name_template).
+  name_template: "my-terraform"
   # Full ARN (takes priority, optional). Accepts Go template syntax.
   # Available placeholders: {{.AccountID}}, {{.Env}}, {{.Region}}, {{.ShortRegion}}, {{.AppDir}}
   aws_role_arn: "arn:aws:iam::{{.AccountID}}:role/{{.Env}}-githubactionsrole"
