@@ -49,15 +49,19 @@ Recommendations:
 }
 
 var (
-	initDir string
+	initDir       string
+	initWorkflows bool
 )
 
 func init() {
 	rootCmd.AddCommand(initCmd)
 	initCmd.Flags().StringVarP(&initDir, "dir", "d", "", "directory to initialize (default: current directory)")
+	initCmd.Flags().BoolVar(&initWorkflows, "workflows", false, "generate shared GitHub workflow files (reusable workflows and lint)")
 }
 
 func runInit(cmd *cobra.Command, _ []string) error {
+	cmd.SilenceUsage = true
+
 	// Initialize logger
 	log := logger.New(viper.GetBool("verbose"))
 
@@ -69,7 +73,6 @@ func runInit(cmd *cobra.Command, _ []string) error {
 		var err error
 		targetDir, err = os.Getwd()
 		if err != nil {
-			cmd.SilenceUsage = true
 			return fmt.Errorf("failed to get current directory: %w", err)
 		}
 		log.Debugf("Using current working directory: %s", targetDir)
@@ -78,7 +81,6 @@ func runInit(cmd *cobra.Command, _ []string) error {
 	// Make absolute path
 	targetDir, err := filepath.Abs(targetDir)
 	if err != nil {
-		cmd.SilenceUsage = true
 		return fmt.Errorf("failed to get absolute path: %w", err)
 	}
 
@@ -88,13 +90,14 @@ func runInit(cmd *cobra.Command, _ []string) error {
 	// Priority: existing .tfskel.yaml in target dir > defaults
 	environments, terraformVersion, regions, err := determineInitParameters(targetDir, log)
 	if err != nil {
-		cmd.SilenceUsage = true
 		return err
 	}
 
+	// Determine whether to create workflows: --workflows flag OR config workflows.create
+	createWorkflows := determineWorkflowsFlag(targetDir)
+
 	// Create the project structure
-	if err := createProjectStructure(targetDir, terraformVersion, regions, environments, log); err != nil {
-		cmd.SilenceUsage = true
+	if err := createProjectStructure(targetDir, terraformVersion, regions, environments, createWorkflows, log); err != nil {
 		return err
 	}
 
@@ -202,7 +205,20 @@ func determineInitParameters(targetDir string, log *logger.Logger) ([]string, st
 	return environments, terraformVersion, regions, nil
 }
 
-func createProjectStructure(baseDir string, terraformVersion string, regions []string, environments []string, log *logger.Logger) error {
+// determineWorkflowsFlag returns true if --workflows flag is set OR config workflows.create is true.
+func determineWorkflowsFlag(targetDir string) bool {
+	if initWorkflows {
+		return true
+	}
+	v := viper.New()
+	v.SetConfigFile(filepath.Join(targetDir, ".tfskel.yaml"))
+	if err := v.ReadInConfig(); err != nil {
+		return false
+	}
+	return v.GetBool("workflows.create")
+}
+
+func createProjectStructure(baseDir string, terraformVersion string, regions []string, environments []string, createWorkflows bool, log *logger.Logger) error {
 	// Create base directory if it doesn't exist
 	if err := os.MkdirAll(baseDir, 0755); err != nil {
 		return fmt.Errorf("failed to create base directory: %w", err)
@@ -270,15 +286,41 @@ func createProjectStructure(baseDir string, terraformVersion string, regions []s
 		}
 	}
 
+	// Create static GitHub workflow files (reusable workflows and lint caller)
+	if createWorkflows {
+		staticWorkflowFiles := []struct {
+			filename     string
+			templateName string
+		}{
+			{"lint.yaml", "github/lint.yaml"},
+			{"reusable-detect-changes.yaml", "github/reusable-detect-changes.yaml"},
+			{"reusable-terraform-plan-apply.yaml", "github/reusable-terraform-plan-apply.yaml"},
+			{"reusable-lint.yaml", "github/reusable-lint.yaml"},
+		}
+		for _, file := range staticWorkflowFiles {
+			targetPath := filepath.Join(baseDir, ".github", "workflows", file.filename)
+			if err := createFileFromTemplate(targetPath, file.templateName, nil, log); err != nil {
+				return err
+			}
+		}
+	}
+
 	return nil
 }
 
 func createFileFromTemplate(targetPath string, templateName string, data any, log *logger.Logger) error {
+	// Compute a relative path for logging; fall back to base name on error
+	logPath := targetPath
+	if cwd, err := os.Getwd(); err == nil {
+		if rel, err := filepath.Rel(cwd, targetPath); err == nil {
+			logPath = rel
+		}
+	}
+
 	// Check if file already exists
 	if _, err := os.Stat(targetPath); err == nil {
 		// File exists, skip creation
-		baseName := filepath.Base(targetPath)
-		log.Infof("%s already exists, skipping", baseName)
+		log.Infof("%s already exists, skipping", logPath)
 		return nil
 	}
 
@@ -305,8 +347,7 @@ func createFileFromTemplate(targetPath string, templateName string, data any, lo
 		if err := os.WriteFile(targetPath, []byte(content), 0644); err != nil {
 			return fmt.Errorf("failed to write file %s: %w", targetPath, err)
 		}
-		baseName := filepath.Base(targetPath)
-		log.Successf("Created %s", baseName)
+		log.Successf("Created %s", logPath)
 		return nil
 	}
 
@@ -335,9 +376,7 @@ func createFileFromTemplate(targetPath string, templateName string, data any, lo
 			return fmt.Errorf("failed to write file %s: %w", targetPath, err)
 		}
 
-		// Get relative path or base name for logging
-		baseName := filepath.Base(targetPath)
-		log.Successf("Created %s", baseName)
+		log.Successf("Created %s", logPath)
 
 		return nil
 	}

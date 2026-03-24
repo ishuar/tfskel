@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -1986,7 +1987,46 @@ func TestGenerator_determineOutputPath_GitHubWorkflows(t *testing.T) {
 }
 
 func TestGenerator_GitHubWorkflows_Integration(t *testing.T) {
-	t.Run("creates github workflows when flag is enabled", func(t *testing.T) {
+	t.Run("creates github workflows via RunWorkflows", func(t *testing.T) {
+		cfg := &config.Config{
+			TerraformVersion: "~> 1.13",
+			Provider: &config.Provider{
+				AWS: &config.AWSProvider{
+					Version: "~> 6.0",
+					AccountMapping: map[string]string{
+						"dev": "123456789012",
+					},
+				},
+			},
+			Backend: &config.Backend{
+				S3: &config.S3Backend{
+					BucketName: "test-bucket",
+				},
+			},
+			Workflows: &config.Workflows{
+				Create: true,
+			},
+		}
+
+		filesystem := fs.NewMemoryFileSystem()
+		log := logger.New(false)
+		gen := NewGenerator(cfg, filesystem, log)
+
+		err := gen.RunWorkflows("dev")
+		require.NoError(t, err)
+
+		// Verify github workflow file was created with correct dynamic name
+		expectedTerraformWorkflow := ".github/workflows/dev-terraform-plan-apply.yaml"
+		assert.True(t, filesystem.FileExists(expectedTerraformWorkflow),
+			"expected terraform workflow to exist at %s", expectedTerraformWorkflow)
+
+		// Verify workflow file has content
+		terraformContent, err := filesystem.ReadFile(expectedTerraformWorkflow)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, terraformContent, "terraform workflow should have content")
+	})
+
+	t.Run("scaffold does not create github workflows", func(t *testing.T) {
 		cfg := &config.Config{
 			TerraformVersion: "~> 1.13",
 			Provider: &config.Provider{
@@ -2025,19 +2065,14 @@ func TestGenerator_GitHubWorkflows_Integration(t *testing.T) {
 		assert.True(t, filesystem.FileExists(filepath.Join(appPath, "backend.tf")))
 		assert.True(t, filesystem.FileExists(filepath.Join(appPath, "versions.tf")))
 
-		// Verify github workflow files were created with correct dynamic names
-		expectedTerraformWorkflow := ".github/workflows/dev-terraform-plan-apply.yaml"
-
-		assert.True(t, filesystem.FileExists(expectedTerraformWorkflow),
-			"expected terraform workflow to exist at %s", expectedTerraformWorkflow)
-
-		// Verify workflow file has content
-		terraformContent, err := filesystem.ReadFile(expectedTerraformWorkflow)
-		assert.NoError(t, err)
-		assert.NotEmpty(t, terraformContent, "terraform workflow should have content")
+		// Verify github workflow files were NOT created by scaffold
+		assert.False(t, filesystem.FileExists(".github/workflows/dev-terraform-plan-apply.yaml"),
+			"scaffold should not create workflow files (use 'scaffold workflows --env' instead)")
+		assert.False(t, filesystem.DirExists(".github/workflows"),
+			".github/workflows directory should not be created by scaffold")
 	})
 
-	t.Run("skips github workflows when flag is disabled", func(t *testing.T) {
+	t.Run("RunWorkflows skips when workflows.create is false", func(t *testing.T) {
 		cfg := &config.Config{
 			TerraformVersion: "~> 1.13",
 			Provider: &config.Provider{
@@ -2062,32 +2097,16 @@ func TestGenerator_GitHubWorkflows_Integration(t *testing.T) {
 		log := logger.New(false)
 		gen := NewGenerator(cfg, filesystem, log)
 
-		appPath := "envs/dev/eu-central-1/testapp"
-		_ = filesystem.MkdirAll(appPath, 0755)
-
-		renderer, err := templates.NewRenderer()
-		require.NoError(t, err)
-		gen.renderer = renderer
-
-		err = gen.generateFiles(appPath, "dev", "eu-central-1", "testapp")
+		err := gen.RunWorkflows("dev")
 		require.NoError(t, err)
 
-		// Verify terraform files were created
-		assert.True(t, filesystem.FileExists(filepath.Join(appPath, "backend.tf")))
-		assert.True(t, filesystem.FileExists(filepath.Join(appPath, "versions.tf")))
-
-		// Verify github workflow files were NOT created
-		expectedTerraformWorkflow := ".github/workflows/dev-terraform-plan-apply.yaml"
-
-		assert.False(t, filesystem.FileExists(expectedTerraformWorkflow),
-			"terraform workflow should not exist when flag is disabled")
-
-		// Verify .github/workflows directory was not created
+		assert.False(t, filesystem.FileExists(".github/workflows/dev-terraform-plan-apply.yaml"),
+			"terraform workflow should not exist when workflows.create is false")
 		assert.False(t, filesystem.DirExists(".github/workflows"),
-			".github/workflows directory should not be created when flag is disabled")
+			".github/workflows directory should not be created when disabled")
 	})
 
-	t.Run("skips github workflows when Generate config is nil", func(t *testing.T) {
+	t.Run("RunWorkflows skips when Workflows config is nil", func(t *testing.T) {
 		cfg := &config.Config{
 			TerraformVersion: "~> 1.13",
 			Provider: &config.Provider{
@@ -2103,35 +2122,21 @@ func TestGenerator_GitHubWorkflows_Integration(t *testing.T) {
 					BucketName: "test-bucket",
 				},
 			},
-			Workflows: nil, // No Workflows config provided
+			Workflows: nil,
 		}
 
 		filesystem := fs.NewMemoryFileSystem()
 		log := logger.New(false)
 		gen := NewGenerator(cfg, filesystem, log)
 
-		appPath := "envs/dev/eu-central-1/testapp"
-		_ = filesystem.MkdirAll(appPath, 0755)
-
-		renderer, err := templates.NewRenderer()
-		require.NoError(t, err)
-		gen.renderer = renderer
-
-		err = gen.generateFiles(appPath, "dev", "eu-central-1", "testapp")
+		err := gen.RunWorkflows("dev")
 		require.NoError(t, err)
 
-		// Verify terraform files were created
-		assert.True(t, filesystem.FileExists(filepath.Join(appPath, "backend.tf")))
-		assert.True(t, filesystem.FileExists(filepath.Join(appPath, "versions.tf")))
-
-		// Verify github workflow files were NOT created
-		expectedTerraformWorkflow := ".github/workflows/dev-terraform-plan-apply.yaml"
-
-		assert.False(t, filesystem.FileExists(expectedTerraformWorkflow),
+		assert.False(t, filesystem.FileExists(".github/workflows/dev-terraform-plan-apply.yaml"),
 			"terraform workflow should not exist when Workflows config is nil")
 	})
 
-	t.Run("does not overwrite existing workflow files", func(t *testing.T) {
+	t.Run("RunWorkflows does not overwrite existing workflow files", func(t *testing.T) {
 		cfg := &config.Config{
 			TerraformVersion: "~> 1.13",
 			Provider: &config.Provider{
@@ -2156,9 +2161,6 @@ func TestGenerator_GitHubWorkflows_Integration(t *testing.T) {
 		log := logger.New(false)
 		gen := NewGenerator(cfg, filesystem, log)
 
-		appPath := "envs/dev/eu-central-1/testapp"
-		_ = filesystem.MkdirAll(appPath, 0755)
-
 		// Create existing workflow file with custom content
 		existingWorkflowPath := ".github/workflows/dev-terraform-plan-apply.yaml"
 		existingContent := "# Custom workflow content - do not overwrite"
@@ -2166,11 +2168,7 @@ func TestGenerator_GitHubWorkflows_Integration(t *testing.T) {
 		err := filesystem.WriteFile(existingWorkflowPath, []byte(existingContent), 0644)
 		require.NoError(t, err)
 
-		renderer, err := templates.NewRenderer()
-		require.NoError(t, err)
-		gen.renderer = renderer
-
-		err = gen.generateFiles(appPath, "dev", "eu-central-1", "testapp")
+		err = gen.RunWorkflows("dev")
 		require.NoError(t, err)
 
 		// Verify existing workflow was NOT overwritten
@@ -2180,7 +2178,7 @@ func TestGenerator_GitHubWorkflows_Integration(t *testing.T) {
 			"existing workflow file should not be overwritten")
 	})
 
-	t.Run("creates workflows with different names for different environments", func(t *testing.T) {
+	t.Run("RunWorkflows creates different files for different environments", func(t *testing.T) {
 		cfg := &config.Config{
 			TerraformVersion: "~> 1.13",
 			Provider: &config.Provider{
@@ -2206,23 +2204,12 @@ func TestGenerator_GitHubWorkflows_Integration(t *testing.T) {
 		log := logger.New(false)
 		gen := NewGenerator(cfg, filesystem, log)
 
-		renderer, err := templates.NewRenderer()
+		err := gen.RunWorkflows("dev")
 		require.NoError(t, err)
-		gen.renderer = renderer
-
-		// Generate for dev environment
-		devAppPath := "envs/dev/eu-central-1/myapp"
-		_ = filesystem.MkdirAll(devAppPath, 0755)
-		err = gen.generateFiles(devAppPath, "dev", "eu-central-1", "myapp")
+		err = gen.RunWorkflows("prd")
 		require.NoError(t, err)
 
-		// Generate for prd environment
-		prdAppPath := "envs/prd/us-east-1/myapp"
-		_ = filesystem.MkdirAll(prdAppPath, 0755)
-		err = gen.generateFiles(prdAppPath, "prd", "us-east-1", "myapp")
-		require.NoError(t, err)
-
-		// Verify both sets of workflows were created with different names
+		// Verify both workflow files were created with different names
 		devTerraformWorkflow := ".github/workflows/dev-terraform-plan-apply.yaml"
 		prdTerraformWorkflow := ".github/workflows/prd-terraform-plan-apply.yaml"
 
@@ -2774,10 +2761,10 @@ func TestGenerator_generateWorkflowFileName_WithSlashedAppDir(t *testing.T) {
 	}
 }
 
-// TestGenerator_GitHubWorkflows_SlashedAppDir_Integration verifies end-to-end that when
-// AppDir contains slashes, the generated workflow file lands at the correct flat path.
-func TestGenerator_GitHubWorkflows_SlashedAppDir_Integration(t *testing.T) {
-	t.Run("workflow file uses sanitized AppDir in filename", func(t *testing.T) {
+// TestGenerator_GitHubWorkflows_RunWorkflows_EnvOnly verifies that RunWorkflows uses only
+// env (not AppDir or region) to generate the workflow filename.
+func TestGenerator_GitHubWorkflows_RunWorkflows_EnvOnly(t *testing.T) {
+	t.Run("workflow filename is derived from env only", func(t *testing.T) {
 		cfg := &config.Config{
 			TerraformVersion: "~> 1.13",
 			Provider: &config.Provider{
@@ -2802,14 +2789,7 @@ func TestGenerator_GitHubWorkflows_SlashedAppDir_Integration(t *testing.T) {
 		log := logger.New(false)
 		gen := NewGenerator(cfg, filesystem, log)
 
-		appPath := "envs/dev/eu-central-1/base-infra/ecs-cluster"
-		_ = filesystem.MkdirAll(appPath, 0755)
-
-		renderer, err := templates.NewRenderer()
-		require.NoError(t, err)
-		gen.renderer = renderer
-
-		err = gen.generateFiles(appPath, "dev", "eu-central-1", "base-infra/ecs-cluster")
+		err := gen.RunWorkflows("dev")
 		require.NoError(t, err)
 
 		// Filename uses env prefix only — no AppDir or region in name
@@ -2821,5 +2801,71 @@ func TestGenerator_GitHubWorkflows_SlashedAppDir_Integration(t *testing.T) {
 		terraformContent, readErr := filesystem.ReadFile(expectedTerraformWorkflow)
 		assert.NoError(t, readErr)
 		assert.NotEmpty(t, terraformContent, "terraform workflow should have non-empty content")
+	})
+}
+
+func TestGenerator_RunWorkflows_CustomTemplates(t *testing.T) {
+	t.Run("initializes renderer via custom templates path when configured", func(t *testing.T) {
+		// Custom templates are mapped to tf/ category only, so they cannot override github/
+		// templates. This test verifies RunWorkflows correctly initializes the renderer via
+		// NewRendererWithCustomTemplates and still produces the workflow from the embedded template.
+		customDir := t.TempDir()
+		err := os.WriteFile(filepath.Join(customDir, "backend.tf.tmpl"), []byte("# custom backend\n"), 0644)
+		require.NoError(t, err)
+
+		cfg := &config.Config{
+			TerraformVersion: "~> 1.13",
+			Provider: &config.Provider{
+				AWS: &config.AWSProvider{
+					AccountMapping: map[string]string{
+						"dev": "123456789012",
+					},
+				},
+			},
+			Templates: &config.Templates{
+				Dir: customDir,
+			},
+			Workflows: &config.Workflows{
+				Create: true,
+			},
+		}
+
+		filesystem := fs.NewMemoryFileSystem()
+		gen := NewGenerator(cfg, filesystem, logger.New(false))
+
+		err = gen.RunWorkflows("dev")
+		require.NoError(t, err)
+
+		// Embedded github template is still used (custom templates only apply to tf/ category)
+		expectedWorkflow := ".github/workflows/dev-terraform-plan-apply.yaml"
+		assert.True(t, filesystem.FileExists(expectedWorkflow), "workflow file should be created from embedded template")
+
+		content, readErr := filesystem.ReadFile(expectedWorkflow)
+		require.NoError(t, readErr)
+		assert.Contains(t, string(content), "dev: TF plan & apply", "should use embedded github template")
+	})
+}
+
+func TestGenerator_RunWorkflows_InvalidEnv(t *testing.T) {
+	t.Run("returns error for unknown environment", func(t *testing.T) {
+		cfg := &config.Config{
+			TerraformVersion: "~> 1.13",
+			Provider: &config.Provider{
+				AWS: &config.AWSProvider{
+					AccountMapping: map[string]string{
+						"dev": "123456789012",
+					},
+				},
+			},
+			Workflows: &config.Workflows{
+				Create: true,
+			},
+		}
+
+		filesystem := fs.NewMemoryFileSystem()
+		gen := NewGenerator(cfg, filesystem, logger.New(false))
+
+		err := gen.RunWorkflows("nonexistent-env")
+		assert.Error(t, err, "should return error for unknown environment")
 	})
 }

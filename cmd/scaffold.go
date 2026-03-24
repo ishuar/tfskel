@@ -25,21 +25,26 @@ This command creates:
   - Region subdirectory for the specified region
   - <app-dir> directory under the specified env & region
   - Terraform configuration files from go templates
-  - Optional GitHub workflow files from templates
 
 Configuration:
   The scaffold command reads .tfskel.yaml from the current directory by default.
 
 Arguments:
-  <app-dir>: Name of the application directory as subcommand input to create (required)`,
+  <app-dir>: Name of the application directory as subcommand input to create (required)
+
+Subcommands:
+  workflows   Generate per-environment GitHub Actions workflow files`,
 	Example: `  # Scaffold structure for an app in dev environment (uses .tfskel.yaml)
   tfskel scaffold myapp --env dev --region us-east-1
 
   # Scaffold with custom configuration file
   tfskel scaffold myapp --config ./my-config.yaml --env dev --region us-east-1
 
-  # Scaffold with custom templates and GitHub workflows
-  tfskel scaffold myapp --env stg --region eu-central-1 --templates-dir ./templates --workflows
+  # Scaffold with custom templates
+  tfskel scaffold myapp --env stg --region eu-central-1 --templates-dir ./templates
+
+  # Generate GitHub workflow for a specific environment
+  tfskel scaffold workflows --env dev
 
   # Using the short alias
   tfskel sc myapp --env dev --region us-east-1`,
@@ -47,16 +52,39 @@ Arguments:
 	RunE: runScaffold,
 }
 
+var scaffoldWorkflowsCmd = &cobra.Command{
+	Use:   "workflows",
+	Short: "Generate per-environment GitHub Actions workflow files",
+	Long: `Generates per-environment GitHub Actions workflow files from templates.
+
+This command creates:
+  - .github/workflows/<env>-terraform-plan-apply.yaml
+
+Use 'tfskel init' to generate shared reusable workflow files (lint.yaml,
+reusable-detect-changes.yaml, reusable-terraform-plan-apply.yaml, reusable-lint.yaml).
+
+Configuration:
+  Reads .tfskel.yaml from the current directory. Workflow generation can be
+  disabled entirely with 'workflows.create: false' in the config file.`,
+	Example: `  # Generate workflow for dev environment
+  tfskel scaffold workflows --env dev
+
+  # Generate workflow with custom config
+  tfskel scaffold workflows --env prd --config ./my-config.yaml`,
+	RunE: runScaffoldWorkflows,
+}
+
 var (
 	env          string
 	region       string
 	templatesDir string
 	s3BucketName string
-	workflows    bool
+	workflowsEnv string
 )
 
 func init() {
 	rootCmd.AddCommand(scaffoldCmd)
+	scaffoldCmd.AddCommand(scaffoldWorkflowsCmd)
 
 	// Required flags for scaffolding
 	scaffoldCmd.Flags().StringVarP(&env, "env", "e", "", "target environment (e.g., dev, stg, prd) - required")
@@ -72,7 +100,6 @@ func init() {
 	// Optional flags
 	scaffoldCmd.Flags().StringVar(&templatesDir, "templates-dir", "", "directory containing custom template files (all .tmpl files will be processed)")
 	scaffoldCmd.Flags().StringVar(&s3BucketName, "s3-bucket-name", "", "S3 bucket name for Terraform state")
-	scaffoldCmd.Flags().BoolVar(&workflows, "workflows", false, "create GitHub workflow files from default templates (disabled by default)")
 
 	// Bind flags to viper - these should never fail unless there's a developer error
 	// (flag name mismatch, missing flag, etc.) so we fail fast with panic
@@ -84,10 +111,17 @@ func init() {
 
 	mustBindPFlag("templates.dir", "templates-dir")
 	mustBindPFlag("backend.s3.bucket_name", "s3-bucket-name")
-	mustBindPFlag("workflows.create", "workflows")
+
+	// scaffold workflows flags
+	scaffoldWorkflowsCmd.Flags().StringVarP(&workflowsEnv, "env", "e", "", "target environment (e.g., dev, stg, prd) - required")
+	if err := scaffoldWorkflowsCmd.MarkFlagRequired("env"); err != nil {
+		panic(fmt.Sprintf("failed to mark env flag as required: %v", err))
+	}
 }
 
 func runScaffold(cmd *cobra.Command, args []string) error {
+	cmd.SilenceUsage = true
+
 	// Initialize logger
 	log := logger.New(viper.GetBool("verbose"))
 
@@ -100,20 +134,17 @@ func runScaffold(cmd *cobra.Command, args []string) error {
 	// Validate and trim scaffolding parameters
 	trimmedEnv, trimmedRegion, trimmedAppDir, err := validateScaffoldParams(env, region, appDir)
 	if err != nil {
-		cmd.SilenceUsage = true
 		return fmt.Errorf("invalid parameters: %w", err)
 	}
 
 	// Load configuration
 	cfg, err := config.Load(cmd, viper.GetViper())
 	if err != nil {
-		cmd.SilenceUsage = true
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
 
 	// Validate configuration
 	if err := cfg.Validate(); err != nil {
-		cmd.SilenceUsage = true
 		return fmt.Errorf("configuration validation failed: %w", err)
 	}
 
@@ -123,11 +154,40 @@ func runScaffold(cmd *cobra.Command, args []string) error {
 	// Create and run the generator with trimmed scaffolding parameters
 	generator := app.NewGenerator(cfg, filesystem, log)
 	if err := generator.Run(trimmedEnv, trimmedRegion, trimmedAppDir); err != nil {
-		cmd.SilenceUsage = true
 		return fmt.Errorf("failed to scaffold Terraform structure: %w", err)
 	}
 
 	log.Success("Terraform directory scaffolding completed!")
+	return nil
+}
+
+func runScaffoldWorkflows(cmd *cobra.Command, _ []string) error {
+	cmd.SilenceUsage = true
+
+	log := logger.New(viper.GetBool("verbose"))
+	log.Debug("Starting scaffold workflows command")
+
+	trimmedEnv, err := util.TrimAndValidateInput(workflowsEnv, "environment")
+	if err != nil {
+		return fmt.Errorf("invalid parameters: %w (use --env flag)", err)
+	}
+
+	cfg, err := config.Load(cmd, viper.GetViper())
+	if err != nil {
+		return fmt.Errorf("failed to load configuration: %w", err)
+	}
+
+	if err := cfg.Validate(); err != nil {
+		return fmt.Errorf("configuration validation failed: %w", err)
+	}
+
+	filesystem := fs.NewOSFileSystem()
+	generator := app.NewGenerator(cfg, filesystem, log)
+	if err := generator.RunWorkflows(trimmedEnv); err != nil {
+		return fmt.Errorf("failed to generate workflow files: %w", err)
+	}
+
+	log.Success("GitHub workflow files generated!")
 	return nil
 }
 

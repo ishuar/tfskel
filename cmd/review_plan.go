@@ -85,6 +85,8 @@ func init() {
 }
 
 func runReviewPlan(cmd *cobra.Command, _ []string) error {
+	cmd.SilenceUsage = true
+
 	log := logger.New(viper.GetBool("verbose"))
 
 	// Validate output format
@@ -93,7 +95,6 @@ func runReviewPlan(cmd *cobra.Command, _ []string) error {
 		// valid format
 	default:
 		log.Errorf("Invalid format: %s", reviewPlanFormat)
-		cmd.SilenceUsage = true
 		return fmt.Errorf("%w", ErrInvalidFormat)
 	}
 
@@ -104,11 +105,9 @@ func runReviewPlan(cmd *cobra.Command, _ []string) error {
 			log.Info("Generate plan with:")
 			log.Info("  terraform plan -out=tfplan.binary")
 			log.Info("  terraform show -json tfplan.binary > tfplan.json")
-			cmd.SilenceUsage = true
 			return fmt.Errorf("%w: %s", ErrFileNotFound, reviewPlanFile)
 		}
 		log.Errorf("Failed to access file: %v", err)
-		cmd.SilenceUsage = true
 		return fmt.Errorf("failed to access file: %w", err)
 	}
 
@@ -153,14 +152,12 @@ func runReviewPlan(cmd *cobra.Command, _ []string) error {
 	formatter := plan.NewPlanFormatterWithConfig(useColor, topResourcesCount)
 	if err := formatter.Format(analysis, format.OutputFormat(reviewPlanFormat), os.Stdout); err != nil {
 		log.Errorf("Failed to format output: %v", err)
-		cmd.SilenceUsage = true
 		return fmt.Errorf("failed to format output: %w", err)
 	}
 	// Return ExitError if changes detected for proper exit code handling
 	exitCode := analysis.ExitCode()
 	if exitCode != 0 {
 		log.Warnf("Changes detected - exiting with code %d", exitCode)
-		cmd.SilenceUsage = true
 		return NewExitError(exitCode, "")
 	}
 

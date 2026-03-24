@@ -16,7 +16,7 @@ func TestCreateProjectStructure(t *testing.T) {
 		baseDir := t.TempDir()
 		log := logger.New(false)
 		environments := []string{"dev", "stg", "prd"}
-		err := createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, environments, log)
+		err := createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, environments, true, log)
 		require.NoError(t, err)
 
 		// Verify all root configuration files are created
@@ -52,7 +52,7 @@ func TestCreateProjectStructure(t *testing.T) {
 		log := logger.New(false)
 		environments := []string{"dev", "stg", "prd"}
 		regions := []string{"eu-central-1", "us-east-1", "ap-south-1"}
-		err := createProjectStructure(baseDir, "1.10.0", regions, environments, log)
+		err := createProjectStructure(baseDir, "1.10.0", regions, environments, true, log)
 		require.NoError(t, err)
 
 		// Verify all regions are created for all environments
@@ -68,7 +68,7 @@ func TestCreateProjectStructure(t *testing.T) {
 		baseDir := t.TempDir()
 		log := logger.New(false)
 		environments := []string{"dev", "stg", "prd"}
-		err := createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, environments, log)
+		err := createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, environments, true, log)
 		require.NoError(t, err)
 
 		// Test specifically for the refactored loop - ensure all files are created
@@ -101,7 +101,7 @@ func TestCreateProjectStructure(t *testing.T) {
 		require.NoError(t, err)
 
 		// Run create structure
-		err = createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, environments, log)
+		err = createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, environments, true, log)
 		require.NoError(t, err)
 
 		// Verify existing file wasn't overwritten
@@ -120,7 +120,7 @@ func TestCreateProjectStructure(t *testing.T) {
 		version := "1.9.5"
 		environments := []string{"dev", "stg", "prd"}
 
-		err := createProjectStructure(baseDir, version, []string{"eu-central-1"}, environments, log)
+		err := createProjectStructure(baseDir, version, []string{"eu-central-1"}, environments, true, log)
 		require.NoError(t, err)
 
 		for _, env := range []string{"dev", "stg", "prd"} {
@@ -135,7 +135,7 @@ func TestCreateProjectStructure(t *testing.T) {
 		baseDir := t.TempDir()
 		log := logger.New(false)
 		customEnvs := []string{"dev", "qa", "uat", "prd"}
-		err := createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, customEnvs, log)
+		err := createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, customEnvs, true, log)
 		require.NoError(t, err)
 
 		// Verify all custom environments are created
@@ -153,6 +153,54 @@ func TestCreateProjectStructure(t *testing.T) {
 		entries, err := os.ReadDir(envsDir)
 		require.NoError(t, err)
 		assert.Equal(t, len(customEnvs), len(entries), "Should only have custom environments")
+	})
+
+	t.Run("creates static workflow files when createWorkflows is true", func(t *testing.T) {
+		baseDir := t.TempDir()
+		log := logger.New(false)
+		err := createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, []string{"dev"}, true, log)
+		require.NoError(t, err)
+
+		staticWorkflowFiles := []string{
+			"lint.yaml",
+			"reusable-detect-changes.yaml",
+			"reusable-terraform-plan-apply.yaml",
+			"reusable-lint.yaml",
+		}
+		for _, f := range staticWorkflowFiles {
+			p := filepath.Join(baseDir, ".github", "workflows", f)
+			assert.FileExists(t, p, "static workflow file %s should exist", f)
+			content, readErr := os.ReadFile(p)
+			require.NoError(t, readErr)
+			assert.NotEmpty(t, content, "static workflow file %s should not be empty", f)
+		}
+	})
+
+	t.Run("skips workflow files when createWorkflows is false", func(t *testing.T) {
+		baseDir := t.TempDir()
+		log := logger.New(false)
+		err := createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, []string{"dev"}, false, log)
+		require.NoError(t, err)
+
+		workflowsDir := filepath.Join(baseDir, ".github", "workflows")
+		assert.NoDirExists(t, workflowsDir, ".github/workflows directory should not be created when disabled")
+	})
+
+	t.Run("does not overwrite existing static workflow files", func(t *testing.T) {
+		baseDir := t.TempDir()
+		log := logger.New(false)
+
+		wfDir := filepath.Join(baseDir, ".github", "workflows")
+		require.NoError(t, os.MkdirAll(wfDir, 0755))
+		existingPath := filepath.Join(wfDir, "lint.yaml")
+		require.NoError(t, os.WriteFile(existingPath, []byte("# custom lint"), 0644))
+
+		err := createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, []string{"dev"}, true, log)
+		require.NoError(t, err)
+
+		content, readErr := os.ReadFile(existingPath)
+		require.NoError(t, readErr)
+		assert.Equal(t, "# custom lint", string(content), "existing workflow file should not be overwritten")
 	})
 }
 
@@ -433,6 +481,124 @@ provider:
 	})
 }
 
+func TestDetermineWorkflowsFlag(t *testing.T) {
+	t.Run("returns true when initWorkflows is true, overriding config false", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		configContent := `workflows:
+  create: false
+provider:
+  aws:
+    account_mapping:
+      dev: "111111111111"
+`
+		configPath := filepath.Join(tmpDir, ".tfskel.yaml")
+		err := os.WriteFile(configPath, []byte(configContent), 0644)
+		require.NoError(t, err)
+
+		initWorkflows = true
+		t.Cleanup(func() { initWorkflows = false })
+
+		assert.True(t, determineWorkflowsFlag(tmpDir))
+	})
+
+	t.Run("returns false when initWorkflows is false and config has create: false", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		configContent := `workflows:
+  create: false
+provider:
+  aws:
+    account_mapping:
+      dev: "111111111111"
+`
+		configPath := filepath.Join(tmpDir, ".tfskel.yaml")
+		err := os.WriteFile(configPath, []byte(configContent), 0644)
+		require.NoError(t, err)
+
+		initWorkflows = false
+
+		assert.False(t, determineWorkflowsFlag(tmpDir))
+	})
+
+	t.Run("returns true when initWorkflows is false and config has create: true", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		configContent := `workflows:
+  create: true
+provider:
+  aws:
+    account_mapping:
+      dev: "111111111111"
+`
+		configPath := filepath.Join(tmpDir, ".tfskel.yaml")
+		err := os.WriteFile(configPath, []byte(configContent), 0644)
+		require.NoError(t, err)
+
+		initWorkflows = false
+
+		assert.True(t, determineWorkflowsFlag(tmpDir))
+	})
+
+	t.Run("returns true when both initWorkflows true and config create true", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		configContent := `workflows:
+  create: true
+provider:
+  aws:
+    account_mapping:
+      dev: "111111111111"
+`
+		configPath := filepath.Join(tmpDir, ".tfskel.yaml")
+		err := os.WriteFile(configPath, []byte(configContent), 0644)
+		require.NoError(t, err)
+
+		initWorkflows = true
+		t.Cleanup(func() { initWorkflows = false })
+
+		assert.True(t, determineWorkflowsFlag(tmpDir))
+	})
+
+	t.Run("returns false by default when no config file exists", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		initWorkflows = false
+
+		assert.False(t, determineWorkflowsFlag(tmpDir))
+	})
+
+	t.Run("returns false when config exists but no workflows section", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		configContent := `terraform_version: "~> 1.13"
+provider:
+  aws:
+    account_mapping:
+      dev: "111111111111"
+`
+		configPath := filepath.Join(tmpDir, ".tfskel.yaml")
+		err := os.WriteFile(configPath, []byte(configContent), 0644)
+		require.NoError(t, err)
+
+		initWorkflows = false
+
+		assert.False(t, determineWorkflowsFlag(tmpDir))
+	})
+
+	t.Run("returns false when config file is malformed", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		configPath := filepath.Join(tmpDir, ".tfskel.yaml")
+		err := os.WriteFile(configPath, []byte(`this is not: [valid yaml`), 0644)
+		require.NoError(t, err)
+
+		initWorkflows = false
+
+		assert.False(t, determineWorkflowsFlag(tmpDir))
+	})
+}
+
 func TestRunInit(t *testing.T) {
 	t.Run("init in current directory", func(t *testing.T) {
 		tmpDir := t.TempDir()
@@ -473,6 +639,98 @@ func TestRunInit(t *testing.T) {
 
 		assert.FileExists(t, filepath.Join(tmpDir, ".gitignore"))
 		assert.DirExists(t, filepath.Join(tmpDir, "envs", "dev"))
+	})
+
+	t.Run("init respects existing config workflows.create false", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		// Pre-create .tfskel.yaml with workflows.create = false
+		configContent := `terraform_version: "~> 1.13"
+workflows:
+  create: false
+provider:
+  aws:
+    version: "~> 6.0"
+    account_mapping:
+      dev: "111111111111"
+      stg: "222222222222"
+      prd: "333333333333"
+    regions:
+      - "eu-central-1"
+backend:
+  s3:
+    bucket_name: "my-terraform-state"
+`
+		configPath := filepath.Join(tmpDir, ".tfskel.yaml")
+		err := os.WriteFile(configPath, []byte(configContent), 0644)
+		require.NoError(t, err)
+
+		// Run init without CLI flag (should respect config)
+		initDir = tmpDir
+		t.Cleanup(func() {
+			initDir = ""
+		})
+
+		cmd := &cobra.Command{}
+		cmd.Flags().String("config", "", "config file")
+
+		err = runInit(cmd, []string{})
+		require.NoError(t, err)
+
+		// Verify structure created
+		assert.DirExists(t, filepath.Join(tmpDir, "envs", "dev"))
+
+		// Verify workflows NOT created (respecting config)
+		workflowsDir := filepath.Join(tmpDir, ".github", "workflows")
+		assert.NoDirExists(t, workflowsDir, "workflows should not be created when config has create: false")
+	})
+
+	t.Run("init CLI flag overrides config workflows.create", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		// Pre-create .tfskel.yaml with workflows.create = false
+		configContent := `terraform_version: "~> 1.13"
+workflows:
+  create: false
+provider:
+  aws:
+    version: "~> 6.0"
+    account_mapping:
+      dev: "111111111111"
+      stg: "222222222222"
+      prd: "333333333333"
+    regions:
+      - "eu-central-1"
+backend:
+  s3:
+    bucket_name: "my-terraform-state"
+`
+		configPath := filepath.Join(tmpDir, ".tfskel.yaml")
+		err := os.WriteFile(configPath, []byte(configContent), 0644)
+		require.NoError(t, err)
+
+		// Run init WITH CLI flag --workflows=true (should override config)
+		initDir = tmpDir
+		t.Cleanup(func() {
+			initDir = ""
+		})
+
+		initWorkflows = true
+		t.Cleanup(func() { initWorkflows = false })
+
+		cmd := &cobra.Command{}
+		cmd.Flags().String("config", "", "config file")
+
+		err = runInit(cmd, []string{})
+		require.NoError(t, err)
+
+		// Verify structure created
+		assert.DirExists(t, filepath.Join(tmpDir, "envs", "dev"))
+
+		// Verify workflows WERE created (CLI flag overrides config)
+		workflowsDir := filepath.Join(tmpDir, ".github", "workflows")
+		assert.DirExists(t, workflowsDir, "workflows should be created when CLI flag overrides config")
+		assert.FileExists(t, filepath.Join(workflowsDir, "lint.yaml"))
 	})
 }
 
