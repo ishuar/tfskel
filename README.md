@@ -166,10 +166,10 @@ tfskel scaffold workflows --env dev
 tfskel scaffold workflows --env prd --config ./my-config.yaml
 ```
 
-Generated file: `.github/workflows/<env>-<name_template>.yaml`
+Generated file: `.github/workflows/<env>-<name>.yaml`
 
 > [!Note]
-> `workflows.name_template` is a **plain string** (Go template syntax is not supported). The environment prefix and `.yaml` extension are added automatically. Example: with `name_template: "terraform"` and `--env dev`, the file will be `dev-terraform.yaml`.
+> `workflows.name` is a **plain string** (Go template syntax is not supported). The environment prefix and `.yaml` extension are added automatically. Example: with `name: "terraform"` and `--env dev`, the file will be `dev-terraform.yaml`.
 
 <p align="left">
 <img src="assets/tfskel-scaffold.gif" alt="tfskel scaffold demo" width="600" />

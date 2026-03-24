@@ -252,13 +252,12 @@ func (g *Generator) RunWorkflows(env string) error {
 			continue
 		}
 
-		outputName := filepath.Base(outputPath)
 		if g.fs.FileExists(outputPath) {
-			g.log.Infof("%s already exists, skipping", outputName)
+			g.log.Infof("%s already exists, skipping", outputPath)
 			continue
 		}
 
-		if err := g.writeTemplateFile(tmplPath, outputPath, outputName, &templateData); err != nil {
+		if err := g.writeTemplateFile(tmplPath, outputPath, outputPath, &templateData); err != nil {
 			return err
 		}
 	}
@@ -337,28 +336,28 @@ func sanitizeWorkflowFileName(filename string) (string, bool) {
 
 // generateWorkflowFileName creates dynamic workflow file names based on template data.
 // Default pattern: {env}-terraform-plan-apply.yaml (e.g., dev-terraform-plan-apply.yaml)
-// If name_template is provided in config, it uses that as a plain string (no Go template rendering).
-// Pattern with name_template: {env}-{name_template}.yaml (e.g., dev-my-terraform.yaml)
-// Returns error if name_template contains Go template syntax or produces invalid filename.
+// If name is provided in config, it uses that as a plain string (no Go template rendering).
+// Pattern with name: {env}-{name}.yaml (e.g., dev-my-terraform.yaml)
+// Returns error if name contains Go template syntax or produces invalid filename.
 func (g *Generator) generateWorkflowFileName(originalFileName string, data *templates.Data) (string, error) {
-	// Default path: no custom template configured
+	// Default path: no custom name configured
 	if g.config.Workflows == nil ||
-		g.config.Workflows.NameTemplate == "" {
+		g.config.Workflows.Name == "" {
 		return g.generateDefaultWorkflowFileName(originalFileName, data), nil
 	}
 
-	nameTemplate := g.config.Workflows.NameTemplate
+	name := g.config.Workflows.Name
 
-	// Reject Go template syntax — name_template must be a plain string
-	if strings.Contains(nameTemplate, "{{") || strings.Contains(nameTemplate, "}}") {
-		return "", fmt.Errorf("%w: name_template must be a plain string without Go template syntax (e.g. 'my-terraform'), got: %s", ErrInvalidWorkflowFileName, nameTemplate)
+	// Reject Go template syntax — name must be a plain string
+	if strings.Contains(name, "{{") || strings.Contains(name, "}}") {
+		return "", fmt.Errorf("%w: name must be a plain string without Go template syntax (e.g. 'my-terraform'), got: %s", ErrInvalidWorkflowFileName, name)
 	}
 
 	// Normalize: strip trailing .yaml if user included it
-	nameTemplate, _ = strings.CutSuffix(nameTemplate, ".yaml")
+	name, _ = strings.CutSuffix(name, ".yaml")
 
-	// Build filename: {env}-{name_template}.yaml
-	baseFileName := data.Env + "-" + nameTemplate + ".yaml"
+	// Build filename: {env}-{name}.yaml
+	baseFileName := data.Env + "-" + name + ".yaml"
 
 	// Validate and sanitize the filename to prevent path traversal
 	sanitized, valid := sanitizeWorkflowFileName(baseFileName)

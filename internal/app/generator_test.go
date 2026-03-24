@@ -1836,7 +1836,7 @@ func TestGenerator_generateWorkflowFileName(t *testing.T) {
 			},
 			config: &config.Config{
 				Workflows: &config.Workflows{
-					NameTemplate: "my-custom",
+					Name: "my-custom",
 				},
 			},
 			expectedOutput: "dev-my-custom.yaml",
@@ -1853,7 +1853,7 @@ func TestGenerator_generateWorkflowFileName(t *testing.T) {
 			},
 			config: &config.Config{
 				Workflows: &config.Workflows{
-					NameTemplate: "my-terraform",
+					Name: "my-terraform",
 				},
 			},
 			expectedOutput: "prd-my-terraform.yaml",
@@ -1869,7 +1869,7 @@ func TestGenerator_generateWorkflowFileName(t *testing.T) {
 			},
 			config: &config.Config{
 				Workflows: &config.Workflows{
-					NameTemplate: "my-terraform.yaml",
+					Name: "my-terraform.yaml",
 				},
 			},
 			expectedOutput: "dev-my-terraform.yaml",
@@ -1885,7 +1885,7 @@ func TestGenerator_generateWorkflowFileName(t *testing.T) {
 			},
 			config: &config.Config{
 				Workflows: &config.Workflows{
-					NameTemplate: "{{.AppDir}}-{{.Env}}-{{.ShortRegion}}",
+					Name: "{{.AppDir}}-{{.Env}}-{{.ShortRegion}}",
 				},
 			},
 			expectedOutput: "",
@@ -2718,7 +2718,7 @@ func TestGenerator_generateWorkflowFileName_WithSlashedAppDir(t *testing.T) {
 			},
 			config: &config.Config{
 				Workflows: &config.Workflows{
-					NameTemplate: "infra-cluster",
+					Name: "infra-cluster",
 				},
 			},
 			expectedOutput: "stg-infra-cluster.yaml",
@@ -2735,7 +2735,7 @@ func TestGenerator_generateWorkflowFileName_WithSlashedAppDir(t *testing.T) {
 			},
 			config: &config.Config{
 				Workflows: &config.Workflows{
-					NameTemplate: "{{.AppDir}}-{{.Env}}",
+					Name: "{{.AppDir}}-{{.Env}}",
 				},
 			},
 			expectedOutput: "",

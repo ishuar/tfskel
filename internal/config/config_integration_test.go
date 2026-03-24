@@ -40,7 +40,7 @@ templates:
   dir: /custom/templates
 workflows:
   create: true
-  name_template: "{{.AppDir}}-{{.Env}}"
+  name: "{{.AppDir}}-{{.Env}}"
   aws_role_name: GitHubActionsRole
 `,
 			expectError: false,
@@ -58,7 +58,7 @@ workflows:
 				// Test Workflows
 				require.NotNil(t, cfg.Workflows)
 				assert.True(t, cfg.Workflows.Create)
-				assert.Equal(t, "{{.AppDir}}-{{.Env}}", cfg.Workflows.NameTemplate)
+				assert.Equal(t, "{{.AppDir}}-{{.Env}}", cfg.Workflows.Name)
 				assert.Equal(t, "GitHubActionsRole", cfg.Workflows.AWSRoleName)
 			},
 		},

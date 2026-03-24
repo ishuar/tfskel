@@ -88,13 +88,13 @@ func runInit(cmd *cobra.Command, _ []string) error {
 
 	// Determine environments, regions, and terraform version
 	// Priority: existing .tfskel.yaml in target dir > defaults
-	environments, terraformVersion, regions, err := determineInitParameters(targetDir, log)
+	environments, terraformVersion, regions, workflowsFromConfig, err := determineInitParameters(targetDir, log)
 	if err != nil {
 		return err
 	}
 
 	// Determine whether to create workflows: --workflows flag OR config workflows.create
-	createWorkflows := determineWorkflowsFlag(targetDir)
+	createWorkflows := initWorkflows || workflowsFromConfig
 
 	// Create the project structure
 	if err := createProjectStructure(targetDir, terraformVersion, regions, environments, createWorkflows, log); err != nil {
@@ -127,9 +127,9 @@ func extractVersionFromConstraint(constraint string) string {
 	return version
 }
 
-// determineInitParameters determines environments, terraform version, and regions
+// determineInitParameters determines environments, terraform version, regions, and workflows flag
 // Priority: existing .tfskel.yaml in target dir > defaults
-func determineInitParameters(targetDir string, log *logger.Logger) ([]string, string, []string, error) {
+func determineInitParameters(targetDir string, log *logger.Logger) ([]string, string, []string, bool, error) {
 	// Default values for bootstrapping new projects
 	defaultEnvironments := []string{"dev", "stg", "prd"}
 	defaultRegions := []string{"eu-central-1"}
@@ -139,7 +139,7 @@ func determineInitParameters(targetDir string, log *logger.Logger) ([]string, st
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		// No config file exists, use defaults
 		log.Debugf("No .tfskel.yaml found in target directory, using default environments: %v", defaultEnvironments)
-		return defaultEnvironments, defaultTerraformVersion, defaultRegions, nil
+		return defaultEnvironments, defaultTerraformVersion, defaultRegions, false, nil
 	}
 
 	// Config file exists, read it
@@ -153,14 +153,14 @@ func determineInitParameters(targetDir string, log *logger.Logger) ([]string, st
 	if err := v.ReadInConfig(); err != nil {
 		// If we can't read the config, warn and use defaults
 		log.Warnf("Failed to read existing .tfskel.yaml: %v, using defaults", err)
-		return defaultEnvironments, defaultTerraformVersion, defaultRegions, nil
+		return defaultEnvironments, defaultTerraformVersion, defaultRegions, false, nil
 	}
 
 	// Unmarshal into config struct
 	cfg := &config.Config{}
 	if err := v.Unmarshal(cfg); err != nil {
 		log.Warnf("Failed to parse .tfskel.yaml: %v, using defaults", err)
-		return defaultEnvironments, defaultTerraformVersion, defaultRegions, nil
+		return defaultEnvironments, defaultTerraformVersion, defaultRegions, false, nil
 	}
 
 	// Ensure nested structures exist
@@ -183,7 +183,7 @@ func determineInitParameters(targetDir string, log *logger.Logger) ([]string, st
 		log.Infof("Using %d environment(s) from config account_mapping: %v", len(environments), environments)
 	} else {
 		// Config exists but no account_mapping - this is an error
-		return nil, "", nil, fmt.Errorf("existing .tfskel.yaml found but %w; account mappings are required. Please add environment mappings to .tfskel.yaml", ErrMissingAccountMapping)
+		return nil, "", nil, false, fmt.Errorf("existing .tfskel.yaml found but %w; account mappings are required. Please add environment mappings to .tfskel.yaml", ErrMissingAccountMapping)
 	}
 
 	// Extract terraform version
@@ -202,20 +202,8 @@ func determineInitParameters(targetDir string, log *logger.Logger) ([]string, st
 		log.Warnf("No regions specified in config, using default: %v", defaultRegions)
 	}
 
-	return environments, terraformVersion, regions, nil
-}
-
-// determineWorkflowsFlag returns true if --workflows flag is set OR config workflows.create is true.
-func determineWorkflowsFlag(targetDir string) bool {
-	if initWorkflows {
-		return true
-	}
-	v := viper.New()
-	v.SetConfigFile(filepath.Join(targetDir, ".tfskel.yaml"))
-	if err := v.ReadInConfig(); err != nil {
-		return false
-	}
-	return v.GetBool("workflows.create")
+	createWorkflows := cfg.Workflows != nil && cfg.Workflows.Create
+	return environments, terraformVersion, regions, createWorkflows, nil
 }
 
 func createProjectStructure(baseDir string, terraformVersion string, regions []string, environments []string, createWorkflows bool, log *logger.Logger) error {

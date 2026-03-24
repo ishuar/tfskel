@@ -243,7 +243,7 @@ func (r *Renderer) GetTemplateSource(templateName string) string {
 //
 // Unlike Render(), this method does not require a pre-registered template name —
 // it parses the raw string inline. This is intended for user-supplied config values
-// such as bucket_name, aws_role_name, aws_role_arn, and name_template.
+// such as bucket_name, aws_role_name, aws_role_arn, and workflows.name.
 //
 // The funcMap registered on this Renderer is applied, so template functions like
 // toLower, replace, and stripConstraint are available.

@@ -473,7 +473,7 @@ type Templates struct {
 // Workflows holds GitHub Actions workflow configuration
 type Workflows struct {
     Create       bool   `mapstructure:"create"`
-    NameTemplate string `mapstructure:"name_template"`
+    Name string `mapstructure:"name"`
     AWSRoleName  string `mapstructure:"aws_role_name"`
     AWSRoleArn   string `mapstructure:"aws_role_arn"`
 }

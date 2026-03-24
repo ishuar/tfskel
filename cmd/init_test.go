@@ -334,7 +334,7 @@ func TestDetermineInitParameters(t *testing.T) {
 		tmpDir := t.TempDir()
 		log := logger.New(false)
 
-		envs, tfVersion, regions, err := determineInitParameters(tmpDir, log)
+		envs, tfVersion, regions, _, err := determineInitParameters(tmpDir, log)
 		require.NoError(t, err)
 
 		assert.Equal(t, []string{"dev", "stg", "prd"}, envs)
@@ -364,7 +364,7 @@ provider:
 		err := os.WriteFile(configPath, []byte(configContent), 0644)
 		require.NoError(t, err)
 
-		envs, tfVersion, regions, err := determineInitParameters(tmpDir, log)
+		envs, tfVersion, regions, _, err := determineInitParameters(tmpDir, log)
 		require.NoError(t, err)
 
 		// Check that all environments from account_mapping are present
@@ -394,7 +394,7 @@ provider:
 		err := os.WriteFile(configPath, []byte(configContent), 0644)
 		require.NoError(t, err)
 
-		_, _, _, err = determineInitParameters(tmpDir, log)
+		_, _, _, _, err = determineInitParameters(tmpDir, log)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "account_mapping is missing or empty")
 	})
@@ -416,7 +416,7 @@ provider:
 		err := os.WriteFile(configPath, []byte(configContent), 0644)
 		require.NoError(t, err)
 
-		_, _, _, err = determineInitParameters(tmpDir, log)
+		_, _, _, _, err = determineInitParameters(tmpDir, log)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "account_mapping is missing or empty")
 	})
@@ -431,7 +431,7 @@ provider:
 		err := os.WriteFile(configPath, []byte(configContent), 0644)
 		require.NoError(t, err)
 
-		envs, tfVersion, regions, err := determineInitParameters(tmpDir, log)
+		envs, tfVersion, regions, _, err := determineInitParameters(tmpDir, log)
 		require.NoError(t, err)
 
 		// Should fall back to defaults
@@ -454,7 +454,7 @@ provider:
 		err := os.WriteFile(configPath, []byte(configContent), 0644)
 		require.NoError(t, err)
 
-		_, tfVersion, _, err := determineInitParameters(tmpDir, log)
+		_, tfVersion, _, _, err := determineInitParameters(tmpDir, log)
 		require.NoError(t, err)
 
 		assert.Equal(t, "1.10.2", tfVersion)
@@ -474,15 +474,17 @@ provider:
 		err := os.WriteFile(configPath, []byte(configContent), 0644)
 		require.NoError(t, err)
 
-		_, _, regions, err := determineInitParameters(tmpDir, log)
+		_, _, regions, _, err := determineInitParameters(tmpDir, log)
 		require.NoError(t, err)
 
 		assert.Equal(t, []string{"eu-central-1"}, regions)
 	})
 }
 
-func TestDetermineWorkflowsFlag(t *testing.T) {
-	t.Run("returns true when initWorkflows is true, overriding config false", func(t *testing.T) {
+func TestDetermineInitParametersWorkflows(t *testing.T) {
+	log := logger.New(false)
+
+	t.Run("returns false when config has workflows.create: false", func(t *testing.T) {
 		tmpDir := t.TempDir()
 
 		configContent := `workflows:
@@ -492,36 +494,15 @@ provider:
     account_mapping:
       dev: "111111111111"
 `
-		configPath := filepath.Join(tmpDir, ".tfskel.yaml")
-		err := os.WriteFile(configPath, []byte(configContent), 0644)
+		err := os.WriteFile(filepath.Join(tmpDir, ".tfskel.yaml"), []byte(configContent), 0644)
 		require.NoError(t, err)
 
-		initWorkflows = true
-		t.Cleanup(func() { initWorkflows = false })
-
-		assert.True(t, determineWorkflowsFlag(tmpDir))
-	})
-
-	t.Run("returns false when initWorkflows is false and config has create: false", func(t *testing.T) {
-		tmpDir := t.TempDir()
-
-		configContent := `workflows:
-  create: false
-provider:
-  aws:
-    account_mapping:
-      dev: "111111111111"
-`
-		configPath := filepath.Join(tmpDir, ".tfskel.yaml")
-		err := os.WriteFile(configPath, []byte(configContent), 0644)
+		_, _, _, createWorkflows, err := determineInitParameters(tmpDir, log)
 		require.NoError(t, err)
-
-		initWorkflows = false
-
-		assert.False(t, determineWorkflowsFlag(tmpDir))
+		assert.False(t, createWorkflows)
 	})
 
-	t.Run("returns true when initWorkflows is false and config has create: true", func(t *testing.T) {
+	t.Run("returns true when config has workflows.create: true", func(t *testing.T) {
 		tmpDir := t.TempDir()
 
 		configContent := `workflows:
@@ -531,44 +512,23 @@ provider:
     account_mapping:
       dev: "111111111111"
 `
-		configPath := filepath.Join(tmpDir, ".tfskel.yaml")
-		err := os.WriteFile(configPath, []byte(configContent), 0644)
+		err := os.WriteFile(filepath.Join(tmpDir, ".tfskel.yaml"), []byte(configContent), 0644)
 		require.NoError(t, err)
 
-		initWorkflows = false
-
-		assert.True(t, determineWorkflowsFlag(tmpDir))
-	})
-
-	t.Run("returns true when both initWorkflows true and config create true", func(t *testing.T) {
-		tmpDir := t.TempDir()
-
-		configContent := `workflows:
-  create: true
-provider:
-  aws:
-    account_mapping:
-      dev: "111111111111"
-`
-		configPath := filepath.Join(tmpDir, ".tfskel.yaml")
-		err := os.WriteFile(configPath, []byte(configContent), 0644)
+		_, _, _, createWorkflows, err := determineInitParameters(tmpDir, log)
 		require.NoError(t, err)
-
-		initWorkflows = true
-		t.Cleanup(func() { initWorkflows = false })
-
-		assert.True(t, determineWorkflowsFlag(tmpDir))
+		assert.True(t, createWorkflows)
 	})
 
-	t.Run("returns false by default when no config file exists", func(t *testing.T) {
+	t.Run("returns false when no config file exists", func(t *testing.T) {
 		tmpDir := t.TempDir()
 
-		initWorkflows = false
-
-		assert.False(t, determineWorkflowsFlag(tmpDir))
+		_, _, _, createWorkflows, err := determineInitParameters(tmpDir, log)
+		require.NoError(t, err)
+		assert.False(t, createWorkflows)
 	})
 
-	t.Run("returns false when config exists but no workflows section", func(t *testing.T) {
+	t.Run("returns false when config has no workflows section", func(t *testing.T) {
 		tmpDir := t.TempDir()
 
 		configContent := `terraform_version: "~> 1.13"
@@ -577,25 +537,23 @@ provider:
     account_mapping:
       dev: "111111111111"
 `
-		configPath := filepath.Join(tmpDir, ".tfskel.yaml")
-		err := os.WriteFile(configPath, []byte(configContent), 0644)
+		err := os.WriteFile(filepath.Join(tmpDir, ".tfskel.yaml"), []byte(configContent), 0644)
 		require.NoError(t, err)
 
-		initWorkflows = false
-
-		assert.False(t, determineWorkflowsFlag(tmpDir))
+		_, _, _, createWorkflows, err := determineInitParameters(tmpDir, log)
+		require.NoError(t, err)
+		assert.False(t, createWorkflows)
 	})
 
 	t.Run("returns false when config file is malformed", func(t *testing.T) {
 		tmpDir := t.TempDir()
 
-		configPath := filepath.Join(tmpDir, ".tfskel.yaml")
-		err := os.WriteFile(configPath, []byte(`this is not: [valid yaml`), 0644)
+		err := os.WriteFile(filepath.Join(tmpDir, ".tfskel.yaml"), []byte(`this is not: [valid yaml`), 0644)
 		require.NoError(t, err)
 
-		initWorkflows = false
-
-		assert.False(t, determineWorkflowsFlag(tmpDir))
+		_, _, _, createWorkflows, err := determineInitParameters(tmpDir, log)
+		require.NoError(t, err)
+		assert.False(t, createWorkflows)
 	})
 }
 
