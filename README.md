@@ -96,9 +96,12 @@ Initializes a new Terraform monorepo with an environment-and-region-based direct
 
 If a `.tfskel.yaml` already exists in the target directory, `init` reads environments from `provider.aws.account_mapping` and regions from `provider.aws.regions`, so your existing configuration drives the scaffold.
 
+With `--workflows`, also generates the shared GitHub Actions reusable workflow files (`lint.yaml`, `reusable-detect-changes.yaml`, `reusable-terraform-plan-apply.yaml`, `reusable-lint.yaml`) under `.github/workflows/`. This can also be enabled via `workflows.create: true` in `.tfskel.yaml`.
+
 | Flag | Short | Default | Description |
 |---|---|---|---|
 | `--dir` | `-d` | current directory | Directory to initialize |
+| `--workflows` | | `false` | Generate shared GitHub Actions reusable workflow files |
 
 ```bash
 # Initialize in the current directory
@@ -109,6 +112,9 @@ tfskel init --dir /path/to/your/project
 
 # Initialize with an explicit config file
 tfskel init --config /path/to/config.yaml
+
+# Also generate shared GitHub Actions workflow files
+tfskel init --workflows
 ```
 
 <p align="left">
@@ -117,7 +123,7 @@ tfskel init --config /path/to/config.yaml
 
 ### `tfskel scaffold`
 
-It accepts any subcommand as an input for target app-dir and creates per-application root module directories with a pre-configured `backend.tf` (S3 with state locking and encryption) and a `versions.tf` with pinned Terraform and AWS provider versions, plus optional GitHub Actions workflows. You can extend this with your own `.tmpl` files — any custom template you place in your templates directory is processed alongside the built-in defaults; if the same filename is provided, the custom template takes precedence.
+It accepts any subcommand as an input for target app-dir and creates per-application root module directories with a pre-configured `backend.tf` (S3 with state locking and encryption) and a `versions.tf` with pinned Terraform and AWS provider versions. You can extend this with your own `.tmpl` files — any custom template you place in your templates directory is processed alongside the built-in defaults; if the same filename is provided, the custom template takes precedence.
 
 | Flag | Short | Default | Description |
 |---|---|---|---|
@@ -125,7 +131,6 @@ It accepts any subcommand as an input for target app-dir and creates per-applica
 | `--region` | `-r` | *(required)* | AWS region (e.g. `us-east-1`, `eu-central-1`) |
 | `--templates-dir` | | `""` | Directory containing custom `.tmpl` template files |
 | `--s3-bucket-name` | | `""` | S3 bucket name for Terraform state (overrides config) |
-| `--workflows` | | `false` | Generate GitHub Actions workflow files from default templates |
 
 ```bash
 # Scaffold structure for an app in dev/us-east-1
@@ -137,9 +142,6 @@ tfskel scaffold myapp --env stg --region eu-central-1 --templates-dir ./template
 # Override S3 bucket name at runtime
 tfskel scaffold myapp --env prd --region us-east-1 --s3-bucket-name my-tf-state-bucket
 
-# Also create GitHub Actions workflow files
-tfskel scaffold myapp --env dev --region us-east-1 --workflows
-
 # Scaffold with a custom config file
 tfskel scaffold myapp --config ./my-config.yaml --env dev --region us-east-1
 
@@ -147,12 +149,31 @@ tfskel scaffold myapp --config ./my-config.yaml --env dev --region us-east-1
 tfskel sc myapp --env dev --region us-east-1
 ```
 
+
+#### `tfskel scaffold workflows`
+
+Generates a per-environment GitHub Actions Terraform plan/apply caller workflow. Run this once per environment after `tfskel init --workflows` has created the shared reusable workflow files.
+
+| Flag | Short | Default | Description |
+|---|---|---|---|
+| `--env` | `-e` | *(required)* | Target environment (e.g. `dev`, `stg`, `prd`) |
+
+```bash
+# Generate a per-env Terraform workflow for dev
+tfskel scaffold workflows --env dev
+
+# Generate with a custom config file
+tfskel scaffold workflows --env prd --config ./my-config.yaml
+```
+
+Generated file: `.github/workflows/<env>-<name>.yaml`
+
+> [!Note]
+> `workflows.name` is a **plain string** (Go template syntax is not supported). The environment prefix and `.yaml` extension are added automatically. Example: with `name: "terraform"` and `--env dev`, the file will be `dev-terraform.yaml`.
+
 <p align="left">
 <img src="assets/tfskel-scaffold.gif" alt="tfskel scaffold demo" width="600" />
 </p>
-
-> [!Note]
-> `/` will be replaced with `-` in `<app-dir>` value for GitHub workflow file naming.
 
 #### `tfskel diff config`
 
@@ -235,7 +256,7 @@ Create a `.tfskel.yaml` in your project root to customize defaults:
 
 ### Template context variables
 
-The following config fields accept Go template syntax: `backend.s3.bucket_name`, `workflows.name_template`, `workflows.aws_role_arn`, and `workflows.aws_role_name`.
+The following config fields accept Go template syntax: `backend.s3.bucket_name`, `workflows.aws_role_arn`, and `workflows.aws_role_name`.
 
 All placeholders are populated from the `tfskel scaffold` invocation:
 
@@ -250,7 +271,7 @@ All placeholders are populated from the `tfskel scaffold` invocation:
 | `{{.TerraformVersion}}`   | `terraform_version` in config                  | Terraform version constraint.                                                       | `~> 1.13`                                              |
 | `{{.AWSProviderVersion}}` | `provider.aws.version` in config               | AWS provider version constraint.                                                    | `~> 6.0`                                               |
 | `{{.AWSRoleArn}}`         | Resolved from `aws_role_arn` / `aws_role_name` | Final IAM role ARN used in workflow files.                                          | `arn:aws:iam::123456789012:role/dev-githubactionsrole` |
-| `{{.WorkflowFileName}}`   | Auto-generated                                 | Rendered workflow filename (used for self-reference in workflow `on:` triggers).    | `myapp-dev-euc1-terraform.yaml`                        |
+| `{{.WorkflowFileName}}`   | Auto-generated                                 | Rendered workflow filename (used for self-reference in workflow `on:` triggers).    | `dev-terraform.yaml`                                   |
 
 #### Template functions
 

@@ -306,8 +306,14 @@ func TestScaffoldCommand_CommandSetup(t *testing.T) {
 		s3Flag := scaffoldCmd.Flags().Lookup("s3-bucket-name")
 		assert.NotNil(t, s3Flag, "--s3-bucket-name flag should exist")
 
-		workflowsFlag := scaffoldCmd.Flags().Lookup("workflows")
-		assert.NotNil(t, workflowsFlag, "--workflows flag should exist")
+		// --workflows has moved to 'tfskel init'; scaffold workflows subcommand has --env
+		workflowsSubCmd, _, err := scaffoldCmd.Find([]string{"workflows"})
+		assert.NoError(t, err, "scaffold workflows subcommand should be found")
+		assert.NotNil(t, workflowsSubCmd, "scaffold workflows subcommand should exist")
+		if workflowsSubCmd != nil {
+			envFlag := workflowsSubCmd.Flags().Lookup("env")
+			assert.NotNil(t, envFlag, "scaffold workflows --env flag should exist")
+		}
 	})
 
 	t.Run("command requires exactly one argument", func(t *testing.T) {

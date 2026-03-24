@@ -21,5 +21,6 @@ Type "tfskel scaffold test --env dev --region eu-central-1" Sleep 500ms  Enter
 Sleep 5s
 Type "clear" Sleep 300ms Enter
 Sleep 500ms
+Type "tfskel scaffold workflows --env dev" Sleep 500ms  Enter
 Type "tree -a" Sleep 500ms  Enter
 Sleep 5s

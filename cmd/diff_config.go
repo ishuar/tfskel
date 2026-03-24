@@ -60,6 +60,8 @@ func init() {
 }
 
 func runDiffConfig(cmd *cobra.Command, _ []string) error {
+	cmd.SilenceUsage = true
+
 	log := logger.New(viper.GetBool("verbose"))
 
 	// Validate and normalize directory
@@ -73,17 +75,14 @@ func runDiffConfig(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		if os.IsNotExist(err) {
 			log.Errorf("Directory does not exist: %s", scanDir)
-			cmd.SilenceUsage = true
 			return fmt.Errorf("%w: %s", ErrDirDoesNotExist, scanDir)
 		}
 		log.Errorf("Failed to access directory %s: %v", scanDir, err)
-		cmd.SilenceUsage = true
 		return fmt.Errorf("failed to access directory: %w", err)
 	}
 
 	if !fileInfo.IsDir() {
 		log.Errorf("Target is not a directory: %s", scanDir)
-		cmd.SilenceUsage = true
 		return fmt.Errorf("%w: %s", ErrDirNotDirectory, scanDir)
 	}
 
@@ -97,7 +96,6 @@ func runDiffConfig(cmd *cobra.Command, _ []string) error {
 	cfg, err := config.Load(cmd, viper.GetViper())
 	if err != nil {
 		log.Errorf("Failed to load configuration: %v", err)
-		cmd.SilenceUsage = true
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
 
@@ -114,7 +112,6 @@ func runDiffConfig(cmd *cobra.Command, _ []string) error {
 	versionInfos, err := detector.ScanDirectory()
 	if err != nil {
 		log.Errorf("Failed to scan directory: %v", err)
-		cmd.SilenceUsage = true
 		return fmt.Errorf("failed to scan directory: %w", err)
 	}
 
@@ -138,7 +135,6 @@ func runDiffConfig(cmd *cobra.Command, _ []string) error {
 
 	if err := formatter.Format(report, outputFormat, os.Stdout); err != nil {
 		log.Errorf("Failed to format output: %v", err)
-		cmd.SilenceUsage = true
 		return fmt.Errorf("failed to format output: %w", err)
 	}
 
@@ -146,7 +142,6 @@ func runDiffConfig(cmd *cobra.Command, _ []string) error {
 	exitCode := report.ExitCode()
 	if exitCode != 0 {
 		log.Warnf("Drift detected - exiting with code %d", exitCode)
-		cmd.SilenceUsage = true
 		return NewExitError(exitCode, "")
 	}
 

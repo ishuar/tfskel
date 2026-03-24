@@ -55,7 +55,7 @@
 #   Hide                            Hide the subsequent commands from the output
 #   Show                            Show the subsequent commands in the output
 
-Output "~/workspaces/personal/github/tfskel/assets/tfskel-init.gif"
+Output "../assets/tfskel-init.gif"
 
 Require echo
 Set Margin 10
@@ -69,12 +69,12 @@ Set Height 600
 Set PlaybackSpeed 0.7
 
 Type "echo 'Welcome to tfskel!'" Sleep 500ms  Enter
-Type "tfskel init" Sleep 500ms  Enter
+Type "tfskel init --workflows" Sleep 500ms  Enter
 Sleep 3s
 Type "clear" Sleep 300ms Enter
 Type "tree -a" Sleep 500ms  Enter
 Sleep 5s
-Type "echo 'Re-running tfskel init'" Sleep 500ms  Enter
-Type "tfskel init" Sleep 500ms  Enter
+Type "echo 'Re-running tfskel init --workflows'" Sleep 500ms  Enter
+Type "tfskel init --workflows" Sleep 500ms  Enter
 Enter
 Sleep 3

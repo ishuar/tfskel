@@ -57,10 +57,10 @@ type Templates struct {
 
 // Workflows holds GitHub workflows configuration
 type Workflows struct {
-	Create       bool   `mapstructure:"create"`
-	NameTemplate string `mapstructure:"name_template"`
-	AWSRoleName  string `mapstructure:"aws_role_name"`
-	AWSRoleArn   string `mapstructure:"aws_role_arn"`
+	Create      bool   `mapstructure:"create"`
+	Name        string `mapstructure:"name"`
+	AWSRoleName string `mapstructure:"aws_role_name"`
+	AWSRoleArn  string `mapstructure:"aws_role_arn"`
 }
 
 // Config holds the application configuration
