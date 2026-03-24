@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.6.0](https://github.com/ishuar/tfskel/compare/v0.5.2...v0.6.0) (2026-03-24)
+
+
+### ⚠ BREAKING CHANGES
+
+* **cmd/scaffold:** per-app-dir lint and terraform GitHub workflows are removed. Global terraform lint workflow replaces per-app-dir lint. Per-env terraform plan/apply workflow replaces per-app-dir workflow.
+* **cmd/scaffold:** `--workflows` flag is removed from scaffold command. Static reusable GitHub workflows are now created via `tfskel init --workflows`. Per-env terraform plan/apply workflow creation moved to `tfskel scaffold workflows --env`.
+* **cmd/scaffold:** `workflows.name_template` is removed. Use `workflows.name` instead; Go templating in the value is no longer supported.
+
+### ✨ Features
+
+* **cmd/scaffold:** moved static gh workflows creation to init from scaffold cmd and added workflows subcommand for consolidated per env gh workflow ([#58](https://github.com/ishuar/tfskel/issues/58)) ([7286b5a](https://github.com/ishuar/tfskel/commit/7286b5a98e61577ee8f7dc81dbd279229f7ef522))
+
 ## [0.5.2](https://github.com/ishuar/tfskel/compare/v0.5.1...v0.5.2) (2026-03-20)
 
 
