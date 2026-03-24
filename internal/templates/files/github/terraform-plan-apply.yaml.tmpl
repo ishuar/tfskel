@@ -19,6 +19,8 @@ on:
     paths:
       - 'envs/{{.Env}}/**'
       - '.github/workflows/{{.WorkflowFileName}}'
+      - '.github/workflows/reusable-detect-changes.yaml'
+      - '.github/workflows/reusable-terraform-plan-apply.yaml'
 
   push:
     branches:

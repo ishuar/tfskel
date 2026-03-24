@@ -219,7 +219,7 @@ func (g *Generator) determineOutputPath(tmplPath, appPath string, data *template
 		// Place in .github/workflows/ directory at project root
 		projectRoot := "."
 
-		// Only .tmpl files get dynamic naming (e.g. terraform.yaml.tmpl → dev-terraform-plan-apply.yaml).
+		// Only .tmpl files get dynamic naming (e.g. terraform-plan-apply.yaml.tmpl → dev-terraform-plan-apply.yaml).
 		// Static files (reusable workflows, lint.yaml, etc.) keep their original names.
 		isTemplate := strings.HasSuffix(parts[len(parts)-1], ".tmpl")
 		if !isTemplate {
@@ -296,12 +296,15 @@ func (g *Generator) generateWorkflowFileName(originalFileName string, data *temp
 }
 
 // generateDefaultWorkflowFileName creates the default workflow file name
-// Pattern: {env}-{workflowType}-plan-apply.yaml (e.g., dev-terraform-plan-apply.yaml)
+// Pattern: {env}-{workflowType}.yaml (e.g., dev-terraform-plan-apply.yaml, dev-terraform-destroy.yaml)
+// The workflowType is derived from the template filename by stripping .yaml
+// (e.g., "terraform-plan-apply.yaml" -> "terraform-plan-apply")
 func (g *Generator) generateDefaultWorkflowFileName(originalFileName string, data *templates.Data) string {
-	// Extract the workflow type from the original filename (e.g., "terraform.yaml" -> "terraform")
+	// Extract the workflow type from the original filename
+	// e.g., "terraform-plan-apply.yaml" -> "terraform-plan-apply"
 	workflowType := strings.TrimSuffix(originalFileName, ".yaml")
 
-	return fmt.Sprintf("%s-%s-plan-apply.yaml", data.Env, workflowType)
+	return fmt.Sprintf("%s-%s.yaml", data.Env, workflowType)
 }
 
 // generateFiles iterates over all templates and generates files

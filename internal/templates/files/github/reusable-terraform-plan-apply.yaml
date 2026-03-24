@@ -71,16 +71,14 @@ permissions:
   contents: read
   id-token: write
 
-concurrency:
-  group: 'tf-plan-apply-${{ inputs.terraform_files_path }}-${{ github.event.pull_request.number || github.ref_name }}'
-  cancel-in-progress: true
-
 jobs:
   plan:
     name: Plan Stage
     runs-on: ${{ inputs.runner }}
-    environment: ${{ inputs.environment }}
     timeout-minutes: 20
+    concurrency:
+      group: 'tf-plan-${{ inputs.terraform_files_path }}-${{ github.event.pull_request.number || github.ref_name }}'
+      cancel-in-progress: true
     outputs:
       plan_path: ${{ steps.plan.outputs.plan_path }}
       changes: ${{ steps.plan.outputs.changes }}
@@ -145,6 +143,9 @@ jobs:
     name: Apply Stage
     runs-on: ${{ inputs.runner }}
     environment: ${{ inputs.environment }}
+    concurrency:
+      group: 'tf-apply-${{ inputs.terraform_files_path }}-${{ inputs.environment }}'
+      cancel-in-progress: false
     timeout-minutes: 45
     needs: plan
     ## if not cancelled and not failed and plan was created successfully

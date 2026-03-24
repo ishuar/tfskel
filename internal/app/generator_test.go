@@ -1790,7 +1790,7 @@ func TestGenerator_generateWorkflowFileName(t *testing.T) {
 	}{
 		{
 			name:             "default terraform workflow includes env prefix",
-			originalFileName: "terraform.yaml",
+			originalFileName: "terraform-plan-apply.yaml",
 			data: &templates.Data{
 				AppDir:      "backend-api",
 				Env:         "prd",
@@ -1802,7 +1802,7 @@ func TestGenerator_generateWorkflowFileName(t *testing.T) {
 		},
 		{
 			name:             "default terraform workflow dev env",
-			originalFileName: "terraform.yaml",
+			originalFileName: "terraform-plan-apply.yaml",
 			data: &templates.Data{
 				AppDir:      "myapp",
 				Env:         "dev",
@@ -1810,6 +1810,18 @@ func TestGenerator_generateWorkflowFileName(t *testing.T) {
 			},
 			config:         &config.Config{},
 			expectedOutput: "dev-terraform-plan-apply.yaml",
+			expectError:    false,
+		},
+		{
+			name:             "default terraform-destroy workflow derives type from filename",
+			originalFileName: "terraform-destroy.yaml",
+			data: &templates.Data{
+				AppDir:      "myapp",
+				Env:         "dev",
+				ShortRegion: "use1",
+			},
+			config:         &config.Config{},
+			expectedOutput: "dev-terraform-destroy.yaml",
 			expectError:    false,
 		},
 		{
@@ -1909,7 +1921,7 @@ func TestGenerator_determineOutputPath_GitHubWorkflows(t *testing.T) {
 	}{
 		{
 			name:     "github terraform workflow creates dynamic name with env prefix",
-			tmplPath: "github/terraform.yaml.tmpl",
+			tmplPath: "github/terraform-plan-apply.yaml.tmpl",
 			appPath:  "envs/dev/eu-central-1/myapp",
 			data: &templates.Data{
 				AppDir:      "myapp",
@@ -1921,7 +1933,7 @@ func TestGenerator_determineOutputPath_GitHubWorkflows(t *testing.T) {
 		},
 		{
 			name:     "github terraform workflow prd env",
-			tmplPath: "github/terraform.yaml.tmpl",
+			tmplPath: "github/terraform-plan-apply.yaml.tmpl",
 			appPath:  "envs/prd/us-west-2/api",
 			data: &templates.Data{
 				AppDir:      "api",
@@ -2686,7 +2698,7 @@ func TestGenerator_generateWorkflowFileName_WithSlashedAppDir(t *testing.T) {
 	}{
 		{
 			name:             "default terraform workflow ignores AppDir",
-			originalFileName: "terraform.yaml",
+			originalFileName: "terraform-plan-apply.yaml",
 			data: &templates.Data{
 				AppDir:      "base-infra/ecs-cluster",
 				Env:         "dev",
@@ -2698,7 +2710,7 @@ func TestGenerator_generateWorkflowFileName_WithSlashedAppDir(t *testing.T) {
 		},
 		{
 			name:             "multi-level nested AppDir default workflow",
-			originalFileName: "terraform.yaml",
+			originalFileName: "terraform-plan-apply.yaml",
 			data: &templates.Data{
 				AppDir:      "platform/base-infra/ecs-cluster",
 				Env:         "prd",
