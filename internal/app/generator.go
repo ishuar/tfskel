@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/ishuar/tfskel/internal/config"
@@ -15,8 +16,12 @@ import (
 	"github.com/ishuar/tfskel/internal/util"
 )
 
-// Template category constants
-const categoryGithub = "github"
+// Template category and name constants
+const (
+	categoryGithub = "github"
+	tmplBackendTF  = "tf/backend.tf.tmpl"
+	tmplVersionsTF = "tf/versions.tf.tmpl"
+)
 
 var (
 	// ErrMetadataKeyNotFound indicates the requested metadata key was not found in template metadata
@@ -94,28 +99,19 @@ func compareMetadata(fileMetadata, configMetadata map[string]string) (bool, []st
 	return len(changes) > 0, changes
 }
 
-// compareTags returns true if tag maps differ, along with list of changes
-// Uses tag-specific messaging format for better UX
-func compareTags(fileTags, configTags map[string]string) (bool, []string) {
-	var changes []string
-
-	// Check for added or changed tags
-	for key, configValue := range configTags {
-		if fileValue, exists := fileTags[key]; !exists {
-			changes = append(changes, fmt.Sprintf("added tag - %s: %s", key, configValue))
-		} else if fileValue != configValue {
-			changes = append(changes, fmt.Sprintf("changed tag - %s: %s -> %s", key, fileValue, configValue))
-		}
+// metadataCommentsForTemplate returns the tfskel-metadata and tfskel-tags-hash comment lines
+// for known template types. Returns empty strings for templates that don't need metadata injection.
+func metadataCommentsForTemplate(tmplName string, data *templates.Data, fileExt string) (metadataComment, tagsHashComment string) {
+	switch tmplName {
+	case tmplBackendTF:
+		meta := buildBackendMetadata(data.S3BucketName)
+		return BuildMetadataComment(meta, fileExt), ""
+	case tmplVersionsTF:
+		meta := buildVersionsMetadata(data.TerraformVersion, data.AWSProviderVersion)
+		return BuildMetadataComment(meta, fileExt), BuildTagsHashComment(data.DefaultTags, fileExt)
+	default:
+		return "", ""
 	}
-
-	// Check for removed tags
-	for key, fileValue := range fileTags {
-		if _, exists := configTags[key]; !exists {
-			changes = append(changes, fmt.Sprintf("removed tag - %s (was: %s)", key, fileValue))
-		}
-	}
-
-	return len(changes) > 0, changes
 }
 
 // Generator orchestrates the Terraform project generation
@@ -129,6 +125,8 @@ type Generator struct {
 	fs       fs.FileSystem
 	log      *logger.Logger
 	renderer *templates.Renderer
+	upgrade  bool // When true, re-render files whose template has changed
+	force    bool // When true (with upgrade), overwrite files even without source markers
 }
 
 // NewGenerator creates a new Generator instance
@@ -138,6 +136,14 @@ func NewGenerator(cfg *config.Config, filesystem fs.FileSystem, log *logger.Logg
 		fs:     filesystem,
 		log:    log,
 	}
+}
+
+// SetUpgrade enables the upgrade mode, optionally with force.
+// When upgrade is true, files whose source template has changed are re-rendered.
+// When force is also true, files without source markers are overwritten unconditionally.
+func (g *Generator) SetUpgrade(upgrade, force bool) {
+	g.upgrade = upgrade
+	g.force = force
 }
 
 // initRenderer initializes the template renderer, using custom templates if configured.
@@ -253,7 +259,13 @@ func (g *Generator) RunWorkflows(env string) error {
 		}
 
 		if g.fs.FileExists(outputPath) {
-			g.log.Infof("%s already exists, skipping", outputPath)
+			if g.upgrade {
+				if err := g.upgradeFileIfEligible(tmplPath, outputPath, &templateData); err != nil {
+					return err
+				}
+			} else {
+				g.log.Infof("%s already exists, skipping", outputPath)
+			}
 			continue
 		}
 
@@ -429,16 +441,6 @@ func (g *Generator) prepareTemplateData(env, region, appDir string) (*templates.
 		}
 	}
 
-	// Marshal defaultTags to JSON for metadata comment
-	defaultTagsJSON := "{}"
-	if len(defaultTags) > 0 {
-		tagsBytes, err := json.Marshal(defaultTags)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal default_tags to JSON: %w", err)
-		}
-		defaultTagsJSON = string(tagsBytes)
-	}
-
 	if g.config.Backend != nil && g.config.Backend.S3 != nil && g.config.Backend.S3.BucketName != "" {
 		s3BucketName = g.config.Backend.S3.BucketName
 	}
@@ -460,7 +462,6 @@ func (g *Generator) prepareTemplateData(env, region, appDir string) (*templates.
 		TerraformVersion:   g.config.TerraformVersion,
 		AWSProviderVersion: awsProviderVersion,
 		DefaultTags:        defaultTags,
-		DefaultTagsJSON:    defaultTagsJSON,
 	}
 
 	// Build AWS role ARN for terraform workflows (needs full context for templates)
@@ -643,7 +644,19 @@ func (g *Generator) enrichTemplateDataForWorkflow(tmplPath string, data *templat
 	return nil
 }
 
-// writeTemplateFile creates the directory structure and writes the rendered template
+// sourceComment returns the source marker comment for the given template and output path,
+// or an empty string if the file does not support markers.
+func sourceComment(renderer *templates.Renderer, tmplName, outputPath string) string {
+	hash := renderer.GetTemplateHash(tmplName)
+	if hash == "" {
+		return ""
+	}
+	return SourceCommentForFile(tmplName, hash, outputPath)
+}
+
+// writeTemplateFile creates the directory structure, renders the template with all markers, and writes the result.
+// Render failures are logged and skipped (returns nil) since this is used during initial generation
+// where a single template failure should not block the entire run.
 func (g *Generator) writeTemplateFile(tmplPath, outputPath, outputName string, data *templates.Data) error {
 	// Ensure parent directory exists
 	outputDir := filepath.Dir(outputPath)
@@ -651,16 +664,9 @@ func (g *Generator) writeTemplateFile(tmplPath, outputPath, outputName string, d
 		return fmt.Errorf("failed to create directory for %s: %w", outputName, err)
 	}
 
-	// Render template
-	content, err := g.renderer.Render(tmplPath, data)
-	if err != nil {
-		g.log.Infof("Skipping %s: failed to render: %v", outputName, err)
+	if err := g.renderAndWriteFile(tmplPath, outputPath, data); err != nil {
+		g.log.Infof("Skipping %s: %v", outputName, err)
 		return nil
-	}
-
-	// Write file
-	if err := g.fs.WriteFile(outputPath, []byte(content), 0644); err != nil {
-		return fmt.Errorf("failed to write %s: %w", outputName, err)
 	}
 
 	// Log success
@@ -671,6 +677,78 @@ func (g *Generator) writeTemplateFile(tmplPath, outputPath, outputName string, d
 	g.log.Successf("Created %s from %s", outputName, templateSource)
 
 	return nil
+}
+
+// upgradeFileIfEligible checks whether an existing file should be upgraded from its template.
+// It reads the file's source marker, re-renders the template, and compares the full rendered
+// content against the existing file. This detects both template source changes and manual edits
+// to the rendered file (content drift).
+// Returns nil if the file was skipped or upgraded successfully.
+func (g *Generator) upgradeFileIfEligible(tmplPath, outputPath string, data *templates.Data) error {
+	// Check upgrade whitelist
+	if !g.isUpgradeEligible(tmplPath) {
+		g.log.Debugf("Template %s not in upgrade list, skipping", tmplPath)
+		return nil
+	}
+
+	// Read existing file and extract source marker
+	content, err := g.fs.ReadFile(outputPath)
+	if err != nil {
+		return fmt.Errorf("failed to read %s for upgrade check: %w", outputPath, err)
+	}
+
+	marker, err := ExtractSourceMarker(string(content))
+	if err != nil {
+		if errors.Is(err, ErrSourceMarkerNotFound) {
+			if g.force {
+				g.log.Infof("Upgrading %s (--force, no source marker)", outputPath)
+				return g.renderAndWriteFile(tmplPath, outputPath, data)
+			}
+			g.log.Infof("%s has no source marker, skipping upgrade (use --force to override)", outputPath)
+			return nil
+		}
+		// Malformed source marker (e.g. invalid JSON)
+		if g.force {
+			g.log.Infof("Upgrading %s (--force, invalid source marker: %v)", outputPath, err)
+			return g.renderAndWriteFile(tmplPath, outputPath, data)
+		}
+		return fmt.Errorf("invalid source marker in %s: %w", outputPath, err)
+	}
+
+	// Verify the marker template matches this template
+	if marker.Template != tmplPath {
+		g.log.Debugf("%s was generated from %s, not %s, skipping", outputPath, marker.Template, tmplPath)
+		return nil
+	}
+
+	// Re-render the template with markers and compare to detect any drift
+	rendered, err := g.renderWithMarkers(tmplPath, outputPath, data)
+	if err != nil {
+		return err
+	}
+
+	if rendered == string(content) {
+		g.log.Debugf("%s is up to date, skipping", outputPath)
+		return nil
+	}
+
+	// Content differs, re-render
+	g.log.Infof("Upgrading %s (content drift detected)", outputPath)
+	if err := g.renderAndWriteFile(tmplPath, outputPath, data); err != nil {
+		return err
+	}
+	g.log.Successf("Upgraded %s", outputPath)
+	return nil
+}
+
+// isUpgradeEligible checks if a template is eligible for upgrade based on the config whitelist.
+// If no whitelist is configured, all templates are eligible.
+func (g *Generator) isUpgradeEligible(tmplPath string) bool {
+	if g.config.Templates == nil || len(g.config.Templates.Upgrade) == 0 {
+		return true // no whitelist = all eligible
+	}
+	baseName := filepath.Base(tmplPath)
+	return slices.Contains(g.config.Templates.Upgrade, baseName)
 }
 
 // processTemplate handles generation of a single template file
@@ -698,8 +776,11 @@ func (g *Generator) processTemplate(tmplPath, appPath string, data *templates.Da
 		return nil
 	}
 
-	// Skip if file already exists
+	// Handle existing files
 	if g.fs.FileExists(outputPath) {
+		if g.upgrade {
+			return g.upgradeFileIfEligible(tmplPath, outputPath, &templateData)
+		}
 		g.log.Infof("%s already exists, skipping", outputPath)
 		return nil
 	}
@@ -758,69 +839,62 @@ func (g *Generator) shouldUpdateVersions(versionsPath string, data *templates.Da
 		allChanges = append(allChanges, changes...)
 	}
 
-	// Extract and compare tags
-	fileTags, err := extractMetadata(contentStr, "tags")
+	// Extract and compare tags hash
+	fileTagsHash, err := ExtractTagsHash(contentStr)
+	configTagsHash := ComputeTagsHash(data.DefaultTags)
 	if err != nil {
-		// Tags metadata not found or parsing failed
-		// Treat as empty tags and compare with config to show specific changes
+		// No tags hash found — could be old file with JSON-based tfskel-tags or no tags at all
 		if len(data.DefaultTags) > 0 {
-			// Config has tags but file doesn't (or has malformed tags)
-			// Show specific tags being added
-			_, tagChanges := compareTags(make(map[string]string), data.DefaultTags)
-			allChanges = append(allChanges, tagChanges...)
-		} else if strings.Contains(contentStr, "tfskel-tags:") {
-			// File has malformed tags metadata but config has no tags
-			// Need to fix metadata to ensure valid empty JSON
-			g.log.Debug("Found malformed tags metadata, regenerating to fix")
-			allChanges = append(allChanges, "repaired metadata")
+			allChanges = append(allChanges, "initialized tags tracking")
 		}
-		// If no tags in config AND no tags metadata in file, no update needed
-	} else {
-		// Tags metadata successfully parsed, compare with config
-		tagsChanged, tagChanges := compareTags(fileTags, data.DefaultTags)
-		if tagsChanged {
-			// Add all tag change messages
-			allChanges = append(allChanges, tagChanges...)
-		}
+	} else if fileTagsHash != configTagsHash {
+		// Hash mismatch — tags have changed
+		allChanges = append(allChanges, "default_tags changed")
 	}
 
 	return len(allChanges) > 0, allChanges, nil
 }
 
-// updateBackendFile regenerates the backend.tf file with updated configuration
-func (g *Generator) updateBackendFile(backendPath string, data *templates.Data) error {
-	// Find backend.tf.tmpl template in tf/ category
-	templateName := "tf/backend.tf.tmpl"
-
-	// Render template with updated data
-	content, err := g.renderer.Render(templateName, data)
+// renderWithMarkers renders a template and injects source and metadata marker comments.
+func (g *Generator) renderWithMarkers(tmplName, outputPath string, data *templates.Data) (string, error) {
+	content, err := g.renderer.Render(tmplName, data)
 	if err != nil {
-		return fmt.Errorf("failed to render backend template: %w", err)
+		return "", fmt.Errorf("failed to render %s: %w", tmplName, err)
 	}
 
-	// Write updated file
-	if err := g.fs.WriteFile(backendPath, []byte(content), 0644); err != nil {
-		return fmt.Errorf("failed to write backend.tf: %w", err)
+	if comment := sourceComment(g.renderer, tmplName, outputPath); comment != "" {
+		content = InjectSourceMarker(content, comment)
+	}
+
+	ext := filepath.Ext(outputPath)
+	metaComment, tagsHashComment := metadataCommentsForTemplate(tmplName, data, ext)
+	if metaComment != "" || tagsHashComment != "" {
+		content = InjectMetadataMarkers(content, metaComment, tagsHashComment)
+	}
+
+	return content, nil
+}
+
+// renderAndWriteFile renders a template with all markers and writes it to outputPath.
+func (g *Generator) renderAndWriteFile(tmplName, outputPath string, data *templates.Data) error {
+	content, err := g.renderWithMarkers(tmplName, outputPath, data)
+	if err != nil {
+		return err
+	}
+
+	if err := g.fs.WriteFile(outputPath, []byte(content), 0644); err != nil {
+		return fmt.Errorf("failed to write %s: %w", outputPath, err)
 	}
 
 	return nil
 }
 
+// updateBackendFile regenerates the backend.tf file with updated configuration
+func (g *Generator) updateBackendFile(backendPath string, data *templates.Data) error {
+	return g.renderAndWriteFile(tmplBackendTF, backendPath, data)
+}
+
 // updateVersionsFile regenerates the versions.tf file with updated configuration
 func (g *Generator) updateVersionsFile(versionsPath string, data *templates.Data) error {
-	// Find versions.tf.tmpl template in tf/ category
-	templateName := "tf/versions.tf.tmpl"
-
-	// Render template with updated data
-	content, err := g.renderer.Render(templateName, data)
-	if err != nil {
-		return fmt.Errorf("failed to render versions template: %w", err)
-	}
-
-	// Write updated file
-	if err := g.fs.WriteFile(versionsPath, []byte(content), 0644); err != nil {
-		return fmt.Errorf("failed to write versions.tf: %w", err)
-	}
-
-	return nil
+	return g.renderAndWriteFile(tmplVersionsTF, versionsPath, data)
 }

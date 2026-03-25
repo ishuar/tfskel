@@ -75,11 +75,15 @@ Configuration:
 }
 
 var (
-	env          string
-	region       string
-	templatesDir string
-	s3BucketName string
-	workflowsEnv string
+	env             string
+	region          string
+	templatesDir    string
+	s3BucketName    string
+	workflowsEnv    string
+	scaffoldUpgrade bool
+	scaffoldForce   bool
+	workflowUpgrade bool
+	workflowForce   bool
 )
 
 func init() {
@@ -100,6 +104,8 @@ func init() {
 	// Optional flags
 	scaffoldCmd.Flags().StringVar(&templatesDir, "templates-dir", "", "directory containing custom template files (all .tmpl files will be processed)")
 	scaffoldCmd.Flags().StringVar(&s3BucketName, "s3-bucket-name", "", "S3 bucket name for Terraform state")
+	scaffoldCmd.Flags().BoolVar(&scaffoldUpgrade, "upgrade", false, "re-render files from updated templates (only files with source markers)")
+	scaffoldCmd.Flags().BoolVar(&scaffoldForce, "force", false, "with --upgrade, overwrite files even without source markers")
 
 	// Bind flags to viper - these should never fail unless there's a developer error
 	// (flag name mismatch, missing flag, etc.) so we fail fast with panic
@@ -117,6 +123,8 @@ func init() {
 	if err := scaffoldWorkflowsCmd.MarkFlagRequired("env"); err != nil {
 		panic(fmt.Sprintf("failed to mark env flag as required: %v", err))
 	}
+	scaffoldWorkflowsCmd.Flags().BoolVar(&workflowUpgrade, "upgrade", false, "re-render workflow files from updated templates")
+	scaffoldWorkflowsCmd.Flags().BoolVar(&workflowForce, "force", false, "with --upgrade, overwrite files even without source markers")
 }
 
 func runScaffold(cmd *cobra.Command, args []string) error {
@@ -148,11 +156,17 @@ func runScaffold(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("configuration validation failed: %w", err)
 	}
 
+	// Validate flag combination: --force requires --upgrade
+	if scaffoldForce && !scaffoldUpgrade {
+		return ErrForceRequiresUpgrade
+	}
+
 	// Create filesystem abstraction
 	filesystem := fs.NewOSFileSystem()
 
 	// Create and run the generator with trimmed scaffolding parameters
 	generator := app.NewGenerator(cfg, filesystem, log)
+	generator.SetUpgrade(scaffoldUpgrade, scaffoldForce)
 	if err := generator.Run(trimmedEnv, trimmedRegion, trimmedAppDir); err != nil {
 		return fmt.Errorf("failed to scaffold Terraform structure: %w", err)
 	}
@@ -181,8 +195,14 @@ func runScaffoldWorkflows(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("configuration validation failed: %w", err)
 	}
 
+	// Validate flag combination: --force requires --upgrade
+	if workflowForce && !workflowUpgrade {
+		return ErrForceRequiresUpgrade
+	}
+
 	filesystem := fs.NewOSFileSystem()
 	generator := app.NewGenerator(cfg, filesystem, log)
+	generator.SetUpgrade(workflowUpgrade, workflowForce)
 	if err := generator.RunWorkflows(trimmedEnv); err != nil {
 		return fmt.Errorf("failed to generate workflow files: %w", err)
 	}

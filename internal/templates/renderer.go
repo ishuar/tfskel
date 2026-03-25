@@ -2,7 +2,9 @@ package templates
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -73,16 +75,16 @@ type Data struct {
 	TerraformVersion   string
 	AWSProviderVersion string
 	DefaultTags        map[string]string
-	DefaultTagsJSON    string // JSON string of DefaultTags for metadata comments
 	AWSRoleArn         string // AWS role ARN for terraform workflows
 	WorkflowFileName   string // Generated workflow filename for self-reference in triggers
 }
 
 // Renderer handles template rendering
 type Renderer struct {
-	templates     map[string]*template.Template
-	staticContent map[string]string // Raw content for static files (like reusable workflows)
-	sources       map[string]string // Track where each template came from (for logging)
+	templates       map[string]*template.Template
+	staticContent   map[string]string // Raw content for static files (like reusable workflows)
+	sources         map[string]string // Track where each template came from (for logging)
+	templateContent map[string]string // Raw content before parsing, for hash computation
 }
 
 // NewRenderer creates a new template renderer with default embedded templates
@@ -94,9 +96,10 @@ func NewRenderer() (*Renderer, error) {
 // All files ending with .tmpl extension will be parsed as Go templates
 func NewRendererWithCustomTemplates(customTemplateDir string) (*Renderer, error) {
 	r := &Renderer{
-		templates:     make(map[string]*template.Template),
-		staticContent: make(map[string]string),
-		sources:       make(map[string]string),
+		templates:       make(map[string]*template.Template),
+		staticContent:   make(map[string]string),
+		sources:         make(map[string]string),
+		templateContent: make(map[string]string),
 	}
 
 	// Load default embedded templates
@@ -128,6 +131,9 @@ func (r *Renderer) loadTemplatesFromFS(fsys fs.FS) error {
 		if err != nil {
 			return fmt.Errorf("failed to read template %s: %w", path, err)
 		}
+
+		// Store raw content for hash computation (used by --upgrade)
+		r.templateContent[path] = string(content)
 
 		// Files ending with .tmpl are parsed as Go templates
 		if strings.HasSuffix(path, ".tmpl") {
@@ -189,6 +195,7 @@ func (r *Renderer) loadCustomTemplates(customDir string) error {
 		}
 
 		r.templates[templateKey] = tmpl
+		r.templateContent[templateKey] = string(content)
 		r.sources[templateKey] = path
 		return nil
 	})
@@ -236,6 +243,17 @@ func (r *Renderer) GetTemplateSource(templateName string) string {
 		return source
 	}
 	return ""
+}
+
+// GetTemplateHash returns the SHA-256 hash (first 16 hex chars) of the raw template content.
+// This is used by the --upgrade feature to detect when a template has changed since last render.
+func (r *Renderer) GetTemplateHash(templateName string) string {
+	content, ok := r.templateContent[templateName]
+	if !ok {
+		return ""
+	}
+	h := sha256.Sum256([]byte(content))
+	return hex.EncodeToString(h[:8]) // 16 hex chars
 }
 
 // RenderConfigValue renders a config string that may optionally contain Go template

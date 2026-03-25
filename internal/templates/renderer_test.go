@@ -163,3 +163,32 @@ func TestNewRendererWithCustomTemplates(t *testing.T) {
 		assert.Contains(t, err.Error(), "does not exist")
 	})
 }
+
+func TestGetTemplateHash(t *testing.T) {
+	renderer, err := NewRenderer()
+	require.NoError(t, err)
+
+	t.Run("returns consistent hash for known template", func(t *testing.T) {
+		hash1 := renderer.GetTemplateHash("tf/backend.tf.tmpl")
+		hash2 := renderer.GetTemplateHash("tf/backend.tf.tmpl")
+		assert.NotEmpty(t, hash1)
+		assert.Equal(t, hash1, hash2, "same template should produce same hash")
+		assert.Len(t, hash1, 16, "hash should be 16 hex chars")
+	})
+
+	t.Run("returns different hashes for different templates", func(t *testing.T) {
+		hash1 := renderer.GetTemplateHash("tf/backend.tf.tmpl")
+		hash2 := renderer.GetTemplateHash("tf/versions.tf.tmpl")
+		assert.NotEqual(t, hash1, hash2, "different templates should have different hashes")
+	})
+
+	t.Run("returns empty string for unknown template", func(t *testing.T) {
+		hash := renderer.GetTemplateHash("nonexistent/template.tmpl")
+		assert.Empty(t, hash)
+	})
+
+	t.Run("hashes static content too", func(t *testing.T) {
+		hash := renderer.GetTemplateHash("github/lint.yaml")
+		assert.NotEmpty(t, hash, "static files should also have hashes")
+	})
+}
