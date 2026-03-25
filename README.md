@@ -40,9 +40,10 @@ It gives you a clean, opinionated foundation that keeps your Terraform projects 
 1. Enforce consistent project structure across environments
 2. Scaffold Terraform code using clean, maintainable templates
 3. Upgrade generated files in-place when templates or config change (`--upgrade`)
-4. Detect AWS provider and Terraform version drift across the entire repo
-5. Analyze Terraform plans to make reviews easier and safer with custom resources severity
-6. Stay vanilla — no wrappers, no lock-in, just Terraform
+4. Preview changes safely with `--dry-run` before writing anything
+5. Detect AWS provider and Terraform version drift across the entire repo
+6. Analyze Terraform plans to make reviews easier and safer with custom resources severity
+7. Stay vanilla — no wrappers, no lock-in, just Terraform
 
 > [!NOTE]
 > *⭐️ If you find tfskel useful, consider starring the repo to stay updated and support the project. ⭐️*
@@ -75,6 +76,8 @@ These flags are available on every `tfskel` command:
 |---|---|---|---|
 | `--config` | `-c` | `.tfskel.yaml` (current dir) | Path to config file; takes precedence over auto-discovery |
 | `--verbose` | `-v` | `false` | Enable verbose/debug output |
+| `--dry-run` | | `false` | Show what would happen without writing files |
+| `--no-color` | | `false` | Disable colored output (also respects `NO_COLOR`, `FORCE_COLOR`, and `CI` env vars) |
 | `--version` | | | Print the current tfskel version and exit |
 
 ```bash
@@ -89,6 +92,9 @@ tfskel --config /path/to/my-config.yaml <command>
 
 # Enable verbose logging
 tfskel --verbose <command>
+
+# Preview what a command would do (no files written)
+tfskel --dry-run <command>
 ```
 
 ### `tfskel init`
@@ -124,6 +130,9 @@ tfskel init --upgrade
 
 # Force overwrite all init files, even those without source markers
 tfskel init --upgrade --force
+
+# Preview what init would create/upgrade without writing files
+tfskel init --dry-run
 ```
 
 <p align="left">
@@ -164,6 +173,9 @@ tfskel scaffold myapp --env dev --region us-east-1 --upgrade
 
 # Force overwrite all scaffolded files, even without source markers
 tfskel scaffold myapp --env dev --region us-east-1 --upgrade --force
+
+# Dry-run: see what scaffold would do without writing
+tfskel scaffold myapp --env dev --region us-east-1 --dry-run
 ```
 
 
@@ -270,7 +282,7 @@ tfskel review plan --json-file plan.json --format json --no-color
 
 ## Upgrading Generated Files
 
-tfskel embeds **source markers** (e.g. `## tfskel-source: {...}`) in every generated file (except `.terraform-version`). These markers record which template produced the file and its content hash, enabling safe, selective re-rendering with `--upgrade`.
+tfskel embeds **source markers** (e.g. `## tfskel-source: {...}`) in every generated file (except `.terraform-version`). These markers record which template produced the file and its content hash, enabling safe, selective re-rendering with `--upgrade`. After each `scaffold` or `scaffold workflows` run, tfskel prints an operation summary (e.g. `2 files created, 1 file skipped`).
 
 > [!TIP]
 > For more details on source markers, metadata tracking, and selective upgrade whitelists, see the [tfskel book](docs/tfskel-book.md#upgrading-generated-files).

@@ -10,6 +10,10 @@
 6. [Templates](#templates)
 7. [Directory Structure](#directory-structure)
 8. [Advanced Usage](#advanced-usage)
+   - [Dry Run Mode](#dry-run-mode)
+   - [Operation Summary](#operation-summary)
+   - [Config Source Debugging](#config-source-debugging)
+   - [Color Detection](#color-detection)
    - [Upgrading Generated Files](#upgrading-generated-files)
 
 ---
@@ -44,6 +48,8 @@ When starting a new Terraform project or adding a new application/environment, y
 - 📝 **Smart File Generation**: Only creates new files, preserves existing ones
 - 🔄 **Intelligent Updates**: Detects configuration changes and updates only what's needed
 - ⬆️ **Upgrade Support**: Re-render previously generated files with `--upgrade` when templates or config change
+- 🔍 **Dry Run Mode**: Preview all file operations with `--dry-run` before writing anything to disk
+- 📊 **Operation Summary**: After each run, see a count of files created, skipped, upgraded, or force-upgraded
 - 🎨 **Custom Templates**: Override default templates with your own
 - ⚙️ **YAML Configuration**: Flexible configuration with sensible defaults
 - 🏷️ **Metadata Tracking**: Embeds metadata in files for intelligent updates such as `default_tags`
@@ -55,11 +61,13 @@ When starting a new Terraform project or adding a new application/environment, y
 
 tfskel is designed with clean architecture principles:
 
-- **Interface-based design** for testability
+- **Interface-based design** for testability — consumer-defined `Logger` interfaces in each package
 - **Dependency injection** for flexibility
 - **Embedded templates** for zero-dependency distribution
 - **In-memory filesystem** for fast, isolated tests
-- **Structured logging** with color-coded output
+- **Dry-run filesystem** decorator that delegates reads but silently skips all writes
+- **Structured logging** with color-coded output and CI-aware color detection
+- **Operation tracking** — `OpTracker` records every file operation for end-of-run summaries
 - **Idempotent operations** for safe re-runs
 
 ---
@@ -149,17 +157,19 @@ The file system abstraction (`internal/fs`) provides:
 - A `FileSystem` interface for all I/O operations
 - `OSFileSystem` implementation for real file system operations
 - `MemoryFileSystem` implementation for testing
-- This abstraction makes the entire codebase testable without touching disk
+- `DryRunFileSystem` decorator that wraps any `FileSystem`, delegating reads (so upgrade checks still work) but making all writes (`WriteFile`, `MkdirAll`) no-ops
+- This abstraction makes the entire codebase testable without touching disk and enables `--dry-run` mode
 
 #### 4. Generator
 
-The generator (`internal/app`) orchestrates the entire generation process:
+The generator (`internal/generate`) orchestrates the entire generation process:
 1. Validates configuration
 2. Creates directory structure
-3. Renders templates (embedded and custom)
+3. Renders templates (embedded and custom) — only `tf/` category templates for `scaffold`; `root/` and `github/` are handled by `init` and `scaffold workflows` respectively
 4. Writes files to disk with metadata
 5. Detects and handles configuration changes
-6. Reports progress and errors
+6. Tracks every file operation via `OpTracker` and reports a summary (e.g. `3 files created, 1 file skipped`)
+7. In dry-run mode, logs intended actions with `[dry-run]` prefix without writing
 
 #### 5. Version Drift & Plan Analysis
 
@@ -181,9 +191,11 @@ The plan analysis (`internal/plan`) provides:
 
 The logger (`internal/logger`) provides structured logging with:
 - Multiple log levels (DEBUG, INFO, WARN, SUCCESS, ERROR, FATAL)
-- Color-coded console output
-- Contextual information
-- Test-friendly silent mode
+- Color-coded console output controlled via `NewWithOptions(verbose, useColor)`
+- CI-aware color detection — automatically disables colors when `CI=true` (GitHub Actions, GitLab CI, etc.), respects `NO_COLOR` and `FORCE_COLOR` env vars
+- `SetMachineOutput()` method that redirects output to stderr and disables colors for machine-readable formats (JSON/CSV)
+- Consumer-defined `Logger` interfaces in `internal/generate` and `internal/config` packages (Go best practice: interfaces belong in the consumer)
+- Test-friendly constructors: `NewWithWriters(verbose, out, errOut)` for capturing output in tests
 
 #### 7. Utilities
 
@@ -468,6 +480,7 @@ tfskel init [flags]
 - `--workflows`: Generate shared GitHub Actions reusable workflow files (default: false)
 - `--upgrade`: Re-render init-managed files with latest embedded templates (default: false)
 - `--force`: With `--upgrade`, overwrite files even without source markers (default: false)
+- `--dry-run`: Show what would happen without writing files (global flag, works with all commands)
 - `--config, -c`: Path to config file (default: .tfskel.yaml in current directory)
 - `--verbose, -v`: Enable verbose output
 
@@ -491,6 +504,9 @@ tfskel init --upgrade
 
 # Force overwrite all init files, even without source markers
 tfskel init --upgrade --force
+
+# Preview what init would do without writing files
+tfskel init --dry-run
 ```
 
 **What it does**:
@@ -545,6 +561,7 @@ tfskel scaffold <app-dir> [flags]
 - `--s3-bucket-name`: Override S3 bucket name for Terraform state
 - `--upgrade`: Re-render existing files from updated templates (default: false)
 - `--force`: With `--upgrade`, overwrite files even without source markers (default: false)
+- `--dry-run`: Show what would happen without writing files (global flag)
 - `--verbose, -v`: Enable verbose output
 
 **Examples**:
@@ -570,6 +587,9 @@ tfskel scaffold myapp --env dev --region us-east-1 --upgrade
 
 # Force overwrite all files, even without source markers
 tfskel scaffold myapp --env dev --region us-east-1 --upgrade --force
+
+# Preview what scaffold would do (no files written)
+tfskel scaffold myapp --env dev --region us-east-1 --dry-run
 
 # Generate per-env Terraform plan/apply workflow
 tfskel scaffold workflows --env dev
@@ -604,6 +624,7 @@ tfskel scaffold workflows --env <env>
 - `--env, -e`: Target environment (required) - e.g., dev, stg, prd
 - `--upgrade`: Re-render existing workflow files from updated templates (default: false)
 - `--force`: With `--upgrade`, overwrite workflow files even without source markers (default: false)
+- `--dry-run`: Show what would happen without writing files (global flag)
 - `--config, -c`: Path to config file (default: .tfskel.yaml in current directory)
 - `--verbose, -v`: Enable verbose output
 
@@ -618,6 +639,9 @@ tfskel scaffold workflows --env prd --config ./my-config.yaml
 
 # Re-render an existing workflow after config changes
 tfskel scaffold workflows --env dev --upgrade
+
+# Preview what would be generated
+tfskel scaffold workflows --env dev --dry-run
 ```
 
 **What it does**:
@@ -1428,6 +1452,77 @@ Application-specific directories:
 
 ## Advanced Usage
 
+### Dry Run Mode
+
+The `--dry-run` global flag lets you preview what tfskel would do without writing any files to disk. This is useful for auditing changes before committing, testing upgrade paths, or understanding what a command will produce.
+
+```bash
+# Preview init
+tfskel init --dry-run
+
+# Preview scaffold
+tfskel scaffold myapp --env dev --region us-east-1 --dry-run
+
+# Preview upgrade
+tfskel scaffold myapp --env dev --region us-east-1 --upgrade --dry-run
+
+# Combine with --verbose for maximum detail
+tfskel scaffold myapp --env dev --region us-east-1 --dry-run --verbose
+```
+
+**How it works**:
+
+- For `scaffold` and `scaffold workflows`, tfskel wraps the real filesystem with a `DryRunFileSystem` decorator. This decorator delegates all **read** operations (so upgrade checks, source marker extraction, and hash comparisons still work correctly) but makes all **write** operations (`WriteFile`, `MkdirAll`) no-ops.
+- For `init`, each file-writing function checks the dry-run flag and logs the intended action with a `[dry-run]` prefix instead of writing.
+- All log messages use future tense in dry-run mode (e.g. `[dry-run] Would create backend.tf from tf/backend.tf.tmpl`).
+- The operation summary also reflects dry-run mode (e.g. `2 files would be created, 1 file skipped`).
+
+### Operation Summary
+
+After each `scaffold` or `scaffold workflows` run, tfskel prints a one-line summary of all file operations:
+
+```
+Summary: 3 files created, 2 files skipped
+```
+
+The summary tracks five operation types:
+
+| Operation | Meaning |
+|---|---|
+| **created** | New file written from a template |
+| **skipped** | Existing file left unchanged (already exists or up to date) |
+| **upgraded** | Existing file re-rendered because the template or config changed |
+| **force-upgraded** | Existing file overwritten via `--force` (no source marker or invalid marker) |
+| **dir created** | New directory created (tracked internally but not shown in summary) |
+
+In `--dry-run` mode, verbs switch to future tense: `would be created`, `would be upgraded`, `would be force-upgraded`.
+
+### Config Source Debugging
+
+When using `--verbose`, tfskel logs where each configuration value came from at debug level. This helps troubleshoot viper's merge behavior when flags, environment variables, and config files interact:
+
+```bash
+tfskel scaffold myapp --env dev --region us-east-1 --verbose
+# [DEBUG] Config terraform_version = ~> 1.13 (from config file .tfskel.yaml)
+# [DEBUG] Config backend.s3.bucket_name = my-bucket (from flag --s3-bucket-name)
+# [DEBUG] Config provider.aws.version = ~> 6.0 (from env TFSKEL_PROVIDER_AWS_VERSION)
+```
+
+**Source detection priority** (highest to lowest):
+1. CLI flag (`--s3-bucket-name`, `--templates-dir`, `--workflows`)
+2. Environment variable (`TFSKEL_TERRAFORM_VERSION`, `TFSKEL_BACKEND_S3_BUCKET_NAME`, etc.)
+3. Config file (`.tfskel.yaml`)
+4. Default value
+
+### Color Detection
+
+tfskel automatically determines whether to use colored output based on the following precedence:
+
+1. `NO_COLOR` env var — always disables colors if set (per [no-color.org](https://no-color.org/))
+2. `FORCE_COLOR` env var — enables colors if set to a non-zero/non-false value
+3. `CI` env var — disables colors when set to `true` or `1` (set by GitHub Actions, GitLab CI, Jenkins, etc.)
+4. `--no-color` flag — used as fallback if no environment variables are set
+
 ### Upgrading Generated Files
 
 tfskel supports re-rendering previously generated files when templates or configuration change, using the `--upgrade` flag available on `init`, `scaffold`, and `scaffold workflows`.
@@ -1455,11 +1550,13 @@ The marker records:
 1. **Read existing file** and extract its source marker
 2. **Skip** if no source marker is found (unless `--force` is used)
 3. **Verify** the template name matches what is expected
-4. **Re-render** the template with current configuration
-5. **Compare** the newly rendered content against the existing file on disk to detect drift
-6. **Overwrite** the file only if the rendered content differs from what is currently on disk
+4. **Compare template hash** — the marker's hash is compared against the current template hash to determine whether the template source itself changed
+5. **Re-render** the template with current configuration
+6. **Compare** the newly rendered content against the existing file on disk to detect drift
+7. **Overwrite** the file only if the rendered content differs from what is currently on disk
+8. **Log the reason** — messages now distinguish between template changes (`template: a1b2c3 -> d4e5f6`) and content drift (`content drift detected`)
 
-This means `--upgrade` is safe to run repeatedly — files whose contents already match the current templates are left untouched.
+This means `--upgrade` is safe to run repeatedly — files whose contents already match the current templates are left untouched. In `--dry-run` mode, all upgrade operations are logged with `[dry-run] Would upgrade` prefixes without modifying files.
 
 #### Using `--force`
 
