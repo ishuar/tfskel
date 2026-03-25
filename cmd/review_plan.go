@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ishuar/tfskel/internal/config"
 	"github.com/ishuar/tfskel/internal/format"
 	"github.com/ishuar/tfskel/internal/logger"
 	"github.com/ishuar/tfskel/internal/plan"
@@ -139,7 +138,7 @@ func runReviewPlan(cmd *cobra.Command, _ []string) error {
 	log.Infof("Found %d resource changes", analysis.TotalChanges)
 
 	// Load plan analysis config for formatter settings
-	planConfig := config.LoadPlanAnalysisConfig(viper.GetViper())
+	planConfig := plan.LoadAnalysisConfig(viper.GetViper())
 
 	// Override config with flag if explicitly set
 	topResourcesCount := planConfig.TopResourcesCount

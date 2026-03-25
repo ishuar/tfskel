@@ -8,8 +8,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/ishuar/tfskel/internal/app"
 	"github.com/ishuar/tfskel/internal/config"
+	"github.com/ishuar/tfskel/internal/generate"
 	"github.com/ishuar/tfskel/internal/logger"
 	"github.com/ishuar/tfskel/internal/templates"
 	"github.com/spf13/cobra"
@@ -349,8 +349,8 @@ func createFileFromTemplate(targetPath string, templateName string, data any, lo
 	}
 
 	// Inject source marker (skipped for files that don't support comments)
-	if comment := app.SourceCommentForFile(templateName, renderer.GetTemplateHash(templateName), targetPath); comment != "" {
-		content = app.InjectSourceMarker(content, comment)
+	if comment := generate.SourceCommentForFile(templateName, renderer.GetTemplateHash(templateName), targetPath); comment != "" {
+		content = generate.InjectSourceMarker(content, comment)
 	}
 
 	// Ensure parent directory exists and write file
@@ -365,13 +365,13 @@ func upgradeInitFile(targetPath, templateName string, data any, log *logger.Logg
 		return fmt.Errorf("failed to read %s for upgrade check: %w", logPath, err)
 	}
 
-	marker, markerErr := app.ExtractSourceMarker(string(existingContent))
+	marker, markerErr := generate.ExtractSourceMarker(string(existingContent))
 
 	switch {
-	case errors.Is(markerErr, app.ErrSourceMarkerNotFound) && !opts.force:
+	case errors.Is(markerErr, generate.ErrSourceMarkerNotFound) && !opts.force:
 		log.Infof("%s has no source marker, skipping upgrade (use --force to override)", logPath)
 		return nil
-	case errors.Is(markerErr, app.ErrSourceMarkerNotFound):
+	case errors.Is(markerErr, generate.ErrSourceMarkerNotFound):
 		log.Infof("Upgrading %s (--force, no source marker)", logPath)
 	case markerErr != nil && !opts.force:
 		// Malformed source marker (e.g. invalid JSON)
@@ -401,8 +401,8 @@ func upgradeInitFile(targetPath, templateName string, data any, log *logger.Logg
 	}
 
 	// Inject source marker (skipped for files that don't support comments)
-	if comment := app.SourceCommentForFile(templateName, renderer.GetTemplateHash(templateName), targetPath); comment != "" {
-		content = app.InjectSourceMarker(content, comment)
+	if comment := generate.SourceCommentForFile(templateName, renderer.GetTemplateHash(templateName), targetPath); comment != "" {
+		content = generate.InjectSourceMarker(content, comment)
 	}
 
 	return writeInitFile(targetPath, content, logPath, log)
