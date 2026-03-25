@@ -13,7 +13,6 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
-	"github.com/ishuar/tfskel/internal/config"
 	"github.com/ishuar/tfskel/internal/format"
 	"golang.org/x/term"
 )
@@ -51,8 +50,8 @@ func NewPlanFormatter(useColor bool) *PlanFormatter {
 	return &PlanFormatter{
 		useColor:          useColor,
 		terminalWidth:     width,
-		tableWidth:        0,                               // Will be calculated during formatting
-		topResourcesCount: config.DefaultTopResourcesCount, // Default to 10
+		tableWidth:        0,                        // Will be calculated during formatting
+		topResourcesCount: DefaultTopResourcesCount, // Default to 10
 	}
 }
 
@@ -66,7 +65,7 @@ func NewPlanFormatterWithConfig(useColor bool, topResourcesCount int) *PlanForma
 	}
 	// 0 = show all (unlimited), negative = use default (10), positive = use that limit
 	if topResourcesCount < 0 {
-		topResourcesCount = config.DefaultTopResourcesCount
+		topResourcesCount = DefaultTopResourcesCount
 	}
 	return &PlanFormatter{
 		useColor:          useColor,

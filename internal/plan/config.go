@@ -1,4 +1,4 @@
-package config
+package plan
 
 import "github.com/spf13/viper"
 
@@ -7,16 +7,16 @@ const (
 	DefaultTopResourcesCount = 10
 )
 
-// PlanAnalysisConfig holds plan analysis-specific configuration
-type PlanAnalysisConfig struct {
+// AnalysisConfig holds plan analysis-specific configuration
+type AnalysisConfig struct {
 	CriticalResources []string `mapstructure:"critical_resources"`
 	TopResourcesCount int      `mapstructure:"top_resources_count"`
 }
 
-// LoadPlanAnalysisConfig loads plan analysis configuration from viper.
+// LoadAnalysisConfig loads plan analysis configuration from viper.
 // Returns a config with user-defined critical resources, or empty list if not configured.
-func LoadPlanAnalysisConfig(v *viper.Viper) *PlanAnalysisConfig {
-	cfg := &PlanAnalysisConfig{
+func LoadAnalysisConfig(v *viper.Viper) *AnalysisConfig {
+	cfg := &AnalysisConfig{
 		TopResourcesCount: DefaultTopResourcesCount, // Default to 10
 	}
 

@@ -3,11 +3,11 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/ishuar/tfskel/internal/app"
 	"github.com/ishuar/tfskel/internal/config"
 	"github.com/ishuar/tfskel/internal/fs"
+	"github.com/ishuar/tfskel/internal/generate"
 	"github.com/ishuar/tfskel/internal/logger"
-	"github.com/ishuar/tfskel/internal/util"
+	"github.com/ishuar/tfskel/internal/strutil"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -165,7 +165,7 @@ func runScaffold(cmd *cobra.Command, args []string) error {
 	filesystem := fs.NewOSFileSystem()
 
 	// Create and run the generator with trimmed scaffolding parameters
-	generator := app.NewGenerator(cfg, filesystem, log)
+	generator := generate.NewGenerator(cfg, filesystem, log)
 	generator.SetUpgrade(scaffoldUpgrade, scaffoldForce)
 	if err := generator.Run(trimmedEnv, trimmedRegion, trimmedAppDir); err != nil {
 		return fmt.Errorf("failed to scaffold Terraform structure: %w", err)
@@ -181,7 +181,7 @@ func runScaffoldWorkflows(cmd *cobra.Command, _ []string) error {
 	log := logger.New(viper.GetBool("verbose"))
 	log.Debug("Starting scaffold workflows command")
 
-	trimmedEnv, err := util.TrimAndValidateInput(workflowsEnv, "environment")
+	trimmedEnv, err := strutil.TrimAndValidateInput(workflowsEnv, "environment")
 	if err != nil {
 		return fmt.Errorf("invalid parameters: %w (use --env flag)", err)
 	}
@@ -201,7 +201,7 @@ func runScaffoldWorkflows(cmd *cobra.Command, _ []string) error {
 	}
 
 	filesystem := fs.NewOSFileSystem()
-	generator := app.NewGenerator(cfg, filesystem, log)
+	generator := generate.NewGenerator(cfg, filesystem, log)
 	generator.SetUpgrade(workflowUpgrade, workflowForce)
 	if err := generator.RunWorkflows(trimmedEnv); err != nil {
 		return fmt.Errorf("failed to generate workflow files: %w", err)
@@ -215,23 +215,23 @@ func runScaffoldWorkflows(cmd *cobra.Command, _ []string) error {
 // Returns trimmed values if validation passes
 // For appDir, any spaces are replaced with hyphens after trimming
 func validateScaffoldParams(env, region, appDir string) (string, string, string, error) {
-	trimmedEnv, err := util.TrimAndValidateInput(env, "environment")
+	trimmedEnv, err := strutil.TrimAndValidateInput(env, "environment")
 	if err != nil {
 		return "", "", "", fmt.Errorf("%w (use --env flag)", err)
 	}
 
-	trimmedRegion, err := util.TrimAndValidateInput(region, "region")
+	trimmedRegion, err := strutil.TrimAndValidateInput(region, "region")
 	if err != nil {
 		return "", "", "", fmt.Errorf("%w (use --region flag)", err)
 	}
 
-	trimmedAppDir, err := util.TrimAndValidateInput(appDir, "app directory")
+	trimmedAppDir, err := strutil.TrimAndValidateInput(appDir, "app directory")
 	if err != nil {
 		return "", "", "", fmt.Errorf("%w (provide as argument)", err)
 	}
 
 	// Replace any spaces in appDir with hyphens
-	trimmedAppDir = util.ReplaceSpacesWithHyphens(trimmedAppDir)
+	trimmedAppDir = strutil.ReplaceSpacesWithHyphens(trimmedAppDir)
 
 	return trimmedEnv, trimmedRegion, trimmedAppDir, nil
 }
