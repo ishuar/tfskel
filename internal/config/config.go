@@ -52,7 +52,8 @@ type Backend struct {
 
 // Templates holds template directory configuration
 type Templates struct {
-	Dir string `mapstructure:"dir"`
+	Dir     string   `mapstructure:"dir"`
+	Upgrade []string `mapstructure:"upgrade"` // Whitelist of templates eligible for --upgrade (empty = all)
 }
 
 // Workflows holds GitHub workflows configuration

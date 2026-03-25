@@ -6,17 +6,31 @@ import (
 	"testing"
 
 	"github.com/ishuar/tfskel/internal/logger"
+	"github.com/ishuar/tfskel/internal/templates"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// defaultInitOpts returns initOptions with upgrade/force disabled (default behavior)
+func defaultInitOpts() *initOptions {
+	return &initOptions{}
+}
+
+// newTestRenderer creates a renderer for tests
+func newTestRenderer(t *testing.T) *templates.Renderer {
+	t.Helper()
+	r, err := templates.NewRenderer()
+	require.NoError(t, err)
+	return r
+}
 
 func TestCreateProjectStructure(t *testing.T) {
 	t.Run("create structure with single region", func(t *testing.T) {
 		baseDir := t.TempDir()
 		log := logger.New(false)
 		environments := []string{"dev", "stg", "prd"}
-		err := createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, environments, true, log)
+		err := createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, environments, true, log, defaultInitOpts())
 		require.NoError(t, err)
 
 		// Verify all root configuration files are created
@@ -52,7 +66,7 @@ func TestCreateProjectStructure(t *testing.T) {
 		log := logger.New(false)
 		environments := []string{"dev", "stg", "prd"}
 		regions := []string{"eu-central-1", "us-east-1", "ap-south-1"}
-		err := createProjectStructure(baseDir, "1.10.0", regions, environments, true, log)
+		err := createProjectStructure(baseDir, "1.10.0", regions, environments, true, log, defaultInitOpts())
 		require.NoError(t, err)
 
 		// Verify all regions are created for all environments
@@ -68,7 +82,7 @@ func TestCreateProjectStructure(t *testing.T) {
 		baseDir := t.TempDir()
 		log := logger.New(false)
 		environments := []string{"dev", "stg", "prd"}
-		err := createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, environments, true, log)
+		err := createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, environments, true, log, defaultInitOpts())
 		require.NoError(t, err)
 
 		// Test specifically for the refactored loop - ensure all files are created
@@ -101,7 +115,7 @@ func TestCreateProjectStructure(t *testing.T) {
 		require.NoError(t, err)
 
 		// Run create structure
-		err = createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, environments, true, log)
+		err = createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, environments, true, log, defaultInitOpts())
 		require.NoError(t, err)
 
 		// Verify existing file wasn't overwritten
@@ -120,7 +134,7 @@ func TestCreateProjectStructure(t *testing.T) {
 		version := "1.9.5"
 		environments := []string{"dev", "stg", "prd"}
 
-		err := createProjectStructure(baseDir, version, []string{"eu-central-1"}, environments, true, log)
+		err := createProjectStructure(baseDir, version, []string{"eu-central-1"}, environments, true, log, defaultInitOpts())
 		require.NoError(t, err)
 
 		for _, env := range []string{"dev", "stg", "prd"} {
@@ -135,7 +149,7 @@ func TestCreateProjectStructure(t *testing.T) {
 		baseDir := t.TempDir()
 		log := logger.New(false)
 		customEnvs := []string{"dev", "qa", "uat", "prd"}
-		err := createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, customEnvs, true, log)
+		err := createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, customEnvs, true, log, defaultInitOpts())
 		require.NoError(t, err)
 
 		// Verify all custom environments are created
@@ -158,7 +172,7 @@ func TestCreateProjectStructure(t *testing.T) {
 	t.Run("creates static workflow files when createWorkflows is true", func(t *testing.T) {
 		baseDir := t.TempDir()
 		log := logger.New(false)
-		err := createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, []string{"dev"}, true, log)
+		err := createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, []string{"dev"}, true, log, defaultInitOpts())
 		require.NoError(t, err)
 
 		staticWorkflowFiles := []string{
@@ -179,7 +193,7 @@ func TestCreateProjectStructure(t *testing.T) {
 	t.Run("skips workflow files when createWorkflows is false", func(t *testing.T) {
 		baseDir := t.TempDir()
 		log := logger.New(false)
-		err := createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, []string{"dev"}, false, log)
+		err := createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, []string{"dev"}, false, log, defaultInitOpts())
 		require.NoError(t, err)
 
 		workflowsDir := filepath.Join(baseDir, ".github", "workflows")
@@ -195,7 +209,7 @@ func TestCreateProjectStructure(t *testing.T) {
 		existingPath := filepath.Join(wfDir, "lint.yaml")
 		require.NoError(t, os.WriteFile(existingPath, []byte("# custom lint"), 0644))
 
-		err := createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, []string{"dev"}, true, log)
+		err := createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, []string{"dev"}, true, log, defaultInitOpts())
 		require.NoError(t, err)
 
 		content, readErr := os.ReadFile(existingPath)
@@ -210,7 +224,7 @@ func TestCreateFileFromTemplate(t *testing.T) {
 		targetPath := filepath.Join(tmpDir, "test", "file.txt")
 		log := logger.New(false)
 
-		err := createFileFromTemplate(targetPath, "root/.gitignore.tmpl", nil, log)
+		err := createFileFromTemplate(targetPath, "root/.gitignore.tmpl", nil, log, newTestRenderer(t), defaultInitOpts())
 		require.NoError(t, err)
 
 		assert.FileExists(t, targetPath)
@@ -226,7 +240,7 @@ func TestCreateFileFromTemplate(t *testing.T) {
 
 		err := createFileFromTemplate(targetPath, "root/.terraform-version.tmpl", map[string]string{
 			"TerraformVersion": "1.13.1",
-		}, log)
+		}, log, newTestRenderer(t), defaultInitOpts())
 		require.NoError(t, err)
 
 		content, err := os.ReadFile(targetPath)
@@ -245,7 +259,7 @@ func TestCreateFileFromTemplate(t *testing.T) {
 		require.NoError(t, err)
 
 		// Try to create from template
-		err = createFileFromTemplate(targetPath, "root/.gitignore.tmpl", nil, log)
+		err = createFileFromTemplate(targetPath, "root/.gitignore.tmpl", nil, log, newTestRenderer(t), defaultInitOpts())
 		require.NoError(t, err)
 
 		// Verify file wasn't overwritten
@@ -259,7 +273,7 @@ func TestCreateFileFromTemplate(t *testing.T) {
 		targetPath := filepath.Join(tmpDir, "deep", "nested", "path", "file.txt")
 		log := logger.New(false)
 
-		err := createFileFromTemplate(targetPath, "root/.gitignore.tmpl", nil, log)
+		err := createFileFromTemplate(targetPath, "root/.gitignore.tmpl", nil, log, newTestRenderer(t), defaultInitOpts())
 		require.NoError(t, err)
 
 		assert.FileExists(t, targetPath)
@@ -273,7 +287,7 @@ func TestCreateFileFromTemplate(t *testing.T) {
 		files := []string{".gitignore", ".tflint.hcl", "trivy.yaml"}
 		for _, filename := range files {
 			targetPath := filepath.Join(tmpDir, filename)
-			err := createFileFromTemplate(targetPath, "root/"+filename+".tmpl", nil, log)
+			err := createFileFromTemplate(targetPath, "root/"+filename+".tmpl", nil, log, newTestRenderer(t), defaultInitOpts())
 			require.NoError(t, err)
 			assert.FileExists(t, targetPath)
 		}
