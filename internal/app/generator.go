@@ -699,13 +699,20 @@ func (g *Generator) upgradeFileIfEligible(tmplPath, outputPath string, data *tem
 
 	marker, err := ExtractSourceMarker(string(content))
 	if err != nil {
-		// No source marker found
-		if g.force {
-			g.log.Infof("Upgrading %s (--force, no source marker)", outputPath)
-			return g.writeTemplateFile(tmplPath, outputPath, outputPath, data)
+		if errors.Is(err, ErrSourceMarkerNotFound) {
+			if g.force {
+				g.log.Infof("Upgrading %s (--force, no source marker)", outputPath)
+				return g.renderAndWriteFile(tmplPath, outputPath, data)
+			}
+			g.log.Infof("%s has no source marker, skipping upgrade (use --force to override)", outputPath)
+			return nil
 		}
-		g.log.Infof("%s has no source marker, skipping upgrade (use --force to override)", outputPath)
-		return nil
+		// Malformed source marker (e.g. invalid JSON)
+		if g.force {
+			g.log.Infof("Upgrading %s (--force, invalid source marker: %v)", outputPath, err)
+			return g.renderAndWriteFile(tmplPath, outputPath, data)
+		}
+		return fmt.Errorf("invalid source marker in %s: %w", outputPath, err)
 	}
 
 	// Verify the marker template matches this template
@@ -727,7 +734,11 @@ func (g *Generator) upgradeFileIfEligible(tmplPath, outputPath string, data *tem
 
 	// Content differs, re-render
 	g.log.Infof("Upgrading %s (content drift detected)", outputPath)
-	return g.writeTemplateFile(tmplPath, outputPath, outputPath, data)
+	if err := g.renderAndWriteFile(tmplPath, outputPath, data); err != nil {
+		return err
+	}
+	g.log.Successf("Upgraded %s", outputPath)
+	return nil
 }
 
 // isUpgradeEligible checks if a template is eligible for upgrade based on the config whitelist.

@@ -367,13 +367,17 @@ func upgradeInitFile(targetPath, templateName string, data any, log *logger.Logg
 
 	marker, markerErr := app.ExtractSourceMarker(string(existingContent))
 
-	// No source marker: skip unless --force
-	if markerErr != nil && !opts.force {
+	switch {
+	case errors.Is(markerErr, app.ErrSourceMarkerNotFound) && !opts.force:
 		log.Infof("%s has no source marker, skipping upgrade (use --force to override)", logPath)
 		return nil
-	}
-	if markerErr != nil {
+	case errors.Is(markerErr, app.ErrSourceMarkerNotFound):
 		log.Infof("Upgrading %s (--force, no source marker)", logPath)
+	case markerErr != nil && !opts.force:
+		// Malformed source marker (e.g. invalid JSON)
+		return fmt.Errorf("invalid source marker in %s: %w", logPath, markerErr)
+	case markerErr != nil:
+		log.Infof("Upgrading %s (--force, invalid source marker: %v)", logPath, markerErr)
 	}
 
 	// Has marker: verify template match and hash

@@ -62,7 +62,7 @@ templates:
   # Optional: Whitelist of templates eligible for --upgrade on scaffold
   # When specified, only listed templates will be re-rendered with --upgrade flag.
   # When empty or absent, all templates with source markers are eligible.
-  upgrade: []
+  upgrade:
     # Example:
     # - main.tf.tmpl
     # - outputs.tf.tmpl
