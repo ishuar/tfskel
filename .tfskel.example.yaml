@@ -59,6 +59,13 @@ templates:
   # e.g. custom-dir/versions.tf.tmpl will override the default embedded versions.tf.tmpl template
   # NOTE: All files ending with .tmpl extension will be processed as Go templates
   dir: /path/to/custom/templates
+  # Optional: Whitelist of templates eligible for --upgrade on scaffold
+  # When specified, only listed templates will be re-rendered with --upgrade flag.
+  # When empty or absent, all templates with source markers are eligible.
+  upgrade: []
+    # Example:
+    # - main.tf.tmpl
+    # - outputs.tf.tmpl
 
 # GitHub Actions workflow generation configuration
 workflows:

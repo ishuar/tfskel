@@ -39,9 +39,10 @@ It gives you a clean, opinionated foundation that keeps your Terraform projects 
 
 1. Enforce consistent project structure across environments
 2. Scaffold Terraform code using clean, maintainable templates
-3. Detect AWS provider and Terraform version drift across the entire repo
-4. Analyze Terraform plans to make reviews easier and safer with custom resources severity
-5. Stay vanilla — no wrappers, no lock-in, just Terraform
+3. Upgrade generated files in-place when templates or config change (`--upgrade`)
+4. Detect AWS provider and Terraform version drift across the entire repo
+5. Analyze Terraform plans to make reviews easier and safer with custom resources severity
+6. Stay vanilla — no wrappers, no lock-in, just Terraform
 
 > [!NOTE]
 > *⭐️ If you find tfskel useful, consider starring the repo to stay updated and support the project. ⭐️*
@@ -102,6 +103,8 @@ With `--workflows`, also generates the shared GitHub Actions reusable workflow f
 |---|---|---|---|
 | `--dir` | `-d` | current directory | Directory to initialize |
 | `--workflows` | | `false` | Generate shared GitHub Actions reusable workflow files |
+| `--upgrade` | | `false` | Re-render init-managed files with latest embedded templates |
+| `--force` | | `false` | With `--upgrade`, overwrite files even without source markers |
 
 ```bash
 # Initialize in the current directory
@@ -115,6 +118,12 @@ tfskel init --config /path/to/config.yaml
 
 # Also generate shared GitHub Actions workflow files
 tfskel init --workflows
+
+# Re-render init files (e.g. .pre-commit-config.yaml, .tflint.hcl) from latest templates
+tfskel init --upgrade
+
+# Force overwrite all init files, even those without source markers
+tfskel init --upgrade --force
 ```
 
 <p align="left">
@@ -131,6 +140,8 @@ It accepts any subcommand as an input for target app-dir and creates per-applica
 | `--region` | `-r` | *(required)* | AWS region (e.g. `us-east-1`, `eu-central-1`) |
 | `--templates-dir` | | `""` | Directory containing custom `.tmpl` template files |
 | `--s3-bucket-name` | | `""` | S3 bucket name for Terraform state (overrides config) |
+| `--upgrade` | | `false` | Re-render existing files from updated templates (only files with source markers) |
+| `--force` | | `false` | With `--upgrade`, overwrite files even without source markers |
 
 ```bash
 # Scaffold structure for an app in dev/us-east-1
@@ -147,6 +158,12 @@ tfskel scaffold myapp --config ./my-config.yaml --env dev --region us-east-1
 
 # Using the short alias
 tfskel sc myapp --env dev --region us-east-1
+
+# Re-render scaffolded files after updating templates or config
+tfskel scaffold myapp --env dev --region us-east-1 --upgrade
+
+# Force overwrite all scaffolded files, even without source markers
+tfskel scaffold myapp --env dev --region us-east-1 --upgrade --force
 ```
 
 
@@ -157,6 +174,8 @@ Generates a per-environment GitHub Actions Terraform plan/apply caller workflow.
 | Flag | Short | Default | Description |
 |---|---|---|---|
 | `--env` | `-e` | *(required)* | Target environment (e.g. `dev`, `stg`, `prd`) |
+| `--upgrade` | | `false` | Re-render existing workflow files from updated templates |
+| `--force` | | `false` | With `--upgrade`, overwrite workflow files even without source markers |
 
 ```bash
 # Generate a per-env Terraform workflow for dev
@@ -164,6 +183,9 @@ tfskel scaffold workflows --env dev
 
 # Generate with a custom config file
 tfskel scaffold workflows --env prd --config ./my-config.yaml
+
+# Re-render an existing workflow after config changes
+tfskel scaffold workflows --env dev --upgrade
 ```
 
 Generated file: `.github/workflows/<env>-<name>.yaml`
@@ -245,6 +267,13 @@ tfskel review plan --json-file plan.json --format json --no-color
 <p align="left">
 <img src="assets/tfskel-review-plan.gif" alt="tfskel review plan demo" width="600" />
 </p>
+
+## Upgrading Generated Files
+
+tfskel embeds **source markers** (e.g. `## tfskel-source: {...}`) in every generated file (except `.terraform-version`). These markers record which template produced the file and its content hash, enabling safe, selective re-rendering with `--upgrade`.
+
+> [!TIP]
+> For more details on source markers, metadata tracking, and selective upgrade whitelists, see the [tfskel book](docs/tfskel-book.md#upgrading-generated-files).
 
 ## Configuration
 
