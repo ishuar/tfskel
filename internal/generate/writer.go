@@ -55,32 +55,6 @@ func (g *Generator) determineOutputPath(tmplPath, appPath string, data *template
 	}
 }
 
-// shouldSkipTemplate determines if a template should be skipped during generation
-// Returns true if template should be skipped, along with the reason
-func (g *Generator) shouldSkipTemplate(tmplPath string) (bool, string) {
-	normalizedPath := filepath.ToSlash(tmplPath)
-	parts := strings.Split(normalizedPath, "/")
-
-	if len(parts) == 0 {
-		return true, "invalid path format"
-	}
-
-	category := parts[0]
-
-	// Skip root templates - they are only handled by init command
-	if category == "root" {
-		return true, "root template (init only)"
-	}
-
-	// Skip github templates - static ones are handled by 'tfskel init',
-	// per-env templates are handled by 'tfskel scaffold workflows --env'
-	if category == categoryGithub {
-		return true, "github template (use 'tfskel init' or 'tfskel scaffold workflows --env')"
-	}
-
-	return false, ""
-}
-
 // sourceComment returns the source marker comment for the given template and output path,
 // or an empty string if the file does not support markers.
 func sourceComment(renderer *templates.Renderer, tmplName, outputPath string) string {
@@ -94,15 +68,15 @@ func sourceComment(renderer *templates.Renderer, tmplName, outputPath string) st
 // writeTemplateFile creates the directory structure, renders the template with all markers, and writes the result.
 // Render failures are logged and skipped (returns nil) since this is used during initial generation
 // where a single template failure should not block the entire run.
-func (g *Generator) writeTemplateFile(tmplPath, outputPath, outputName string, data *templates.Data) error {
+func (g *Generator) writeTemplateFile(tmplPath, outputPath string, data *templates.Data) error {
 	// Ensure parent directory exists
 	outputDir := filepath.Dir(outputPath)
 	if err := g.fs.MkdirAll(outputDir, 0755); err != nil {
-		return fmt.Errorf("failed to create directory for %s: %w", outputName, err)
+		return fmt.Errorf("failed to create directory for %s: %w", outputPath, err)
 	}
 
 	if err := g.renderAndWriteFile(tmplPath, outputPath, data); err != nil {
-		g.log.Infof("Skipping %s: %v", outputName, err)
+		g.log.Infof("Skipping %s: %v", outputPath, err)
 		return nil
 	}
 
@@ -111,7 +85,12 @@ func (g *Generator) writeTemplateFile(tmplPath, outputPath, outputName string, d
 	if templateSource == "" {
 		templateSource = tmplPath
 	}
-	g.log.Successf("Created %s from %s", outputName, templateSource)
+	if g.dryRun {
+		g.log.Infof("[dry-run] Would create %s from %s", outputPath, templateSource)
+	} else {
+		g.log.Successf("Created %s from %s", outputPath, templateSource)
+	}
+	g.tracker.Record(OpCreated, outputPath)
 
 	return nil
 }

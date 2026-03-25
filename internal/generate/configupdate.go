@@ -109,7 +109,11 @@ func (g *Generator) updateBackendIfNeeded(appPath string, data *templates.Data) 
 		if err := g.updateBackendFile(backendPath, data); err != nil {
 			return fmt.Errorf("failed to update backend.tf: %w", err)
 		}
-		g.log.Successf("Updated backend.tf with new bucket_name: %s", data.S3BucketName)
+		if g.dryRun {
+			g.log.Infof("[dry-run] Would update backend.tf with new bucket_name: %s", data.S3BucketName)
+		} else {
+			g.log.Successf("Updated backend.tf with new bucket_name: %s", data.S3BucketName)
+		}
 	}
 
 	return nil
@@ -132,7 +136,11 @@ func (g *Generator) updateVersionsIfNeeded(appPath string, data *templates.Data)
 			return fmt.Errorf("failed to update versions.tf: %w", err)
 		}
 		for _, change := range changes {
-			g.log.Successf("Updated versions.tf - %s", change)
+			if g.dryRun {
+				g.log.Infof("[dry-run] Would update versions.tf - %s", change)
+			} else {
+				g.log.Successf("Updated versions.tf - %s", change)
+			}
 		}
 	}
 

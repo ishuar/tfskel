@@ -86,7 +86,7 @@ func init() {
 func runReviewPlan(cmd *cobra.Command, _ []string) error {
 	cmd.SilenceUsage = true
 
-	log := logger.New(viper.GetBool("verbose"))
+	log := logger.NewWithOptions(viper.GetBool("verbose"), useColor)
 
 	// Validate output format
 	switch format.OutputFormat(reviewPlanFormat) {
@@ -110,9 +110,9 @@ func runReviewPlan(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("failed to access file: %w", err)
 	}
 
-	// Suppress logs for machine-readable formats
+	// Suppress logs for machine-readable formats (redirect to stderr, disable color)
 	if reviewPlanFormat == string(format.FormatJSON) || reviewPlanFormat == string(format.FormatCSV) {
-		log.SetOutput(os.Stderr)
+		log.SetMachineOutput()
 	}
 
 	log.Info("Reviewing terraform plan...")

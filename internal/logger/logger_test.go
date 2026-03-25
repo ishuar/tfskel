@@ -132,6 +132,7 @@ func TestNew(t *testing.T) {
 		assert.Equal(t, InfoLevel, log.level)
 		assert.Equal(t, os.Stdout, log.out)
 		assert.Equal(t, os.Stderr, log.errOut)
+		assert.True(t, log.useColor, "New() should enable colors by default")
 	})
 
 	t.Run("creates logger with verbose enabled", func(t *testing.T) {
@@ -150,6 +151,65 @@ func TestNew(t *testing.T) {
 
 		log := New(false)
 		assert.Equal(t, WarnLevel, log.level)
+	})
+}
+
+func TestNewWithOptions(t *testing.T) {
+	t.Run("color disabled strips ANSI codes", func(t *testing.T) {
+		var out bytes.Buffer
+		log := newLogger(false, false, &out, &out)
+		log.Info("no color")
+
+		output := out.String()
+		assert.Contains(t, output, "INFO")
+		assert.Contains(t, output, "no color")
+		assert.NotContains(t, output, "\033[", "Should not contain ANSI escape codes when color is disabled")
+	})
+
+	t.Run("color enabled includes ANSI codes", func(t *testing.T) {
+		var out bytes.Buffer
+		log := newLogger(false, true, &out, &out)
+		log.Info("with color")
+
+		output := out.String()
+		assert.Contains(t, output, "\033[", "Should contain ANSI escape codes when color is enabled")
+	})
+
+	t.Run("Success message with color disabled", func(t *testing.T) {
+		var out bytes.Buffer
+		log := newLogger(false, false, &out, &out)
+		log.Success("done")
+
+		output := out.String()
+		assert.Contains(t, output, "SUCCESS")
+		assert.Contains(t, output, "done")
+		assert.NotContains(t, output, "\033[", "Should not contain ANSI codes")
+	})
+
+	t.Run("Error message with color disabled", func(t *testing.T) {
+		var errOut bytes.Buffer
+		log := newLogger(false, false, &bytes.Buffer{}, &errOut)
+		log.Error("failure")
+
+		output := errOut.String()
+		assert.Contains(t, output, "ERROR")
+		assert.NotContains(t, output, "\033[", "Should not contain ANSI codes")
+	})
+}
+
+func TestSetMachineOutput(t *testing.T) {
+	t.Run("redirects output to stderr and disables color", func(t *testing.T) {
+		var stdout, stderr bytes.Buffer
+		log := newLogger(false, true, &stdout, &stderr)
+
+		log.SetMachineOutput()
+		log.Info("machine output")
+
+		assert.Empty(t, stdout.String(), "stdout should be empty after SetMachineOutput")
+		output := stderr.String()
+		assert.Contains(t, output, "INFO")
+		assert.Contains(t, output, "machine output")
+		assert.NotContains(t, output, "\033[", "Should not contain ANSI codes after SetMachineOutput")
 	})
 }
 
@@ -302,7 +362,7 @@ func TestParseLogLevel(t *testing.T) {
 		{"warn", WarnLevel, true},
 		{"warning", WarnLevel, true},
 		{"WARN", WarnLevel, true},
-		{"success", SuccessLevel, true},
+		{"success", InfoLevel, false},
 		{"error", ErrorLevel, true},
 		{"invalid", InfoLevel, false},
 		{"", InfoLevel, false},

@@ -62,7 +62,7 @@ func init() {
 func runDiffConfig(cmd *cobra.Command, _ []string) error {
 	cmd.SilenceUsage = true
 
-	log := logger.New(viper.GetBool("verbose"))
+	log := logger.NewWithOptions(viper.GetBool("verbose"), useColor)
 
 	// Validate and normalize directory
 	scanDir := configDir
@@ -93,15 +93,15 @@ func runDiffConfig(cmd *cobra.Command, _ []string) error {
 	}
 
 	// Load configuration
-	cfg, err := config.Load(cmd, viper.GetViper())
+	cfg, err := config.Load(cmd, viper.GetViper(), log)
 	if err != nil {
 		log.Errorf("Failed to load configuration: %v", err)
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
 
-	// Suppress logs for machine-readable formats (JSON/CSV)
+	// Suppress logs for machine-readable formats (redirect to stderr, disable color)
 	if configFormat == string(format.FormatJSON) || configFormat == string(format.FormatCSV) {
-		log.SetOutput(os.Stderr)
+		log.SetMachineOutput()
 	}
 
 	log.Info("Starting tfskel version drift detection...")

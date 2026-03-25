@@ -11,6 +11,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// nopLogger is a no-op Logger for tests.
+type nopLogger struct{}
+
+func (nopLogger) Warn(string)           {}
+func (nopLogger) Warnf(string, ...any)  {}
+func (nopLogger) Debugf(string, ...any) {}
+
 // TestLoadFromYAML tests loading configuration from actual YAML content
 // This ensures the YAML structure matches the struct tags and Viper bindings
 func TestLoadFromYAML(t *testing.T) {
@@ -162,7 +169,7 @@ workflows:
 			cmd := &cobra.Command{}
 
 			// Load the config
-			cfg, err := Load(cmd, v)
+			cfg, err := Load(cmd, v, nopLogger{})
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -201,7 +208,7 @@ func TestLoadExampleConfigFile(t *testing.T) {
 	cmd := &cobra.Command{}
 
 	// Load the config
-	cfg, err := Load(cmd, v)
+	cfg, err := Load(cmd, v, nopLogger{})
 	require.NoError(t, err, ".tfskel.example.yaml should load without errors")
 	require.NotNil(t, cfg)
 
@@ -342,7 +349,7 @@ workflows:
 	require.NoError(t, err)
 
 	// Load config
-	cfg, err := Load(cmd, v)
+	cfg, err := Load(cmd, v, nopLogger{})
 	require.NoError(t, err)
 
 	// Verify flags override config file values

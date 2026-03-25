@@ -27,19 +27,29 @@ func (g *Generator) upgradeFileIfEligible(tmplPath, outputPath string, data *tem
 		return fmt.Errorf("failed to read %s for upgrade check: %w", outputPath, err)
 	}
 
+	upgradeVerb := "Upgrading"
+	forceVerb := "Force upgrading"
+	if g.dryRun {
+		upgradeVerb = "[dry-run] Would upgrade"
+		forceVerb = "[dry-run] Would force upgrade"
+	}
+
 	marker, err := ExtractSourceMarker(string(content))
 	if err != nil {
 		if errors.Is(err, ErrSourceMarkerNotFound) {
 			if g.force {
-				g.log.Infof("Upgrading %s (--force, no source marker)", outputPath)
+				g.log.Infof("%s %s (--force, no source marker)", forceVerb, outputPath)
+				g.tracker.Record(OpForced, outputPath)
 				return g.renderAndWriteFile(tmplPath, outputPath, data)
 			}
 			g.log.Infof("%s has no source marker, skipping upgrade (use --force to override)", outputPath)
+			g.tracker.Record(OpSkipped, outputPath)
 			return nil
 		}
 		// Malformed source marker (e.g. invalid JSON)
 		if g.force {
-			g.log.Infof("Upgrading %s (--force, invalid source marker: %v)", outputPath, err)
+			g.log.Infof("%s %s (--force, invalid source marker: %v)", forceVerb, outputPath, err)
+			g.tracker.Record(OpForced, outputPath)
 			return g.renderAndWriteFile(tmplPath, outputPath, data)
 		}
 		return fmt.Errorf("invalid source marker in %s: %w", outputPath, err)
@@ -51,6 +61,10 @@ func (g *Generator) upgradeFileIfEligible(tmplPath, outputPath string, data *tem
 		return nil
 	}
 
+	// Compare template hash to detect template source changes vs content drift
+	currentHash := g.renderer.GetTemplateHash(tmplPath)
+	templateChanged := marker.Hash != currentHash
+
 	// Re-render the template with markers and compare to detect any drift
 	rendered, err := g.renderWithMarkers(tmplPath, outputPath, data)
 	if err != nil {
@@ -59,15 +73,25 @@ func (g *Generator) upgradeFileIfEligible(tmplPath, outputPath string, data *tem
 
 	if rendered == string(content) {
 		g.log.Debugf("%s is up to date, skipping", outputPath)
+		g.tracker.Record(OpSkipped, outputPath)
 		return nil
 	}
 
-	// Content differs, re-render
-	g.log.Infof("Upgrading %s (content drift detected)", outputPath)
+	// Content differs — provide specific reason
+	if templateChanged {
+		g.log.Infof("%s %s (template: %s -> %s)", upgradeVerb, outputPath, marker.Hash, currentHash)
+	} else {
+		g.log.Infof("%s %s (content drift detected)", upgradeVerb, outputPath)
+	}
 	if err := g.renderAndWriteFile(tmplPath, outputPath, data); err != nil {
 		return err
 	}
-	g.log.Successf("Upgraded %s", outputPath)
+	if g.dryRun {
+		g.log.Infof("[dry-run] Would upgrade %s", outputPath)
+	} else {
+		g.log.Successf("Upgraded %s", outputPath)
+	}
+	g.tracker.Record(OpUpgraded, outputPath)
 	return nil
 }
 

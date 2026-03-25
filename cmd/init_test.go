@@ -300,7 +300,7 @@ func TestCreateDefaultConfig(t *testing.T) {
 		configPath := filepath.Join(tmpDir, ".tfskel.yaml")
 		log := logger.New(false)
 
-		err := createDefaultConfig(configPath, log)
+		err := createDefaultConfig(configPath, log, &initOptions{})
 		require.NoError(t, err)
 
 		assert.FileExists(t, configPath)
@@ -333,7 +333,7 @@ func TestCreateDefaultConfig(t *testing.T) {
 		err := os.WriteFile(configPath, []byte("existing"), 0644)
 		require.NoError(t, err)
 
-		err = createDefaultConfig(configPath, log)
+		err = createDefaultConfig(configPath, log, &initOptions{})
 		require.NoError(t, err)
 
 		// Should not overwrite

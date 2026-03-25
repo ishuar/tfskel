@@ -509,7 +509,7 @@ func TestCheckDeprecatedConfig(t *testing.T) {
 				cfg := &Config{}
 				err := v.Unmarshal(cfg)
 				require.NoError(t, err)
-				checkDeprecatedConfig(v)
+				checkDeprecatedConfig(v, nopLogger{})
 				return cfg
 			},
 			expectOutput: false,
@@ -525,7 +525,7 @@ func TestCheckDeprecatedConfig(t *testing.T) {
 				require.NoError(t, err)
 				// This will print warnings, but we can't easily capture them in unit tests
 				// In integration tests, we verify the actual behavior
-				checkDeprecatedConfig(v)
+				checkDeprecatedConfig(v, nopLogger{})
 				return cfg
 			},
 			expectOutput: true,

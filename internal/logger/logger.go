@@ -19,17 +19,16 @@ const (
 	InfoLevel
 	// WarnLevel logs non-critical issues
 	WarnLevel
-	// SuccessLevel logs positive confirmations
-	SuccessLevel
 	// ErrorLevel logs errors that may require user action
 	ErrorLevel
 )
 
 // Logger provides structured logging with color output
 type Logger struct {
-	level  LogLevel
-	out    io.Writer
-	errOut io.Writer
+	level    LogLevel
+	out      io.Writer
+	errOut   io.Writer
+	useColor bool
 }
 
 // Color codes for terminal output
@@ -42,30 +41,26 @@ const (
 	colorCyan   = "\033[36m"
 )
 
-// New creates a new logger instance
-// verbose flag enables DEBUG level and timestamps on all logs
+// New creates a new logger instance with colors enabled by default.
+// verbose flag enables DEBUG level and timestamps on all logs.
 func New(verbose bool) *Logger {
-	level := InfoLevel
-	if verbose {
-		level = DebugLevel
-	}
+	return NewWithOptions(verbose, true)
+}
 
-	// Check TFSKEL_LOG_LEVEL environment variable
-	if envLevel := os.Getenv("TFSKEL_LOG_LEVEL"); envLevel != "" {
-		if parsedLevel, ok := parseLogLevel(envLevel); ok {
-			level = parsedLevel
-		}
-	}
-
-	return &Logger{
-		level:  level,
-		out:    os.Stdout,
-		errOut: os.Stderr,
-	}
+// NewWithOptions creates a new logger instance with explicit color control.
+// verbose flag enables DEBUG level and timestamps on all logs.
+// useColor controls whether ANSI color codes are emitted.
+func NewWithOptions(verbose, useColor bool) *Logger {
+	return newLogger(verbose, useColor, os.Stdout, os.Stderr)
 }
 
 // NewWithWriters creates a logger with custom writers (useful for testing)
 func NewWithWriters(verbose bool, out, errOut io.Writer) *Logger {
+	return newLogger(verbose, true, out, errOut)
+}
+
+// newLogger is the single internal constructor that all public constructors delegate to.
+func newLogger(verbose, useColor bool, out, errOut io.Writer) *Logger {
 	level := InfoLevel
 	if verbose {
 		level = DebugLevel
@@ -79,15 +74,23 @@ func NewWithWriters(verbose bool, out, errOut io.Writer) *Logger {
 	}
 
 	return &Logger{
-		level:  level,
-		out:    out,
-		errOut: errOut,
+		level:    level,
+		out:      out,
+		errOut:   errOut,
+		useColor: useColor,
 	}
 }
 
 // SetOutput sets the output writer for info-level logs
 func (l *Logger) SetOutput(w io.Writer) {
 	l.out = w
+}
+
+// SetMachineOutput redirects all non-error output to stderr and disables colors.
+// Use this when stdout must carry machine-readable data (JSON, CSV).
+func (l *Logger) SetMachineOutput() {
+	l.out = l.errOut
+	l.useColor = false
 }
 
 // parseLogLevel converts string log level to LogLevel
@@ -99,8 +102,6 @@ func parseLogLevel(level string) (LogLevel, bool) {
 		return InfoLevel, true
 	case "warn", "warning":
 		return WarnLevel, true
-	case "success":
-		return SuccessLevel, true
 	case "error":
 		return ErrorLevel, true
 	default:
@@ -113,6 +114,15 @@ func (l *Logger) log(color, levelStr, message string, out io.Writer, msgLevel Lo
 	// Only log if the message level is at or above the configured level
 	if msgLevel < l.level {
 		return
+	}
+
+	// Strip color codes when color is disabled
+	if !l.useColor {
+		color = ""
+	}
+	reset := ""
+	if l.useColor {
+		reset = colorReset
 	}
 
 	var prefix string
@@ -135,7 +145,7 @@ func (l *Logger) log(color, levelStr, message string, out io.Writer, msgLevel Lo
 		prefix = color
 	}
 
-	_, _ = fmt.Fprintf(out, "%s[%-7s] %s%s\n", prefix, levelStr, message, colorReset) //nolint:errcheck // Writing to stderr/stdout in logger is best-effort, ignoring errors is acceptable
+	_, _ = fmt.Fprintf(out, "%s[%-7s] %s%s\n", prefix, levelStr, message, reset) //nolint:errcheck // Writing to stderr/stdout in logger is best-effort, ignoring errors is acceptable
 }
 
 // Debug logs a debug message only if debug level is enabled
@@ -171,10 +181,10 @@ func (l *Logger) Warnf(format string, args ...any) {
 	l.Warn(fmt.Sprintf(format, args...))
 }
 
-// Success logs a success message in green
-// No timestamps unless in debug mode
+// Success logs a success message in green at Info level.
+// Success is a formatting concern (green text), not a separate severity level.
 func (l *Logger) Success(message string) {
-	l.log(colorGreen, "SUCCESS", message, l.out, SuccessLevel)
+	l.log(colorGreen, "SUCCESS", message, l.out, InfoLevel)
 }
 
 // Successf logs a formatted success message

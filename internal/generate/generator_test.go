@@ -2891,7 +2891,7 @@ func TestUpgradeFileIfEligible(t *testing.T) {
 		_ = filesystem.MkdirAll("envs/dev/us-east-1/myapp", 0755)
 
 		data := &templates.Data{Env: "dev", Region: "us-east-1", S3BucketName: "my-bucket", ShortRegion: "use1"}
-		err = gen.writeTemplateFile(tmplName, outputPath, outputPath, data)
+		err = gen.writeTemplateFile(tmplName, outputPath, data)
 		require.NoError(t, err)
 
 		// Now attempt upgrade — content should match, so no change

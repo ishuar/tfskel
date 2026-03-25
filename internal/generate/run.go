@@ -14,6 +14,10 @@ func (g *Generator) Run(env, region, appDir string) error {
 		return err
 	}
 
+	if g.config.Templates != nil && g.config.Templates.Dir != "" {
+		g.log.Infof("Using custom templates from: %s", g.config.Templates.Dir)
+	}
+
 	// Create directory structure: envs/<env>/<region>/<app>
 	appPath := filepath.Join("envs", env, region, appDir)
 
@@ -28,7 +32,12 @@ func (g *Generator) Run(env, region, appDir string) error {
 	if dirExists {
 		g.log.Infof("Directory %s already exists", appPath)
 	} else {
-		g.log.Successf("Created directory structure: %s", appPath)
+		if g.dryRun {
+			g.log.Infof("[dry-run] Would create directory structure: %s", appPath)
+		} else {
+			g.log.Successf("Created directory structure: %s", appPath)
+		}
+		g.tracker.Record(OpDirCreated, appPath)
 	}
 
 	// Generate files from templates
@@ -41,7 +50,11 @@ func (g *Generator) Run(env, region, appDir string) error {
 	if err != nil {
 		absPath = appPath
 	}
-	g.log.Successf("Created directory: %s", absPath)
+	if g.dryRun {
+		g.log.Infof("[dry-run] Would create directory: %s", absPath)
+	} else {
+		g.log.Successf("Created directory: %s", absPath)
+	}
 
 	return nil
 }
@@ -106,11 +119,12 @@ func (g *Generator) RunWorkflows(env string) error {
 				}
 			} else {
 				g.log.Infof("%s already exists, skipping", outputPath)
+				g.tracker.Record(OpSkipped, outputPath)
 			}
 			continue
 		}
 
-		if err := g.writeTemplateFile(tmplPath, outputPath, outputPath, &templateData); err != nil {
+		if err := g.writeTemplateFile(tmplPath, outputPath, &templateData); err != nil {
 			return err
 		}
 	}
@@ -144,11 +158,14 @@ func (g *Generator) generateFiles(appPath, env, region, appDir string) error {
 	return g.processTemplates(appPath, data)
 }
 
-// processTemplates iterates through templates and generates files
+// processTemplates iterates through tf/ category templates and generates files.
+// Only tf/ templates are relevant for scaffold; root/ and github/ are handled
+// by the init and scaffold-workflows commands respectively.
 func (g *Generator) processTemplates(appPath string, data *templates.Data) error {
-	allTemplates := g.renderer.GetTemplateNames()
-
-	for _, tmplPath := range allTemplates {
+	for _, tmplPath := range g.renderer.GetTemplateNames() {
+		if !strings.HasPrefix(filepath.ToSlash(tmplPath), "tf/") {
+			continue
+		}
 		if err := g.processTemplate(tmplPath, appPath, data); err != nil {
 			return err
 		}
@@ -157,23 +174,11 @@ func (g *Generator) processTemplates(appPath string, data *templates.Data) error
 	return nil
 }
 
-// processTemplate handles generation of a single template file
+// processTemplate handles generation of a single tf/ template file.
+// Callers must ensure only tf/ category templates are passed.
 func (g *Generator) processTemplate(tmplPath, appPath string, data *templates.Data) error {
-	// Check if template should be skipped
-	shouldSkip, reason := g.shouldSkipTemplate(tmplPath)
-	if shouldSkip {
-		g.log.Debugf("Skipping %s: %s", tmplPath, reason)
-		return nil
-	}
-
 	// Create a copy of data for this template
 	templateData := *data
-
-	// Enrich data for workflow templates
-	if err := g.enrichTemplateDataForWorkflow(tmplPath, &templateData); err != nil {
-		g.log.Errorf("Failed to enrich template data for %s: %v", tmplPath, err)
-		return err
-	}
 
 	// Determine output path
 	outputPath, valid := g.determineOutputPath(tmplPath, appPath, &templateData)
@@ -188,9 +193,10 @@ func (g *Generator) processTemplate(tmplPath, appPath string, data *templates.Da
 			return g.upgradeFileIfEligible(tmplPath, outputPath, &templateData)
 		}
 		g.log.Infof("%s already exists, skipping", outputPath)
+		g.tracker.Record(OpSkipped, outputPath)
 		return nil
 	}
 
 	// Create output directory and write file
-	return g.writeTemplateFile(tmplPath, outputPath, outputPath, &templateData)
+	return g.writeTemplateFile(tmplPath, outputPath, &templateData)
 }

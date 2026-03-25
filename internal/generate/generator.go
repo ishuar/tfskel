@@ -6,7 +6,6 @@ import (
 
 	"github.com/ishuar/tfskel/internal/config"
 	"github.com/ishuar/tfskel/internal/fs"
-	"github.com/ishuar/tfskel/internal/logger"
 	"github.com/ishuar/tfskel/internal/templates"
 )
 
@@ -34,18 +33,21 @@ var (
 type Generator struct {
 	config   *config.Config
 	fs       fs.FileSystem
-	log      *logger.Logger
+	log      Logger
 	renderer *templates.Renderer
-	upgrade  bool // When true, re-render files whose template has changed
-	force    bool // When true (with upgrade), overwrite files even without source markers
+	upgrade  bool       // When true, re-render files whose template has changed
+	force    bool       // When true (with upgrade), overwrite files even without source markers
+	dryRun   bool       // When true, log what would happen without writing files
+	tracker  *OpTracker // Tracks file operations for summary reporting
 }
 
 // NewGenerator creates a new Generator instance
-func NewGenerator(cfg *config.Config, filesystem fs.FileSystem, log *logger.Logger) *Generator {
+func NewGenerator(cfg *config.Config, filesystem fs.FileSystem, log Logger) *Generator {
 	return &Generator{
-		config: cfg,
-		fs:     filesystem,
-		log:    log,
+		config:  cfg,
+		fs:      filesystem,
+		log:     log,
+		tracker: NewOpTracker(),
 	}
 }
 
@@ -57,6 +59,20 @@ func (g *Generator) SetUpgrade(upgrade, force bool) {
 	g.force = force
 }
 
+// SetDryRun enables dry-run mode. When true, the generator logs what
+// it would do without actually writing files to disk. Combine with a
+// DryRunFileSystem for full no-op behavior.
+func (g *Generator) SetDryRun(dryRun bool) {
+	g.dryRun = dryRun
+}
+
+// Summary returns a human-readable summary of all file operations
+// performed during the generation run. Returns an empty string if
+// no operations were recorded.
+func (g *Generator) Summary() string {
+	return g.tracker.Summary(g.dryRun)
+}
+
 // initRenderer initializes the template renderer, using custom templates if configured.
 func (g *Generator) initRenderer() error {
 	var (
@@ -65,7 +81,6 @@ func (g *Generator) initRenderer() error {
 	)
 	// Defensive: check Templates is initialized (always true from config.Load, but defensive for direct usage)
 	if g.config.Templates != nil && g.config.Templates.Dir != "" {
-		g.log.Infof("Using custom templates from: %s", g.config.Templates.Dir)
 		renderer, err = templates.NewRendererWithCustomTemplates(g.config.Templates.Dir)
 	} else {
 		g.log.Debug("Using default embedded templates")
