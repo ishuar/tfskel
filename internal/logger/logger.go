@@ -130,7 +130,7 @@ func (l *Logger) log(color, levelStr, message string, out io.Writer, msgLevel Lo
 	// Add timestamp and detailed info for DEBUG level
 	if l.level == DebugLevel {
 		timestamp := time.Now().Format("2006-01-02T15:04:05")
-		prefix = fmt.Sprintf("%s%s ", color, timestamp)
+		prefix = fmt.Sprintf("%s%s%s ", color, timestamp, reset)
 
 		// Add caller info for DEBUG messages
 		if msgLevel == DebugLevel {
@@ -141,11 +141,12 @@ func (l *Logger) log(color, levelStr, message string, out io.Writer, msgLevel Lo
 				message = fmt.Sprintf("%s:%d %s", filename, line, message)
 			}
 		}
-	} else {
-		prefix = color
 	}
 
-	_, _ = fmt.Fprintf(out, "%s[%-7s] %s%s\n", prefix, levelStr, message, reset) //nolint:errcheck // Writing to stderr/stdout in logger is best-effort, ignoring errors is acceptable
+	// Color only the level text inside brackets to avoid ANSI escape codes
+	// immediately preceding '[', which some log viewers (e.g. GitHub Actions)
+	// misparse as a single escape sequence, swallowing the level label.
+	_, _ = fmt.Fprintf(out, "%s[%s%-7s%s] %s\n", prefix, color, levelStr, reset, message) //nolint:errcheck // Writing to stderr/stdout in logger is best-effort, ignoring errors is acceptable
 }
 
 // Debug logs a debug message only if debug level is enabled
