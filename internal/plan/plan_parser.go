@@ -24,14 +24,14 @@ var (
 //
 //	terraform plan -out=tfplan.binary
 //	terraform show -json tfplan.binary > tfplan.json
-func ParsePlanFile(filename string) (*TerraformPlan, error) {
+func ParsePlanFile(filename string) (_ *TerraformPlan, retErr error) {
 	file, err := os.Open(filename)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open plan file: %w", err)
 	}
 	defer func() {
-		if closeErr := file.Close(); closeErr != nil && err == nil {
-			err = fmt.Errorf("failed to close plan file: %w", closeErr)
+		if closeErr := file.Close(); closeErr != nil && retErr == nil {
+			retErr = fmt.Errorf("failed to close plan file: %w", closeErr)
 		}
 	}()
 

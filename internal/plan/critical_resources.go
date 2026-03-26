@@ -85,22 +85,22 @@ func DefaultCriticalResources() []string {
 // MergeCriticalResources merges default and user-defined critical resources,
 // removing duplicates and maintaining order (defaults first, then user-defined).
 func MergeCriticalResources(defaults, userDefined []string) []string {
-	seen := make(map[string]bool, len(defaults)+len(userDefined))
+	seen := make(map[string]struct{}, len(defaults)+len(userDefined))
 	merged := make([]string, 0, len(defaults)+len(userDefined))
 
 	// Add defaults first
 	for _, resource := range defaults {
-		if !seen[resource] {
+		if _, ok := seen[resource]; !ok {
 			merged = append(merged, resource)
-			seen[resource] = true
+			seen[resource] = struct{}{}
 		}
 	}
 
 	// Add user-defined resources
 	for _, resource := range userDefined {
-		if resource != "" && !seen[resource] {
+		if _, ok := seen[resource]; resource != "" && !ok {
 			merged = append(merged, resource)
-			seen[resource] = true
+			seen[resource] = struct{}{}
 		}
 	}
 

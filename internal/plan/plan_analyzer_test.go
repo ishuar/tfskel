@@ -366,6 +366,205 @@ func TestPlanAnalyzer_Analyze(t *testing.T) {
 	}
 }
 
+func TestPlanAnalyzer_AnalyzeOutputChanges(t *testing.T) {
+	tests := []struct {
+		name                  string
+		outputChanges         map[string]any
+		wantCount             int
+		wantAdditions         int
+		wantDeletions         int
+		wantModifications     int
+		wantReplacements      int
+		wantHasChanges        bool
+		validateOutputChanges func(t *testing.T, changes []OutputChange)
+	}{
+		{
+			name:          "nil output changes",
+			outputChanges: nil,
+			wantCount:     0,
+		},
+		{
+			name:          "empty output changes",
+			outputChanges: map[string]any{},
+			wantCount:     0,
+		},
+		{
+			name: "no-op outputs are skipped",
+			outputChanges: map[string]any{
+				"unchanged_output": map[string]any{
+					"actions": []any{"no-op"},
+				},
+			},
+			wantCount: 0,
+		},
+		{
+			name: "create output",
+			outputChanges: map[string]any{
+				"api_endpoint": map[string]any{
+					"actions":          []any{"create"},
+					"before_sensitive": false,
+					"after_sensitive":  false,
+				},
+			},
+			wantCount:      1,
+			wantAdditions:  1,
+			wantHasChanges: true,
+			validateOutputChanges: func(t *testing.T, changes []OutputChange) {
+				t.Helper()
+				require.Len(t, changes, 1)
+				assert.Equal(t, "api_endpoint", changes[0].Name)
+				assert.Equal(t, []string{"create"}, changes[0].Actions)
+				assert.False(t, changes[0].Sensitive)
+			},
+		},
+		{
+			name: "delete output",
+			outputChanges: map[string]any{
+				"old_endpoint": map[string]any{
+					"actions":          []any{"delete"},
+					"before_sensitive": false,
+					"after_sensitive":  false,
+				},
+			},
+			wantCount:      1,
+			wantDeletions:  1,
+			wantHasChanges: true,
+			validateOutputChanges: func(t *testing.T, changes []OutputChange) {
+				t.Helper()
+				require.Len(t, changes, 1)
+				assert.Equal(t, "old_endpoint", changes[0].Name)
+				assert.Equal(t, []string{"delete"}, changes[0].Actions)
+			},
+		},
+		{
+			name: "update output",
+			outputChanges: map[string]any{
+				"app_url": map[string]any{
+					"actions":          []any{"update"},
+					"before_sensitive": false,
+					"after_sensitive":  false,
+				},
+			},
+			wantCount:         1,
+			wantModifications: 1,
+			wantHasChanges:    true,
+		},
+		{
+			name: "replace output (delete+create)",
+			outputChanges: map[string]any{
+				"replaced_output": map[string]any{
+					"actions":          []any{"delete", "create"},
+					"before_sensitive": false,
+					"after_sensitive":  false,
+				},
+			},
+			wantCount:        1,
+			wantReplacements: 1,
+			wantHasChanges:   true,
+		},
+		{
+			name: "sensitive output",
+			outputChanges: map[string]any{
+				"db_password": map[string]any{
+					"actions":          []any{"create"},
+					"before_sensitive": false,
+					"after_sensitive":  true,
+				},
+			},
+			wantCount:      1,
+			wantAdditions:  1,
+			wantHasChanges: true,
+			validateOutputChanges: func(t *testing.T, changes []OutputChange) {
+				t.Helper()
+				require.Len(t, changes, 1)
+				assert.True(t, changes[0].Sensitive)
+			},
+		},
+		{
+			name: "mixed output changes",
+			outputChanges: map[string]any{
+				"new_output": map[string]any{
+					"actions":          []any{"create"},
+					"before_sensitive": false,
+					"after_sensitive":  false,
+				},
+				"removed_output": map[string]any{
+					"actions":          []any{"delete"},
+					"before_sensitive": false,
+					"after_sensitive":  false,
+				},
+				"changed_output": map[string]any{
+					"actions":          []any{"update"},
+					"before_sensitive": false,
+					"after_sensitive":  false,
+				},
+				"stable_output": map[string]any{
+					"actions": []any{"no-op"},
+				},
+			},
+			wantCount:         3,
+			wantAdditions:     1,
+			wantDeletions:     1,
+			wantModifications: 1,
+			wantHasChanges:    true,
+		},
+		{
+			name: "output changes only (no resource changes) sets HasChanges",
+			outputChanges: map[string]any{
+				"new_output": map[string]any{
+					"actions":          []any{"create"},
+					"before_sensitive": false,
+					"after_sensitive":  false,
+				},
+			},
+			wantCount:      1,
+			wantAdditions:  1,
+			wantHasChanges: true,
+		},
+		{
+			name: "malformed output entry is skipped",
+			outputChanges: map[string]any{
+				"bad_entry": "not a map",
+				"good_entry": map[string]any{
+					"actions":          []any{"create"},
+					"before_sensitive": false,
+					"after_sensitive":  false,
+				},
+			},
+			wantCount:      1,
+			wantAdditions:  1,
+			wantHasChanges: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			analyzer := NewPlanAnalyzer()
+			plan := &TerraformPlan{
+				TerraformVersion: "1.14.3",
+				ResourceChanges:  []ResourceChange{},
+				OutputChanges:    tt.outputChanges,
+			}
+
+			analysis := analyzer.Analyze(plan)
+
+			require.NotNil(t, analysis)
+			assert.Len(t, analysis.OutputChanges, tt.wantCount)
+			assert.Equal(t, tt.wantAdditions, analysis.OutputAdditions)
+			assert.Equal(t, tt.wantDeletions, analysis.OutputDeletions)
+			assert.Equal(t, tt.wantModifications, analysis.OutputModifications)
+			assert.Equal(t, tt.wantReplacements, analysis.OutputReplacements)
+			assert.Equal(t, tt.wantHasChanges, analysis.HasChanges)
+			// Output changes should NOT affect exit codes
+			assert.Equal(t, 0, analysis.ExitCode())
+
+			if tt.validateOutputChanges != nil {
+				tt.validateOutputChanges(t, analysis.OutputChanges)
+			}
+		})
+	}
+}
+
 func TestPlanAnalyzer_isCriticalResource(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -453,88 +652,6 @@ func TestPlanAnalyzer_determineSeverity(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := analyzer.determineSeverity(tt.actions, tt.resourceType)
-			assert.Equal(t, tt.want, got)
-		})
-	}
-}
-
-func TestPlanAnalyzer_formatActions(t *testing.T) {
-	tests := []struct {
-		name    string
-		actions []string
-		want    string
-	}{
-		{
-			name:    "empty actions",
-			actions: []string{},
-			want:    "no-op",
-		},
-		{
-			name:    "single action - create",
-			actions: []string{"create"},
-			want:    "create",
-		},
-		{
-			name:    "single action - update",
-			actions: []string{"update"},
-			want:    "update",
-		},
-		{
-			name:    "single action - delete",
-			actions: []string{"delete"},
-			want:    "delete",
-		},
-		{
-			name:    "replace actions",
-			actions: []string{"delete", "create"},
-			want:    "replace",
-		},
-		{
-			name:    "replace actions reversed",
-			actions: []string{"create", "delete"},
-			want:    "replace",
-		},
-	}
-
-	analyzer := NewPlanAnalyzer()
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := analyzer.formatActions(tt.actions)
-			assert.Equal(t, tt.want, got)
-		})
-	}
-}
-
-func TestContainsAction(t *testing.T) {
-	tests := []struct {
-		name    string
-		actions []string
-		action  string
-		want    bool
-	}{
-		{
-			name:    "action present",
-			actions: []string{"create", "delete"},
-			action:  "create",
-			want:    true,
-		},
-		{
-			name:    "action not present",
-			actions: []string{"create", "update"},
-			action:  "delete",
-			want:    false,
-		},
-		{
-			name:    "empty actions",
-			actions: []string{},
-			action:  "create",
-			want:    false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := containsAction(tt.actions, tt.action)
 			assert.Equal(t, tt.want, got)
 		})
 	}

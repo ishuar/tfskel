@@ -2,6 +2,9 @@ package plan
 
 import (
 	"encoding/json"
+	"slices"
+	"sort"
+	"strings"
 )
 
 // TerraformPlan represents the structure of terraform plan JSON output
@@ -48,6 +51,12 @@ type PlanAnalysis struct {
 	ResourceChanges  []AnalyzedResource `json:"resource_changes"`
 	TerraformVersion string             `json:"terraform_version"`
 	HasChanges       bool               `json:"has_changes"`
+	// Output change tracking
+	OutputChanges       []OutputChange `json:"output_changes,omitempty"`
+	OutputAdditions     int            `json:"output_additions"`
+	OutputDeletions     int            `json:"output_deletions"`
+	OutputModifications int            `json:"output_modifications"`
+	OutputReplacements  int            `json:"output_replacements"`
 	// Groupings for better visualization.
 	// Note: These maps are not thread-safe. For concurrent usage, synchronization is required.
 	ByType     map[string]int `json:"by_type,omitempty"`
@@ -66,6 +75,13 @@ type AnalyzedResource struct {
 	ActionString  string   `json:"action_string"`
 	Severity      Severity `json:"severity"`
 	ModuleAddress string   `json:"module_address,omitempty"`
+}
+
+// OutputChange represents a change to a Terraform output value
+type OutputChange struct {
+	Name      string   `json:"name"`
+	Actions   []string `json:"actions"`
+	Sensitive bool     `json:"sensitive"`
 }
 
 // Severity represents the risk level of a change
@@ -103,4 +119,72 @@ func (a *PlanAnalysis) ExitCode() int {
 		return ExitCodeChanges
 	}
 	return ExitCodeSuccess
+}
+
+// Severity order constants for sorting (lower = higher priority)
+const (
+	severityOrderCritical = 0
+	severityOrderHigh     = 1
+	severityOrderMedium   = 2
+	severityOrderLow      = 3
+	severityOrderUnknown  = 4
+)
+
+// Action string constants used across parsing, analysis, and formatting
+const (
+	ActionCreate  = "create"
+	ActionDelete  = "delete"
+	ActionUpdate  = "update"
+	ActionRead    = "read"
+	ActionNoOp    = "no-op"
+	ActionReplace = "replace" // synthetic: delete + create
+)
+
+// Order returns the sort order for a severity level.
+// Lower values are sorted first (higher priority).
+func (s Severity) Order() int {
+	switch s {
+	case SeverityCritical:
+		return severityOrderCritical
+	case SeverityHigh:
+		return severityOrderHigh
+	case SeverityMedium:
+		return severityOrderMedium
+	case SeverityLow:
+		return severityOrderLow
+	default:
+		return severityOrderUnknown
+	}
+}
+
+// containsAction checks if an action is in the actions list
+func containsAction(actions []string, action string) bool {
+	return slices.Contains(actions, action)
+}
+
+// formatActions converts an action list to a human-readable string.
+// Returns "replace" for delete+create combinations, joins multiple actions with comma.
+func formatActions(actions []string) string {
+	if len(actions) == 0 {
+		return ActionNoOp
+	}
+	if len(actions) == 1 {
+		return actions[0]
+	}
+	if containsAction(actions, ActionDelete) && containsAction(actions, ActionCreate) {
+		return ActionReplace
+	}
+	return strings.Join(actions, ", ")
+}
+
+// sortResourcesBySeverity sorts resources by severity level (critical, high, medium, low).
+// Returns a new sorted slice without modifying the original.
+// Uses stable sort to maintain original order within same severity level.
+func sortResourcesBySeverity(resources []AnalyzedResource) []AnalyzedResource {
+	sorted := make([]AnalyzedResource, len(resources))
+	copy(sorted, resources)
+	sort.SliceStable(sorted, func(i, j int) bool {
+		return sorted[i].Severity.Order() < sorted[j].Severity.Order()
+	})
+	return sorted
 }
