@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.7.0](https://github.com/ishuar/tfskel/compare/v0.6.0...v0.7.0) (2026-03-26)
+
+
+### ⚠ BREAKING CHANGES
+
+* **internal:** internal package paths changed — affects import paths only, no public CLI or config behavior changes.
+
+### ✨ Features
+
+* **cmd:** add --dry-run flag and improve logging with config awareness ([#63](https://github.com/ishuar/tfskel/issues/63)) ([ead0640](https://github.com/ishuar/tfskel/commit/ead06402541739c1b78166bfd8bd382268024042))
+* **generator:** upgrade tfskel rendered files using source markers using --upgrade flag with init and scaffold cmd ([#60](https://github.com/ishuar/tfskel/issues/60)) ([0dba32c](https://github.com/ishuar/tfskel/commit/0dba32c27139ab5739699189db10fbbf72e7d4e1))
+
+
+### ♻️ Refactoring
+
+* **internal:** restructure packages following Go naming conventions ([#62](https://github.com/ishuar/tfskel/issues/62)) ([1d2470a](https://github.com/ishuar/tfskel/commit/1d2470a24f1ab5692ca2ace8afd7d7429bb9a577))
+
 ## [0.6.0](https://github.com/ishuar/tfskel/compare/v0.5.2...v0.6.0) (2026-03-24)
 
 
