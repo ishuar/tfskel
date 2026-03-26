@@ -19,7 +19,7 @@ func TestShouldUseColor(t *testing.T) {
 		env         map[string]*string // nil value = unset, non-nil = set (even if empty)
 		want        bool
 	}{
-		// Flag-only behaviour
+		// Flag-only behavior
 		{
 			name:        "flag false, no env - colors enabled",
 			noColorFlag: false,
