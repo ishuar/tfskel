@@ -109,4 +109,5 @@ jobs:
     - name: Test binary
       run: |
         ./tfskel --version
+        ./tfskel init --dry-run
         ./tfskel init
