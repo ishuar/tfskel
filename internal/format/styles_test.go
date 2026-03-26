@@ -1,120 +1,135 @@
 package format
 
 import (
+	"os"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
-// TestShouldUseColor verifies color detection logic with flags and environment variables
+// ptr returns a pointer to s, used to distinguish "set to value" from "not set" in test cases.
+func ptr(s string) *string { return &s }
+
 func TestShouldUseColor(t *testing.T) {
+	// envVars lists all environment variables that ShouldUseColor inspects.
+	// Each subtest clears these before applying its own values.
+	envVars := []string{"NO_COLOR", "FORCE_COLOR", "CI"}
+
 	tests := []struct {
-		name           string
-		noColorFlag    bool
-		noColorEnv     string
-		forceColorEnv  string
-		expectedResult bool
+		name        string
+		noColorFlag bool
+		env         map[string]*string // nil value = unset, non-nil = set (even if empty)
+		want        bool
 	}{
+		// Flag-only behavior
 		{
-			name:           "no env vars, flag false - colors enabled",
-			noColorFlag:    false,
-			noColorEnv:     "",
-			forceColorEnv:  "",
-			expectedResult: true,
+			name:        "flag false, no env - colors enabled",
+			noColorFlag: false,
+			want:        true,
 		},
 		{
-			name:           "no env vars, flag true - colors disabled",
-			noColorFlag:    true,
-			noColorEnv:     "",
-			forceColorEnv:  "",
-			expectedResult: false,
+			name:        "flag true, no env - colors disabled",
+			noColorFlag: true,
+			want:        false,
+		},
+
+		// NO_COLOR (presence-based, per https://no-color.org/)
+		{
+			name: "NO_COLOR=1 - colors disabled",
+			env:  map[string]*string{"NO_COLOR": ptr("1")},
+			want: false,
 		},
 		{
-			name:           "NO_COLOR set - colors disabled (overrides flag)",
-			noColorFlag:    false,
-			noColorEnv:     "1",
-			forceColorEnv:  "",
-			expectedResult: false,
+			name: "NO_COLOR empty string - colors disabled (presence is enough)",
+			env:  map[string]*string{"NO_COLOR": ptr("")},
+			want: false,
 		},
 		{
-			name:           "NO_COLOR set - colors disabled (even with FORCE_COLOR)",
-			noColorFlag:    false,
-			noColorEnv:     "1",
-			forceColorEnv:  "1",
-			expectedResult: false,
+			name: "NO_COLOR beats FORCE_COLOR",
+			env:  map[string]*string{"NO_COLOR": ptr("1"), "FORCE_COLOR": ptr("1")},
+			want: false,
+		},
+
+		// FORCE_COLOR
+		{
+			name:        "FORCE_COLOR=1 overrides flag",
+			noColorFlag: true,
+			env:         map[string]*string{"FORCE_COLOR": ptr("1")},
+			want:        true,
 		},
 		{
-			name:           "FORCE_COLOR=1 - colors enabled (overrides flag)",
-			noColorFlag:    true,
-			noColorEnv:     "",
-			forceColorEnv:  "1",
-			expectedResult: true,
+			name:        "FORCE_COLOR=true overrides flag",
+			noColorFlag: true,
+			env:         map[string]*string{"FORCE_COLOR": ptr("true")},
+			want:        true,
 		},
 		{
-			name:           "FORCE_COLOR=true - colors enabled",
-			noColorFlag:    true,
-			noColorEnv:     "",
-			forceColorEnv:  "true",
-			expectedResult: true,
+			name:        "FORCE_COLOR=yes overrides flag",
+			noColorFlag: true,
+			env:         map[string]*string{"FORCE_COLOR": ptr("yes")},
+			want:        true,
 		},
 		{
-			name:           "FORCE_COLOR=yes - colors enabled",
-			noColorFlag:    true,
-			noColorEnv:     "",
-			forceColorEnv:  "yes",
-			expectedResult: true,
+			name:        "FORCE_COLOR=0 does not override flag",
+			noColorFlag: true,
+			env:         map[string]*string{"FORCE_COLOR": ptr("0")},
+			want:        false,
 		},
 		{
-			name:           "FORCE_COLOR=0 - colors disabled (respects flag)",
-			noColorFlag:    true,
-			noColorEnv:     "",
-			forceColorEnv:  "0",
-			expectedResult: false,
+			name:        "FORCE_COLOR=false does not override flag",
+			noColorFlag: true,
+			env:         map[string]*string{"FORCE_COLOR": ptr("false")},
+			want:        false,
+		},
+
+		// CI environment variable
+		{
+			name: "CI=true - colors disabled",
+			env:  map[string]*string{"CI": ptr("true")},
+			want: false,
 		},
 		{
-			name:           "FORCE_COLOR=false - colors disabled (respects flag)",
-			noColorFlag:    true,
-			noColorEnv:     "",
-			forceColorEnv:  "false",
-			expectedResult: false,
+			name: "CI=1 - colors disabled",
+			env:  map[string]*string{"CI": ptr("1")},
+			want: false,
 		},
 		{
-			name:           "FORCE_COLOR empty string - colors disabled (respects flag)",
-			noColorFlag:    true,
-			noColorEnv:     "",
-			forceColorEnv:  "",
-			expectedResult: false,
+			name: "CI=false - falls back to flag",
+			env:  map[string]*string{"CI": ptr("false")},
+			want: true,
+		},
+
+		// Precedence: NO_COLOR > FORCE_COLOR > CI > flag
+		{
+			name: "FORCE_COLOR overrides CI",
+			env:  map[string]*string{"CI": ptr("true"), "FORCE_COLOR": ptr("1")},
+			want: true,
 		},
 		{
-			name:           "precedence: NO_COLOR over FORCE_COLOR over flag",
-			noColorFlag:    false,
-			noColorEnv:     "any-value",
-			forceColorEnv:  "1",
-			expectedResult: false,
-		},
-		{
-			name:           "FORCE_COLOR with no-color flag false - colors enabled",
-			noColorFlag:    false,
-			noColorEnv:     "",
-			forceColorEnv:  "1",
-			expectedResult: true,
+			name: "NO_COLOR overrides FORCE_COLOR and CI",
+			env:  map[string]*string{"NO_COLOR": ptr("1"), "FORCE_COLOR": ptr("1"), "CI": ptr("true")},
+			want: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Use t.Setenv for automatic, race-safe cleanup (Go 1.17+)
-			// It automatically restores the original value after the test
-			if tt.noColorEnv != "" {
-				t.Setenv("NO_COLOR", tt.noColorEnv)
-			}
-			if tt.forceColorEnv != "" {
-				t.Setenv("FORCE_COLOR", tt.forceColorEnv)
+			// Unset all relevant env vars to create a clean baseline.
+			// t.Setenv registers cleanup to restore original values after the subtest.
+			for _, key := range envVars {
+				t.Setenv(key, "")
+				os.Unsetenv(key)
 			}
 
-			// Test the function
-			result := ShouldUseColor(tt.noColorFlag)
-			assert.Equal(t, tt.expectedResult, result)
+			// Apply test-specific env vars.
+			for key, val := range tt.env {
+				if val != nil {
+					t.Setenv(key, *val)
+				}
+			}
+
+			got := ShouldUseColor(tt.noColorFlag)
+			if got != tt.want {
+				t.Errorf("ShouldUseColor(%v) = %v, want %v", tt.noColorFlag, got, tt.want)
+			}
 		})
 	}
 }

@@ -131,7 +131,7 @@ func runScaffold(cmd *cobra.Command, args []string) error {
 	cmd.SilenceUsage = true
 
 	// Initialize logger
-	log := logger.New(viper.GetBool("verbose"))
+	log := logger.NewWithOptions(viper.GetBool("verbose"), useColor)
 
 	log.Debug("Starting scaffold command")
 	log.Info("Starting Terraform directory scaffolding...")
@@ -146,7 +146,7 @@ func runScaffold(cmd *cobra.Command, args []string) error {
 	}
 
 	// Load configuration
-	cfg, err := config.Load(cmd, viper.GetViper())
+	cfg, err := config.Load(cmd, viper.GetViper(), log)
 	if err != nil {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
@@ -162,23 +162,34 @@ func runScaffold(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create filesystem abstraction
-	filesystem := fs.NewOSFileSystem()
+	var filesystem fs.FileSystem = fs.NewOSFileSystem()
+	if dryRun {
+		filesystem = fs.NewDryRunFileSystem(filesystem)
+	}
 
 	// Create and run the generator with trimmed scaffolding parameters
 	generator := generate.NewGenerator(cfg, filesystem, log)
 	generator.SetUpgrade(scaffoldUpgrade, scaffoldForce)
+	generator.SetDryRun(dryRun)
 	if err := generator.Run(trimmedEnv, trimmedRegion, trimmedAppDir); err != nil {
 		return fmt.Errorf("failed to scaffold Terraform structure: %w", err)
 	}
 
-	log.Success("Terraform directory scaffolding completed!")
+	if summary := generator.Summary(); summary != "" {
+		log.Infof("Summary: %s", summary)
+	}
+	if dryRun {
+		log.Info("Dry run complete — no files were written")
+	} else {
+		log.Success("Terraform directory scaffolding completed!")
+	}
 	return nil
 }
 
 func runScaffoldWorkflows(cmd *cobra.Command, _ []string) error {
 	cmd.SilenceUsage = true
 
-	log := logger.New(viper.GetBool("verbose"))
+	log := logger.NewWithOptions(viper.GetBool("verbose"), useColor)
 	log.Debug("Starting scaffold workflows command")
 
 	trimmedEnv, err := strutil.TrimAndValidateInput(workflowsEnv, "environment")
@@ -186,7 +197,7 @@ func runScaffoldWorkflows(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("invalid parameters: %w (use --env flag)", err)
 	}
 
-	cfg, err := config.Load(cmd, viper.GetViper())
+	cfg, err := config.Load(cmd, viper.GetViper(), log)
 	if err != nil {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
@@ -200,14 +211,26 @@ func runScaffoldWorkflows(cmd *cobra.Command, _ []string) error {
 		return ErrForceRequiresUpgrade
 	}
 
-	filesystem := fs.NewOSFileSystem()
+	var filesystem fs.FileSystem = fs.NewOSFileSystem()
+	if dryRun {
+		filesystem = fs.NewDryRunFileSystem(filesystem)
+	}
+
 	generator := generate.NewGenerator(cfg, filesystem, log)
 	generator.SetUpgrade(workflowUpgrade, workflowForce)
+	generator.SetDryRun(dryRun)
 	if err := generator.RunWorkflows(trimmedEnv); err != nil {
 		return fmt.Errorf("failed to generate workflow files: %w", err)
 	}
 
-	log.Success("GitHub workflow files generated!")
+	if summary := generator.Summary(); summary != "" {
+		log.Infof("Summary: %s", summary)
+	}
+	if dryRun {
+		log.Info("Dry run complete — no files were written")
+	} else {
+		log.Success("GitHub workflow files generated!")
+	}
 	return nil
 }
 

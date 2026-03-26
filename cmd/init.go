@@ -30,10 +30,11 @@ const (
 	defaultTerraformVersion = "1.13.1"
 )
 
-// initOptions holds upgrade-related options for the init command
+// initOptions holds upgrade and dry-run options for the init command
 type initOptions struct {
 	upgrade bool
 	force   bool
+	dryRun  bool
 }
 
 var initCmd = &cobra.Command{
@@ -76,7 +77,7 @@ func runInit(cmd *cobra.Command, _ []string) error {
 	cmd.SilenceUsage = true
 
 	// Initialize logger
-	log := logger.New(viper.GetBool("verbose"))
+	log := logger.NewWithOptions(viper.GetBool("verbose"), useColor)
 
 	log.Debug("Starting init command")
 
@@ -118,12 +119,17 @@ func runInit(cmd *cobra.Command, _ []string) error {
 	opts := &initOptions{
 		upgrade: initUpgrade,
 		force:   initForce,
+		dryRun:  dryRun,
 	}
 	if err := createProjectStructure(targetDir, terraformVersion, regions, environments, createWorkflows, log, opts); err != nil {
 		return err
 	}
 
-	log.Successf("Successfully initialized tfskel project structure in: %s", targetDir)
+	if dryRun {
+		log.Info("Dry run complete — no files were written")
+	} else {
+		log.Successf("Successfully initialized tfskel project structure in: %s", targetDir)
+	}
 
 	return nil
 }
@@ -258,7 +264,7 @@ func createProjectStructure(baseDir string, terraformVersion string, regions []s
 	}
 
 	// Create .tfskel.yaml config file
-	if err := createDefaultConfig(filepath.Join(baseDir, ".tfskel.yaml"), log); err != nil {
+	if err := createDefaultConfig(filepath.Join(baseDir, ".tfskel.yaml"), log, opts); err != nil {
 		return err
 	}
 
@@ -280,23 +286,25 @@ func createProjectStructure(baseDir string, terraformVersion string, regions []s
 		for _, region := range regions {
 			regionPath := filepath.Join(envPath, region)
 
-			// Check if directory already exists
-			_, err := os.Stat(regionPath)
-			dirExists := err == nil
-
-			if err := os.MkdirAll(regionPath, 0755); err != nil {
-				return fmt.Errorf("failed to create region directory %s: %w", regionPath, err)
-			}
-
 			// Log directory creation relative to baseDir
-			relPath, err := filepath.Rel(baseDir, regionPath)
-			if err != nil {
-				// If relative path fails, use absolute path for logging
+			relPath, relErr := filepath.Rel(baseDir, regionPath)
+			if relErr != nil {
 				relPath = regionPath
 			}
-			if dirExists {
+
+			// Check if directory already exists
+			_, statErr := os.Stat(regionPath)
+			dirExists := statErr == nil
+
+			switch {
+			case dirExists:
 				log.Infof("Directory %s/ already exists", relPath)
-			} else {
+			case opts.dryRun:
+				log.Infof("[dry-run] Would create directory: %s/", relPath)
+			default:
+				if err := os.MkdirAll(regionPath, 0755); err != nil {
+					return fmt.Errorf("failed to create region directory %s: %w", regionPath, err)
+				}
 				log.Successf("Created directory: %s/", relPath)
 			}
 		}
@@ -354,7 +362,7 @@ func createFileFromTemplate(targetPath string, templateName string, data any, lo
 	}
 
 	// Ensure parent directory exists and write file
-	return writeInitFile(targetPath, content, logPath, log)
+	return writeInitFile(targetPath, content, logPath, log, opts)
 }
 
 // upgradeInitFile handles the upgrade logic for an existing init-managed file
@@ -365,6 +373,13 @@ func upgradeInitFile(targetPath, templateName string, data any, log *logger.Logg
 		return fmt.Errorf("failed to read %s for upgrade check: %w", logPath, err)
 	}
 
+	upgradeVerb := "Upgrading"
+	forceVerb := "Force upgrading"
+	if opts.dryRun {
+		upgradeVerb = "[dry-run] Would upgrade"
+		forceVerb = "[dry-run] Would force upgrade"
+	}
+
 	marker, markerErr := generate.ExtractSourceMarker(string(existingContent))
 
 	switch {
@@ -372,12 +387,12 @@ func upgradeInitFile(targetPath, templateName string, data any, log *logger.Logg
 		log.Infof("%s has no source marker, skipping upgrade (use --force to override)", logPath)
 		return nil
 	case errors.Is(markerErr, generate.ErrSourceMarkerNotFound):
-		log.Infof("Upgrading %s (--force, no source marker)", logPath)
+		log.Infof("%s %s (--force, no source marker)", forceVerb, logPath)
 	case markerErr != nil && !opts.force:
 		// Malformed source marker (e.g. invalid JSON)
 		return fmt.Errorf("invalid source marker in %s: %w", logPath, markerErr)
 	case markerErr != nil:
-		log.Infof("Upgrading %s (--force, invalid source marker: %v)", logPath, markerErr)
+		log.Infof("%s %s (--force, invalid source marker: %v)", forceVerb, logPath, markerErr)
 	}
 
 	// Has marker: verify template match and hash
@@ -391,7 +406,7 @@ func upgradeInitFile(targetPath, templateName string, data any, log *logger.Logg
 			log.Debugf("%s is up to date (hash match), skipping", logPath)
 			return nil
 		}
-		log.Infof("Upgrading %s (template changed)", logPath)
+		log.Infof("%s %s (template: %s -> %s)", upgradeVerb, logPath, marker.Hash, currentHash)
 	}
 
 	// Re-render and overwrite
@@ -405,7 +420,7 @@ func upgradeInitFile(targetPath, templateName string, data any, log *logger.Logg
 		content = generate.InjectSourceMarker(content, comment)
 	}
 
-	return writeInitFile(targetPath, content, logPath, log)
+	return writeInitFile(targetPath, content, logPath, log, opts)
 }
 
 // renderInitTemplate renders a template with optional data for init command
@@ -421,8 +436,14 @@ func renderInitTemplate(renderer *templates.Renderer, templateName string, data 
 	return "", ErrUnsupportedDataType
 }
 
-// writeInitFile ensures parent directory exists and writes content to the file
-func writeInitFile(targetPath, content, logPath string, log *logger.Logger) error {
+// writeInitFile ensures parent directory exists and writes content to the file.
+// In dry-run mode it logs the intended action without writing.
+func writeInitFile(targetPath, content, logPath string, log *logger.Logger, opts *initOptions) error {
+	if opts.dryRun {
+		log.Infof("[dry-run] Would create %s", logPath)
+		return nil
+	}
+
 	dir := filepath.Dir(targetPath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("failed to create directory %s: %w", dir, err)
@@ -436,11 +457,16 @@ func writeInitFile(targetPath, content, logPath string, log *logger.Logger) erro
 	return nil
 }
 
-func createDefaultConfig(configPath string, log *logger.Logger) error {
+func createDefaultConfig(configPath string, log *logger.Logger, opts *initOptions) error {
 	// Check if config file already exists
 	if _, err := os.Stat(configPath); err == nil {
 		// File exists, skip creation
 		log.Infof(".tfskel.yaml already exists, skipping")
+		return nil
+	}
+
+	if opts.dryRun {
+		log.Infof("[dry-run] Would create .tfskel.yaml")
 		return nil
 	}
 

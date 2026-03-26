@@ -17,7 +17,7 @@ build:
 # Run tests with race detector
 test:
 	@echo "Running tests..."
-	@go test -v -race -coverprofile=coverage.out ./...
+	@go test -v -race -count=1 -coverprofile=coverage.out ./...
 
 # Run tests with coverage report
 coverage: test

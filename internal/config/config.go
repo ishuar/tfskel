@@ -7,10 +7,16 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/ishuar/tfskel/internal/logger"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
+
+// Logger defines the logging interface used by the config package.
+type Logger interface {
+	Warn(message string)
+	Warnf(format string, args ...any)
+	Debugf(format string, args ...any)
+}
 
 var (
 	// ErrAWSProviderRequired indicates AWS provider configuration is missing
@@ -74,7 +80,7 @@ type Config struct {
 }
 
 // Load reads configuration from viper and command line flags
-func Load(cmd *cobra.Command, v *viper.Viper) (*Config, error) {
+func Load(cmd *cobra.Command, v *viper.Viper, log Logger) (*Config, error) {
 	cfg := &Config{}
 
 	// Unmarshal viper config into struct
@@ -83,13 +89,16 @@ func Load(cmd *cobra.Command, v *viper.Viper) (*Config, error) {
 	}
 
 	// Check for deprecated root-level configuration
-	checkDeprecatedConfig(v)
+	checkDeprecatedConfig(v, log)
 
 	// Override with command line flags if provided
 	applyFlagOverrides(cmd, cfg)
 
 	// Set defaults
 	setDefaults(cfg)
+
+	// Log where key config values came from (debug level)
+	logConfigSources(log, cmd, v, cfg)
 
 	return cfg, nil
 }
@@ -254,10 +263,7 @@ func (c *Config) GetRegions() []string {
 }
 
 // checkDeprecatedConfig checks for deprecated root-level configuration and logs warnings
-func checkDeprecatedConfig(v *viper.Viper) {
-	// Create a minimal logger for warnings (non-verbose mode)
-	log := logger.New(false)
-
+func checkDeprecatedConfig(v *viper.Viper, log Logger) {
 	// Check for old 'generate' section (replaced with 'templates' and 'workflows')
 	if v.IsSet("generate") {
 		log.Warn("DEPRECATION: 'generate' section is deprecated, use 'templates' and 'workflows' sections instead - this will be ignored")
@@ -276,4 +282,52 @@ func checkDeprecatedConfig(v *viper.Viper) {
 	if v.IsSet("top_n_count") {
 		log.Warn("DEPRECATION: 'top_n_count' is no longer supported - use 'top_resources_count' instead")
 	}
+}
+
+// configSourceEntry maps a viper key to its corresponding flag name for source detection.
+type configSourceEntry struct {
+	viperKey string
+	flagName string
+}
+
+// logConfigSources logs where each key config value came from at debug level.
+// This helps users understand viper's merge behavior when troubleshooting.
+func logConfigSources(log Logger, cmd *cobra.Command, v *viper.Viper, _ *Config) {
+	entries := []configSourceEntry{
+		{"terraform_version", ""},
+		{"backend.s3.bucket_name", "s3-bucket-name"},
+		{"provider.aws.version", ""},
+		{"templates.dir", "templates-dir"},
+		{"workflows.create", "workflows"},
+		{"workflows.name", ""},
+		{"workflows.aws_role_name", ""},
+		{"workflows.aws_role_arn", ""},
+	}
+
+	for _, e := range entries {
+		val := v.Get(e.viperKey)
+		if val == nil || val == "" {
+			continue
+		}
+		source := resolveSource(cmd, v, e)
+		log.Debugf("Config %s = %v (from %s)", e.viperKey, val, source)
+	}
+}
+
+// resolveSource determines where a config value came from.
+// Priority: flag > config file > default.
+func resolveSource(cmd *cobra.Command, v *viper.Viper, e configSourceEntry) string {
+	// Check if flag was explicitly set
+	if e.flagName != "" {
+		if f := cmd.Flags().Lookup(e.flagName); f != nil && f.Changed {
+			return "flag --" + e.flagName
+		}
+	}
+
+	// Check if the key actually exists in the config file (not just set via defaults)
+	if configFile := v.ConfigFileUsed(); configFile != "" && v.InConfig(e.viperKey) {
+		return "config file " + configFile
+	}
+
+	return "default"
 }

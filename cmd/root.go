@@ -15,6 +15,7 @@ var (
 	cfgFile string
 	verbose bool
 	noColor bool
+	dryRun  bool
 	// Commit is the git commit hash of the build
 	Commit = "unknown"
 	// Date is the build date
@@ -72,6 +73,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file (default is .tfskel.yaml in current directory)")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "enable verbose output")
 	rootCmd.PersistentFlags().BoolVar(&noColor, "no-color", false, "disable colored output (respects NO_COLOR and FORCE_COLOR env vars)")
+	rootCmd.PersistentFlags().BoolVar(&dryRun, "dry-run", false, "show what would happen without writing files")
 
 	// Bind flags to viper
 	if err := viper.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose")); err != nil {
@@ -80,7 +82,7 @@ func init() {
 	}
 }
 
-// initConfig reads in config file and ENV variables if set.
+// initConfig reads in config file if set.
 // Similar to Trivy's approach: checks current directory by default,
 // --config | -c flag takes precedence if specified.
 func initConfig() {
@@ -93,8 +95,6 @@ func initConfig() {
 		viper.SetConfigType("yaml")
 		viper.SetConfigName(".tfskel")
 	}
-
-	viper.AutomaticEnv() // read in environment variables that match
 
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err == nil && verbose {

@@ -46,12 +46,14 @@ func NewCommonStyles(useColor bool) CommonStyles {
 }
 
 // ShouldUseColor determines if colored output should be used based on flags and environment variables.
-// It respects standard conventions: NO_COLOR (disables), FORCE_COLOR (enables), and falls back to the flag.
+// It respects standard conventions: NO_COLOR (disables), FORCE_COLOR (enables), CI (disables),
+// and falls back to the flag.
 //
 // Precedence order (highest to lowest):
 //  1. NO_COLOR environment variable - always disables colors if set
 //  2. FORCE_COLOR environment variable - enables colors if set to non-zero/non-false value
-//  3. noColorFlag parameter - used as fallback if no environment variables are set
+//  3. CI environment variable - disables colors when running in CI/CD (set by GitHub Actions, GitLab CI, etc.)
+//  4. noColorFlag parameter - used as fallback if no environment variables are set
 //
 // References:
 //   - NO_COLOR standard: https://no-color.org/
@@ -65,6 +67,11 @@ func ShouldUseColor(noColorFlag bool) bool {
 	// Check FORCE_COLOR environment variable
 	if forceColor := os.Getenv("FORCE_COLOR"); forceColor != "" && forceColor != "0" && forceColor != "false" {
 		return true
+	}
+
+	// Check CI environment variable (set by GitHub Actions, GitLab CI, Jenkins, etc.)
+	if ci := os.Getenv("CI"); ci == "true" || ci == "1" {
+		return false
 	}
 
 	// Fall back to flag value
