@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/ishuar/tfskel/internal/config"
+	"github.com/ishuar/tfskel/internal/fs"
 	"github.com/ishuar/tfskel/internal/generate"
 	"github.com/ishuar/tfskel/internal/logger"
 	"github.com/ishuar/tfskel/internal/templates"
@@ -30,11 +31,29 @@ const (
 	defaultTerraformVersion = "1.13.1"
 )
 
-// initOptions holds upgrade and dry-run options for the init command
-type initOptions struct {
-	upgrade bool
-	force   bool
-	dryRun  bool
+// initRunner bundles dependencies for init command file operations.
+type initRunner struct {
+	fs       fs.FileSystem
+	log      *logger.Logger
+	renderer *templates.Renderer
+	upgrade  bool
+	force    bool
+	dryRun   bool
+}
+
+func newInitRunner(filesystem fs.FileSystem, log *logger.Logger, upgrade, force, dryRun bool) (*initRunner, error) {
+	renderer, err := templates.NewRenderer()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create renderer: %w", err)
+	}
+	return &initRunner{
+		fs:       filesystem,
+		log:      log,
+		renderer: renderer,
+		upgrade:  upgrade,
+		force:    force,
+		dryRun:   dryRun,
+	}, nil
 }
 
 var initCmd = &cobra.Command{
@@ -115,13 +134,18 @@ func runInit(cmd *cobra.Command, _ []string) error {
 	// Determine whether to create workflows: --workflows flag OR config workflows.create
 	createWorkflows := initWorkflows || workflowsFromConfig
 
-	// Create the project structure
-	opts := &initOptions{
-		upgrade: initUpgrade,
-		force:   initForce,
-		dryRun:  dryRun,
+	// Create filesystem abstraction — DryRunFileSystem silently skips writes
+	var filesystem fs.FileSystem = fs.NewOSFileSystem()
+	if dryRun {
+		filesystem = fs.NewDryRunFileSystem(filesystem)
 	}
-	if err := createProjectStructure(targetDir, terraformVersion, regions, environments, createWorkflows, log, opts); err != nil {
+
+	runner, err := newInitRunner(filesystem, log, initUpgrade, initForce, dryRun)
+	if err != nil {
+		return err
+	}
+
+	if err := runner.createProjectStructure(targetDir, terraformVersion, regions, environments, createWorkflows); err != nil {
 		return err
 	}
 
@@ -234,16 +258,10 @@ func determineInitParameters(targetDir string, log *logger.Logger) ([]string, st
 	return environments, terraformVersion, regions, createWorkflows, nil
 }
 
-func createProjectStructure(baseDir string, terraformVersion string, regions []string, environments []string, createWorkflows bool, log *logger.Logger, opts *initOptions) error {
+func (r *initRunner) createProjectStructure(baseDir, terraformVersion string, regions, environments []string, createWorkflows bool) error {
 	// Create base directory if it doesn't exist
-	if err := os.MkdirAll(baseDir, 0755); err != nil {
+	if err := r.fs.MkdirAll(baseDir, 0755); err != nil {
 		return fmt.Errorf("failed to create base directory: %w", err)
-	}
-
-	// Create a single renderer for all file operations (avoids re-creating per file)
-	renderer, err := templates.NewRenderer()
-	if err != nil {
-		return fmt.Errorf("failed to create renderer: %w", err)
 	}
 
 	// Create root configuration files from templates
@@ -258,18 +276,18 @@ func createProjectStructure(baseDir string, terraformVersion string, regions []s
 	}
 
 	for _, file := range rootConfigFiles {
-		if err := createFileFromTemplate(filepath.Join(baseDir, file.filename), file.templateName, nil, log, renderer, opts); err != nil {
+		if err := r.createFileFromTemplate(filepath.Join(baseDir, file.filename), file.templateName, nil); err != nil {
 			return err
 		}
 	}
 
 	// Create .tfskel.yaml config file
-	if err := createDefaultConfig(filepath.Join(baseDir, ".tfskel.yaml"), log, opts); err != nil {
+	if err := r.createDefaultConfig(filepath.Join(baseDir, ".tfskel.yaml")); err != nil {
 		return err
 	}
 
 	// Create environment directories using provided environments list
-	log.Debugf("Creating directory structure for %d environment(s): %v", len(environments), environments)
+	r.log.Debugf("Creating directory structure for %d environment(s): %v", len(environments), environments)
 	for _, env := range environments {
 		envPath := filepath.Join(baseDir, "envs", env)
 
@@ -278,7 +296,7 @@ func createProjectStructure(baseDir string, terraformVersion string, regions []s
 		data := map[string]string{
 			"TerraformVersion": terraformVersion,
 		}
-		if err := createFileFromTemplate(tfVersionPath, "root/.terraform-version.tmpl", data, log, renderer, opts); err != nil {
+		if err := r.createFileFromTemplate(tfVersionPath, "root/.terraform-version.tmpl", data); err != nil {
 			return err
 		}
 
@@ -292,20 +310,19 @@ func createProjectStructure(baseDir string, terraformVersion string, regions []s
 				relPath = regionPath
 			}
 
-			// Check if directory already exists
-			_, statErr := os.Stat(regionPath)
-			dirExists := statErr == nil
+			if r.fs.DirExists(regionPath) {
+				r.log.Infof("Directory %s/ already exists", relPath)
+				continue
+			}
 
-			switch {
-			case dirExists:
-				log.Infof("Directory %s/ already exists", relPath)
-			case opts.dryRun:
-				log.Infof("[dry-run] Would create directory: %s/", relPath)
-			default:
-				if err := os.MkdirAll(regionPath, 0755); err != nil {
-					return fmt.Errorf("failed to create region directory %s: %w", regionPath, err)
-				}
-				log.Successf("Created directory: %s/", relPath)
+			if err := r.fs.MkdirAll(regionPath, 0755); err != nil {
+				return fmt.Errorf("failed to create region directory %s: %w", regionPath, err)
+			}
+
+			if r.dryRun {
+				r.log.Infof("[dry-run] Would create directory: %s/", relPath)
+			} else {
+				r.log.Successf("Created directory: %s/", relPath)
 			}
 		}
 	}
@@ -323,7 +340,7 @@ func createProjectStructure(baseDir string, terraformVersion string, regions []s
 		}
 		for _, file := range staticWorkflowFiles {
 			targetPath := filepath.Join(baseDir, ".github", "workflows", file.filename)
-			if err := createFileFromTemplate(targetPath, file.templateName, nil, log, renderer, opts); err != nil {
+			if err := r.createFileFromTemplate(targetPath, file.templateName, nil); err != nil {
 				return err
 			}
 		}
@@ -332,7 +349,7 @@ func createProjectStructure(baseDir string, terraformVersion string, regions []s
 	return nil
 }
 
-func createFileFromTemplate(targetPath string, templateName string, data any, log *logger.Logger, renderer *templates.Renderer, opts *initOptions) error {
+func (r *initRunner) createFileFromTemplate(targetPath, templateName string, data any) error {
 	// Compute a relative path for logging; fall back to base name on error
 	logPath := targetPath
 	if cwd, err := os.Getwd(); err == nil {
@@ -342,40 +359,40 @@ func createFileFromTemplate(targetPath string, templateName string, data any, lo
 	}
 
 	// Check if file already exists
-	if _, err := os.Stat(targetPath); err == nil {
-		if opts.upgrade {
-			return upgradeInitFile(targetPath, templateName, data, log, renderer, opts, logPath)
+	if r.fs.FileExists(targetPath) {
+		if r.upgrade {
+			return r.upgradeFile(targetPath, templateName, data, logPath)
 		}
-		log.Infof("%s already exists, skipping", logPath)
+		r.log.Infof("%s already exists, skipping", logPath)
 		return nil
 	}
 
 	// Render content
-	content, err := renderInitTemplate(renderer, templateName, data)
+	content, err := r.renderTemplate(templateName, data)
 	if err != nil {
 		return err
 	}
 
 	// Inject source marker (skipped for files that don't support comments)
-	if comment := generate.SourceCommentForFile(templateName, renderer.GetTemplateHash(templateName), targetPath); comment != "" {
+	if comment := generate.SourceCommentForFile(templateName, r.renderer.GetTemplateHash(templateName), targetPath); comment != "" {
 		content = generate.InjectSourceMarker(content, comment)
 	}
 
 	// Ensure parent directory exists and write file
-	return writeInitFile(targetPath, content, logPath, log, opts)
+	return r.writeFile(targetPath, content, logPath)
 }
 
-// upgradeInitFile handles the upgrade logic for an existing init-managed file
-func upgradeInitFile(targetPath, templateName string, data any, log *logger.Logger, renderer *templates.Renderer, opts *initOptions, logPath string) error {
+// upgradeFile handles the upgrade logic for an existing init-managed file.
+func (r *initRunner) upgradeFile(targetPath, templateName string, data any, logPath string) error {
 	// Read existing file and check source marker
-	existingContent, err := os.ReadFile(targetPath)
+	existingContent, err := r.fs.ReadFile(targetPath)
 	if err != nil {
 		return fmt.Errorf("failed to read %s for upgrade check: %w", logPath, err)
 	}
 
 	upgradeVerb := "Upgrading"
 	forceVerb := "Force upgrading"
-	if opts.dryRun {
+	if r.dryRun {
 		upgradeVerb = "[dry-run] Would upgrade"
 		forceVerb = "[dry-run] Would force upgrade"
 	}
@@ -383,90 +400,78 @@ func upgradeInitFile(targetPath, templateName string, data any, log *logger.Logg
 	marker, markerErr := generate.ExtractSourceMarker(string(existingContent))
 
 	switch {
-	case errors.Is(markerErr, generate.ErrSourceMarkerNotFound) && !opts.force:
-		log.Infof("%s has no source marker, skipping upgrade (use --force to override)", logPath)
+	case errors.Is(markerErr, generate.ErrSourceMarkerNotFound) && !r.force:
+		r.log.Infof("%s has no source marker, skipping upgrade (use --force to override)", logPath)
 		return nil
 	case errors.Is(markerErr, generate.ErrSourceMarkerNotFound):
-		log.Infof("%s %s (--force, no source marker)", forceVerb, logPath)
-	case markerErr != nil && !opts.force:
+		r.log.Infof("%s %s (--force, no source marker)", forceVerb, logPath)
+	case markerErr != nil && !r.force:
 		// Malformed source marker (e.g. invalid JSON)
 		return fmt.Errorf("invalid source marker in %s: %w", logPath, markerErr)
 	case markerErr != nil:
-		log.Infof("%s %s (--force, invalid source marker: %v)", forceVerb, logPath, markerErr)
+		r.log.Infof("%s %s (--force, invalid source marker: %v)", forceVerb, logPath, markerErr)
 	}
 
 	// Has marker: verify template match and hash
 	if markerErr == nil {
 		if marker.Template != templateName {
-			log.Debugf("%s source marker template mismatch (%s != %s), skipping", logPath, marker.Template, templateName)
+			r.log.Debugf("%s source marker template mismatch (%s != %s), skipping", logPath, marker.Template, templateName)
 			return nil
 		}
-		currentHash := renderer.GetTemplateHash(templateName)
+		currentHash := r.renderer.GetTemplateHash(templateName)
 		if marker.Hash == currentHash {
-			log.Debugf("%s is up to date (hash match), skipping", logPath)
+			r.log.Debugf("%s is up to date (hash match), skipping", logPath)
 			return nil
 		}
-		log.Infof("%s %s (template: %s -> %s)", upgradeVerb, logPath, marker.Hash, currentHash)
+		r.log.Infof("%s %s (template: %s -> %s)", upgradeVerb, logPath, marker.Hash, currentHash)
 	}
 
 	// Re-render and overwrite
-	content, err := renderInitTemplate(renderer, templateName, data)
+	content, err := r.renderTemplate(templateName, data)
 	if err != nil {
 		return err
 	}
 
 	// Inject source marker (skipped for files that don't support comments)
-	if comment := generate.SourceCommentForFile(templateName, renderer.GetTemplateHash(templateName), targetPath); comment != "" {
+	if comment := generate.SourceCommentForFile(templateName, r.renderer.GetTemplateHash(templateName), targetPath); comment != "" {
 		content = generate.InjectSourceMarker(content, comment)
 	}
 
-	return writeInitFile(targetPath, content, logPath, log, opts)
+	return r.writeFile(targetPath, content, logPath)
 }
 
-// renderInitTemplate renders a template with optional data for init command
-func renderInitTemplate(renderer *templates.Renderer, templateName string, data any) (string, error) {
+// renderTemplate renders a template with optional data for init command.
+func (r *initRunner) renderTemplate(templateName string, data any) (string, error) {
 	if data == nil {
-		return renderer.Render(templateName, &templates.Data{})
+		return r.renderer.Render(templateName, &templates.Data{})
 	}
 	if m, ok := data.(map[string]string); ok {
-		return renderer.Render(templateName, &templates.Data{
+		return r.renderer.Render(templateName, &templates.Data{
 			TerraformVersion: m["TerraformVersion"],
 		})
 	}
 	return "", ErrUnsupportedDataType
 }
 
-// writeInitFile ensures parent directory exists and writes content to the file.
-// In dry-run mode it logs the intended action without writing.
-func writeInitFile(targetPath, content, logPath string, log *logger.Logger, opts *initOptions) error {
-	if opts.dryRun {
-		log.Infof("[dry-run] Would create %s", logPath)
-		return nil
-	}
-
-	dir := filepath.Dir(targetPath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("failed to create directory %s: %w", dir, err)
-	}
-
-	if err := os.WriteFile(targetPath, []byte(content), 0644); err != nil {
+// writeFile writes content to the file via the filesystem abstraction.
+// In dry-run mode the DryRunFileSystem silently skips the actual write.
+func (r *initRunner) writeFile(targetPath, content, logPath string) error {
+	if err := r.fs.WriteFile(targetPath, []byte(content), 0644); err != nil {
 		return fmt.Errorf("failed to write file %s: %w", targetPath, err)
 	}
 
-	log.Successf("Created %s", logPath)
+	if r.dryRun {
+		r.log.Infof("[dry-run] Would create %s", logPath)
+	} else {
+		r.log.Successf("Created %s", logPath)
+	}
 	return nil
 }
 
-func createDefaultConfig(configPath string, log *logger.Logger, opts *initOptions) error {
+func (r *initRunner) createDefaultConfig(configPath string) error {
 	// Check if config file already exists
-	if _, err := os.Stat(configPath); err == nil {
-		// File exists, skip creation
-		log.Infof(".tfskel.yaml already exists, skipping")
-		return nil
-	}
-
-	if opts.dryRun {
-		log.Infof("[dry-run] Would create .tfskel.yaml")
+	if r.fs.FileExists(configPath) {
+		r.log.Infof(".tfskel.yaml already exists, skipping")
 		return nil
 	}
 
@@ -512,11 +517,15 @@ func createDefaultConfig(configPath string, log *logger.Logger, opts *initOption
 	fullContent := []byte(header + string(data))
 
 	// Write to file
-	if err := os.WriteFile(configPath, fullContent, 0644); err != nil {
+	if err := r.fs.WriteFile(configPath, fullContent, 0644); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 
-	log.Successf("Created .tfskel.yaml")
+	if r.dryRun {
+		r.log.Infof("[dry-run] Would create .tfskel.yaml")
+	} else {
+		r.log.Successf("Created .tfskel.yaml")
+	}
 
 	return nil
 }
