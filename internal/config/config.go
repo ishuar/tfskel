@@ -3,7 +3,6 @@ package config
 import (
 	"errors"
 	"fmt"
-	"os"
 	"regexp"
 	"sort"
 	"strings"
@@ -289,21 +288,20 @@ func checkDeprecatedConfig(v *viper.Viper, log Logger) {
 type configSourceEntry struct {
 	viperKey string
 	flagName string
-	envVar   string
 }
 
 // logConfigSources logs where each key config value came from at debug level.
 // This helps users understand viper's merge behavior when troubleshooting.
 func logConfigSources(log Logger, cmd *cobra.Command, v *viper.Viper, _ *Config) {
 	entries := []configSourceEntry{
-		{"terraform_version", "", "TFSKEL_TERRAFORM_VERSION"},
-		{"backend.s3.bucket_name", "s3-bucket-name", "TFSKEL_BACKEND_S3_BUCKET_NAME"},
-		{"provider.aws.version", "", "TFSKEL_PROVIDER_AWS_VERSION"},
-		{"templates.dir", "templates-dir", "TFSKEL_TEMPLATES_DIR"},
-		{"workflows.create", "workflows", "TFSKEL_WORKFLOWS_CREATE"},
-		{"workflows.name", "", ""},
-		{"workflows.aws_role_name", "", ""},
-		{"workflows.aws_role_arn", "", ""},
+		{"terraform_version", ""},
+		{"backend.s3.bucket_name", "s3-bucket-name"},
+		{"provider.aws.version", ""},
+		{"templates.dir", "templates-dir"},
+		{"workflows.create", "workflows"},
+		{"workflows.name", ""},
+		{"workflows.aws_role_name", ""},
+		{"workflows.aws_role_arn", ""},
 	}
 
 	for _, e := range entries {
@@ -317,7 +315,7 @@ func logConfigSources(log Logger, cmd *cobra.Command, v *viper.Viper, _ *Config)
 }
 
 // resolveSource determines where a config value came from.
-// Priority: flag > env var > config file > default.
+// Priority: flag > config file > default.
 func resolveSource(cmd *cobra.Command, v *viper.Viper, e configSourceEntry) string {
 	// Check if flag was explicitly set
 	if e.flagName != "" {
@@ -326,15 +324,8 @@ func resolveSource(cmd *cobra.Command, v *viper.Viper, e configSourceEntry) stri
 		}
 	}
 
-	// Check if env var is set
-	if e.envVar != "" {
-		if _, ok := os.LookupEnv(e.envVar); ok {
-			return "env " + e.envVar
-		}
-	}
-
-	// Check if config file has it
-	if configFile := v.ConfigFileUsed(); configFile != "" && v.IsSet(e.viperKey) {
+	// Check if the key actually exists in the config file (not just set via defaults)
+	if configFile := v.ConfigFileUsed(); configFile != "" && v.InConfig(e.viperKey) {
 		return "config file " + configFile
 	}
 

@@ -82,7 +82,7 @@ func init() {
 	}
 }
 
-// initConfig reads in config file and ENV variables if set.
+// initConfig reads in config file if set.
 // Similar to Trivy's approach: checks current directory by default,
 // --config | -c flag takes precedence if specified.
 func initConfig() {
@@ -95,8 +95,6 @@ func initConfig() {
 		viper.SetConfigType("yaml")
 		viper.SetConfigName(".tfskel")
 	}
-
-	viper.AutomaticEnv() // read in environment variables that match
 
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err == nil && verbose {

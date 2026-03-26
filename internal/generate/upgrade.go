@@ -86,9 +86,7 @@ func (g *Generator) upgradeFileIfEligible(tmplPath, outputPath string, data *tem
 	if err := g.renderAndWriteFile(tmplPath, outputPath, data); err != nil {
 		return err
 	}
-	if g.dryRun {
-		g.log.Infof("[dry-run] Would upgrade %s", outputPath)
-	} else {
+	if !g.dryRun {
 		g.log.Successf("Upgraded %s", outputPath)
 	}
 	g.tracker.Record(OpUpgraded, outputPath)
