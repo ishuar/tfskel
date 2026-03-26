@@ -379,7 +379,16 @@ func (r *initRunner) createFileFromTemplate(targetPath, templateName string, dat
 	}
 
 	// Ensure parent directory exists and write file
-	return r.writeFile(targetPath, content, logPath)
+	if err := r.writeFile(targetPath, content); err != nil {
+		return err
+	}
+
+	if r.dryRun {
+		r.log.Infof("[dry-run] Would create %s", logPath)
+	} else {
+		r.log.Successf("Created %s", logPath)
+	}
+	return nil
 }
 
 // upgradeFile handles the upgrade logic for an existing init-managed file.
@@ -437,7 +446,7 @@ func (r *initRunner) upgradeFile(targetPath, templateName string, data any, logP
 		content = generate.InjectSourceMarker(content, comment)
 	}
 
-	return r.writeFile(targetPath, content, logPath)
+	return r.writeFile(targetPath, content)
 }
 
 // renderTemplate renders a template with optional data for init command.
@@ -455,15 +464,10 @@ func (r *initRunner) renderTemplate(templateName string, data any) (string, erro
 
 // writeFile writes content to the file via the filesystem abstraction.
 // In dry-run mode the DryRunFileSystem silently skips the actual write.
-func (r *initRunner) writeFile(targetPath, content, logPath string) error {
+// Callers are responsible for logging the action with the appropriate verb.
+func (r *initRunner) writeFile(targetPath, content string) error {
 	if err := r.fs.WriteFile(targetPath, []byte(content), 0644); err != nil {
 		return fmt.Errorf("failed to write file %s: %w", targetPath, err)
-	}
-
-	if r.dryRun {
-		r.log.Infof("[dry-run] Would create %s", logPath)
-	} else {
-		r.log.Successf("Created %s", logPath)
 	}
 	return nil
 }

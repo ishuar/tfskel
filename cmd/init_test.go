@@ -174,6 +174,30 @@ func TestCreateProjectStructure(t *testing.T) {
 		assert.False(t, r.fs.DirExists(workflowsDir), ".github/workflows directory should not be created when disabled")
 	})
 
+	t.Run("dry-run does not create any files or directories", func(t *testing.T) {
+		memFS := fs.NewMemoryFileSystem()
+		dryFS := fs.NewDryRunFileSystem(memFS)
+		renderer, err := templates.NewRenderer()
+		require.NoError(t, err)
+
+		r := &initRunner{
+			fs:       dryFS,
+			log:      logger.New(false),
+			renderer: renderer,
+			dryRun:   true,
+		}
+		baseDir := "/project"
+
+		err = r.createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, []string{"dev", "stg", "prd"}, true)
+		require.NoError(t, err)
+
+		// The underlying MemoryFileSystem should have no files or directories
+		assert.False(t, memFS.FileExists(filepath.Join(baseDir, ".gitignore")))
+		assert.False(t, memFS.FileExists(filepath.Join(baseDir, ".tfskel.yaml")))
+		assert.False(t, memFS.DirExists(filepath.Join(baseDir, "envs", "dev", "eu-central-1")))
+		assert.False(t, memFS.FileExists(filepath.Join(baseDir, ".github", "workflows", "lint.yaml")))
+	})
+
 	t.Run("does not overwrite existing static workflow files", func(t *testing.T) {
 		r := newTestInitRunner(t)
 		baseDir := "/project"
