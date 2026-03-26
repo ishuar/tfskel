@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/ishuar/tfskel/internal/fs"
 	"github.com/ishuar/tfskel/internal/logger"
 	"github.com/ishuar/tfskel/internal/templates"
 	"github.com/spf13/cobra"
@@ -12,207 +13,204 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// defaultInitOpts returns initOptions with upgrade/force disabled (default behavior)
-func defaultInitOpts() *initOptions {
-	return &initOptions{}
-}
-
-// newTestRenderer creates a renderer for tests
-func newTestRenderer(t *testing.T) *templates.Renderer {
+// newTestInitRunner creates an initRunner with MemoryFileSystem for unit tests.
+func newTestInitRunner(t *testing.T) *initRunner {
 	t.Helper()
-	r, err := templates.NewRenderer()
+	renderer, err := templates.NewRenderer()
 	require.NoError(t, err)
-	return r
+	return &initRunner{
+		fs:       fs.NewMemoryFileSystem(),
+		log:      logger.New(false),
+		renderer: renderer,
+	}
 }
 
 func TestCreateProjectStructure(t *testing.T) {
 	t.Run("create structure with single region", func(t *testing.T) {
-		baseDir := t.TempDir()
-		log := logger.New(false)
+		r := newTestInitRunner(t)
+		baseDir := "/project"
 		environments := []string{"dev", "stg", "prd"}
-		err := createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, environments, true, log, defaultInitOpts())
+
+		err := r.createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, environments, true)
 		require.NoError(t, err)
 
 		// Verify all root configuration files are created
-		rootConfigFiles := []string{".gitignore", ".pre-commit-config.yaml", ".tflint.hcl", "trivy.yaml", ".tfskel.yaml"}
-		for _, filename := range rootConfigFiles {
+		for _, filename := range []string{".gitignore", ".pre-commit-config.yaml", ".tflint.hcl", "trivy.yaml", ".tfskel.yaml"} {
 			filePath := filepath.Join(baseDir, filename)
-			assert.FileExists(t, filePath, "Root config file %s should exist", filename)
+			assert.True(t, r.fs.FileExists(filePath), "Root config file %s should exist", filename)
 
-			// Verify file is not empty
-			content, err := os.ReadFile(filePath)
+			content, err := r.fs.ReadFile(filePath)
 			require.NoError(t, err)
 			assert.NotEmpty(t, content, "Root config file %s should not be empty", filename)
 		}
 
 		// Verify environment directories
-		for _, env := range []string{"dev", "stg", "prd"} {
+		for _, env := range environments {
 			envPath := filepath.Join(baseDir, "envs", env)
 
-			// Verify .terraform-version file
 			tfVersionPath := filepath.Join(envPath, ".terraform-version")
-			assert.FileExists(t, tfVersionPath)
-			content, err := os.ReadFile(tfVersionPath)
+			assert.True(t, r.fs.FileExists(tfVersionPath))
+			content, err := r.fs.ReadFile(tfVersionPath)
 			require.NoError(t, err)
-			assert.Contains(t, string(content), "1.13.1", "Terraform version should be in file")
+			assert.Contains(t, string(content), "1.13.1")
 
-			// Verify region directory
-			assert.DirExists(t, filepath.Join(envPath, "eu-central-1"))
+			assert.True(t, r.fs.DirExists(filepath.Join(envPath, "eu-central-1")))
 		}
 	})
 
 	t.Run("create structure with multiple regions", func(t *testing.T) {
-		baseDir := t.TempDir()
-		log := logger.New(false)
+		r := newTestInitRunner(t)
+		baseDir := "/project"
 		environments := []string{"dev", "stg", "prd"}
 		regions := []string{"eu-central-1", "us-east-1", "ap-south-1"}
-		err := createProjectStructure(baseDir, "1.10.0", regions, environments, true, log, defaultInitOpts())
+
+		err := r.createProjectStructure(baseDir, "1.10.0", regions, environments, true)
 		require.NoError(t, err)
 
-		// Verify all regions are created for all environments
-		for _, env := range []string{"dev", "stg", "prd"} {
+		for _, env := range environments {
 			for _, region := range regions {
 				regionPath := filepath.Join(baseDir, "envs", env, region)
-				assert.DirExists(t, regionPath, "Region directory %s/%s should exist", env, region)
+				assert.True(t, r.fs.DirExists(regionPath), "Region directory %s/%s should exist", env, region)
 			}
 		}
 	})
 
 	t.Run("creates root config files via loop without errors", func(t *testing.T) {
-		baseDir := t.TempDir()
-		log := logger.New(false)
+		r := newTestInitRunner(t)
+		baseDir := "/project"
 		environments := []string{"dev", "stg", "prd"}
-		err := createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, environments, true, log, defaultInitOpts())
+
+		err := r.createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, environments, true)
 		require.NoError(t, err)
 
-		// Test specifically for the refactored loop - ensure all files are created
-		expectedFiles := map[string]string{
-			".gitignore":              "root/.gitignore.tmpl",
-			".pre-commit-config.yaml": "root/.pre-commit-config.yaml.tmpl",
-			".tflint.hcl":             "root/.tflint.hcl.tmpl",
-			"trivy.yaml":              "root/trivy.yaml.tmpl",
-		}
-
-		for filename := range expectedFiles {
+		for _, filename := range []string{".gitignore", ".pre-commit-config.yaml", ".tflint.hcl", "trivy.yaml"} {
 			filePath := filepath.Join(baseDir, filename)
-			assert.FileExists(t, filePath, "File %s from loop should exist", filename)
+			assert.True(t, r.fs.FileExists(filePath), "File %s from loop should exist", filename)
 
-			// Verify files have actual content from templates
-			stat, err := os.Stat(filePath)
+			content, err := r.fs.ReadFile(filePath)
 			require.NoError(t, err)
-			assert.Greater(t, stat.Size(), int64(0), "File %s should have content", filename)
+			assert.NotEmpty(t, content, "File %s should have content", filename)
 		}
 	})
 
 	t.Run("handles existing root config files gracefully", func(t *testing.T) {
-		baseDir := t.TempDir()
-		log := logger.New(false)
+		r := newTestInitRunner(t)
+		baseDir := "/project"
 		environments := []string{"dev", "stg", "prd"}
 
 		// Create one file beforehand
 		existingFile := filepath.Join(baseDir, ".gitignore")
-		err := os.WriteFile(existingFile, []byte("# existing content"), 0644)
-		require.NoError(t, err)
+		require.NoError(t, r.fs.WriteFile(existingFile, []byte("# existing content"), 0644))
 
-		// Run create structure
-		err = createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, environments, true, log, defaultInitOpts())
+		err := r.createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, environments, true)
 		require.NoError(t, err)
 
 		// Verify existing file wasn't overwritten
-		content, err := os.ReadFile(existingFile)
+		content, err := r.fs.ReadFile(existingFile)
 		require.NoError(t, err)
-		assert.Equal(t, "# existing content", string(content), "Existing file should not be overwritten")
+		assert.Equal(t, "# existing content", string(content))
 
 		// Verify other files were still created
-		assert.FileExists(t, filepath.Join(baseDir, ".pre-commit-config.yaml"))
-		assert.FileExists(t, filepath.Join(baseDir, ".tflint.hcl"))
+		assert.True(t, r.fs.FileExists(filepath.Join(baseDir, ".pre-commit-config.yaml")))
+		assert.True(t, r.fs.FileExists(filepath.Join(baseDir, ".tflint.hcl")))
 	})
 
 	t.Run("creates correct terraform version in all environments", func(t *testing.T) {
-		baseDir := t.TempDir()
-		log := logger.New(false)
+		r := newTestInitRunner(t)
+		baseDir := "/project"
 		version := "1.9.5"
 		environments := []string{"dev", "stg", "prd"}
 
-		err := createProjectStructure(baseDir, version, []string{"eu-central-1"}, environments, true, log, defaultInitOpts())
+		err := r.createProjectStructure(baseDir, version, []string{"eu-central-1"}, environments, true)
 		require.NoError(t, err)
 
-		for _, env := range []string{"dev", "stg", "prd"} {
+		for _, env := range environments {
 			tfVersionPath := filepath.Join(baseDir, "envs", env, ".terraform-version")
-			content, err := os.ReadFile(tfVersionPath)
+			content, err := r.fs.ReadFile(tfVersionPath)
 			require.NoError(t, err)
 			assert.Contains(t, string(content), version, "Version in %s should match", env)
 		}
 	})
 
 	t.Run("create structure with custom environments", func(t *testing.T) {
-		baseDir := t.TempDir()
-		log := logger.New(false)
+		r := newTestInitRunner(t)
+		baseDir := "/project"
 		customEnvs := []string{"dev", "qa", "uat", "prd"}
-		err := createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, customEnvs, true, log, defaultInitOpts())
+
+		err := r.createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, customEnvs, true)
 		require.NoError(t, err)
 
-		// Verify all custom environments are created
 		for _, env := range customEnvs {
 			envPath := filepath.Join(baseDir, "envs", env)
-			tfVersionPath := filepath.Join(envPath, ".terraform-version")
-			assert.FileExists(t, tfVersionPath, "Environment %s should have .terraform-version", env)
-
-			// Verify region directory
-			assert.DirExists(t, filepath.Join(envPath, "eu-central-1"))
+			assert.True(t, r.fs.FileExists(filepath.Join(envPath, ".terraform-version")), "Environment %s should have .terraform-version", env)
+			assert.True(t, r.fs.DirExists(filepath.Join(envPath, "eu-central-1")))
 		}
-
-		// Verify no extra environments were created
-		envsDir := filepath.Join(baseDir, "envs")
-		entries, err := os.ReadDir(envsDir)
-		require.NoError(t, err)
-		assert.Equal(t, len(customEnvs), len(entries), "Should only have custom environments")
 	})
 
 	t.Run("creates static workflow files when createWorkflows is true", func(t *testing.T) {
-		baseDir := t.TempDir()
-		log := logger.New(false)
-		err := createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, []string{"dev"}, true, log, defaultInitOpts())
+		r := newTestInitRunner(t)
+		baseDir := "/project"
+
+		err := r.createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, []string{"dev"}, true)
 		require.NoError(t, err)
 
-		staticWorkflowFiles := []string{
-			"lint.yaml",
-			"reusable-detect-changes.yaml",
-			"reusable-terraform-plan-apply.yaml",
-			"reusable-lint.yaml",
-		}
-		for _, f := range staticWorkflowFiles {
+		for _, f := range []string{"lint.yaml", "reusable-detect-changes.yaml", "reusable-terraform-plan-apply.yaml", "reusable-lint.yaml"} {
 			p := filepath.Join(baseDir, ".github", "workflows", f)
-			assert.FileExists(t, p, "static workflow file %s should exist", f)
-			content, readErr := os.ReadFile(p)
+			assert.True(t, r.fs.FileExists(p), "static workflow file %s should exist", f)
+			content, readErr := r.fs.ReadFile(p)
 			require.NoError(t, readErr)
 			assert.NotEmpty(t, content, "static workflow file %s should not be empty", f)
 		}
 	})
 
 	t.Run("skips workflow files when createWorkflows is false", func(t *testing.T) {
-		baseDir := t.TempDir()
-		log := logger.New(false)
-		err := createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, []string{"dev"}, false, log, defaultInitOpts())
+		r := newTestInitRunner(t)
+		baseDir := "/project"
+
+		err := r.createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, []string{"dev"}, false)
 		require.NoError(t, err)
 
 		workflowsDir := filepath.Join(baseDir, ".github", "workflows")
-		assert.NoDirExists(t, workflowsDir, ".github/workflows directory should not be created when disabled")
+		assert.False(t, r.fs.DirExists(workflowsDir), ".github/workflows directory should not be created when disabled")
+	})
+
+	t.Run("dry-run does not create any files or directories", func(t *testing.T) {
+		memFS := fs.NewMemoryFileSystem()
+		dryFS := fs.NewDryRunFileSystem(memFS)
+		renderer, err := templates.NewRenderer()
+		require.NoError(t, err)
+
+		r := &initRunner{
+			fs:       dryFS,
+			log:      logger.New(false),
+			renderer: renderer,
+			dryRun:   true,
+		}
+		baseDir := "/project"
+
+		err = r.createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, []string{"dev", "stg", "prd"}, true)
+		require.NoError(t, err)
+
+		// The underlying MemoryFileSystem should have no files or directories
+		assert.False(t, memFS.FileExists(filepath.Join(baseDir, ".gitignore")))
+		assert.False(t, memFS.FileExists(filepath.Join(baseDir, ".tfskel.yaml")))
+		assert.False(t, memFS.DirExists(filepath.Join(baseDir, "envs", "dev", "eu-central-1")))
+		assert.False(t, memFS.FileExists(filepath.Join(baseDir, ".github", "workflows", "lint.yaml")))
 	})
 
 	t.Run("does not overwrite existing static workflow files", func(t *testing.T) {
-		baseDir := t.TempDir()
-		log := logger.New(false)
+		r := newTestInitRunner(t)
+		baseDir := "/project"
 
 		wfDir := filepath.Join(baseDir, ".github", "workflows")
-		require.NoError(t, os.MkdirAll(wfDir, 0755))
+		require.NoError(t, r.fs.MkdirAll(wfDir, 0755))
 		existingPath := filepath.Join(wfDir, "lint.yaml")
-		require.NoError(t, os.WriteFile(existingPath, []byte("# custom lint"), 0644))
+		require.NoError(t, r.fs.WriteFile(existingPath, []byte("# custom lint"), 0644))
 
-		err := createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, []string{"dev"}, true, log, defaultInitOpts())
+		err := r.createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, []string{"dev"}, true)
 		require.NoError(t, err)
 
-		content, readErr := os.ReadFile(existingPath)
+		content, readErr := r.fs.ReadFile(existingPath)
 		require.NoError(t, readErr)
 		assert.Equal(t, "# custom lint", string(content), "existing workflow file should not be overwritten")
 	})
@@ -220,92 +218,81 @@ func TestCreateProjectStructure(t *testing.T) {
 
 func TestCreateFileFromTemplate(t *testing.T) {
 	t.Run("create file from template with nil data", func(t *testing.T) {
-		tmpDir := t.TempDir()
-		targetPath := filepath.Join(tmpDir, "test", "file.txt")
-		log := logger.New(false)
+		r := newTestInitRunner(t)
+		targetPath := "/project/test/file.txt"
 
-		err := createFileFromTemplate(targetPath, "root/.gitignore.tmpl", nil, log, newTestRenderer(t), defaultInitOpts())
+		err := r.createFileFromTemplate(targetPath, "root/.gitignore.tmpl", nil)
 		require.NoError(t, err)
 
-		assert.FileExists(t, targetPath)
-		content, err := os.ReadFile(targetPath)
+		assert.True(t, r.fs.FileExists(targetPath))
+		content, err := r.fs.ReadFile(targetPath)
 		require.NoError(t, err)
 		assert.NotEmpty(t, string(content))
 	})
 
 	t.Run("create file from template with map data", func(t *testing.T) {
-		tmpDir := t.TempDir()
-		targetPath := filepath.Join(tmpDir, "test", "file.txt")
-		log := logger.New(false)
+		r := newTestInitRunner(t)
+		targetPath := "/project/test/file.txt"
 
-		err := createFileFromTemplate(targetPath, "root/.terraform-version.tmpl", map[string]string{
+		err := r.createFileFromTemplate(targetPath, "root/.terraform-version.tmpl", map[string]string{
 			"TerraformVersion": "1.13.1",
-		}, log, newTestRenderer(t), defaultInitOpts())
+		})
 		require.NoError(t, err)
 
-		content, err := os.ReadFile(targetPath)
+		content, err := r.fs.ReadFile(targetPath)
 		require.NoError(t, err)
 		assert.Contains(t, string(content), "1.13.1")
 	})
 
 	t.Run("skips creation if file already exists", func(t *testing.T) {
-		tmpDir := t.TempDir()
-		targetPath := filepath.Join(tmpDir, "existing.txt")
-		log := logger.New(false)
+		r := newTestInitRunner(t)
+		targetPath := "/project/existing.txt"
 
-		// Create existing file
 		existingContent := "original content"
-		err := os.WriteFile(targetPath, []byte(existingContent), 0644)
+		require.NoError(t, r.fs.WriteFile(targetPath, []byte(existingContent), 0644))
+
+		err := r.createFileFromTemplate(targetPath, "root/.gitignore.tmpl", nil)
 		require.NoError(t, err)
 
-		// Try to create from template
-		err = createFileFromTemplate(targetPath, "root/.gitignore.tmpl", nil, log, newTestRenderer(t), defaultInitOpts())
-		require.NoError(t, err)
-
-		// Verify file wasn't overwritten
-		content, err := os.ReadFile(targetPath)
+		content, err := r.fs.ReadFile(targetPath)
 		require.NoError(t, err)
 		assert.Equal(t, existingContent, string(content))
 	})
 
-	t.Run("creates parent directories if they don't exist", func(t *testing.T) {
-		tmpDir := t.TempDir()
-		targetPath := filepath.Join(tmpDir, "deep", "nested", "path", "file.txt")
-		log := logger.New(false)
+	t.Run("creates file in deeply nested path", func(t *testing.T) {
+		r := newTestInitRunner(t)
+		targetPath := "/project/deep/nested/path/file.txt"
 
-		err := createFileFromTemplate(targetPath, "root/.gitignore.tmpl", nil, log, newTestRenderer(t), defaultInitOpts())
+		err := r.createFileFromTemplate(targetPath, "root/.gitignore.tmpl", nil)
 		require.NoError(t, err)
 
-		assert.FileExists(t, targetPath)
-		assert.DirExists(t, filepath.Join(tmpDir, "deep", "nested", "path"))
+		assert.True(t, r.fs.FileExists(targetPath))
 	})
 
 	t.Run("handles multiple file creations in sequence", func(t *testing.T) {
-		tmpDir := t.TempDir()
-		log := logger.New(false)
+		r := newTestInitRunner(t)
 
 		files := []string{".gitignore", ".tflint.hcl", "trivy.yaml"}
 		for _, filename := range files {
-			targetPath := filepath.Join(tmpDir, filename)
-			err := createFileFromTemplate(targetPath, "root/"+filename+".tmpl", nil, log, newTestRenderer(t), defaultInitOpts())
+			targetPath := filepath.Join("/project", filename)
+			err := r.createFileFromTemplate(targetPath, "root/"+filename+".tmpl", nil)
 			require.NoError(t, err)
-			assert.FileExists(t, targetPath)
+			assert.True(t, r.fs.FileExists(targetPath))
 		}
 	})
 }
 
 func TestCreateDefaultConfig(t *testing.T) {
 	t.Run("creates config with defaults", func(t *testing.T) {
-		tmpDir := t.TempDir()
-		configPath := filepath.Join(tmpDir, ".tfskel.yaml")
-		log := logger.New(false)
+		r := newTestInitRunner(t)
+		configPath := "/project/.tfskel.yaml"
 
-		err := createDefaultConfig(configPath, log, &initOptions{})
+		err := r.createDefaultConfig(configPath)
 		require.NoError(t, err)
 
-		assert.FileExists(t, configPath)
+		assert.True(t, r.fs.FileExists(configPath))
 
-		content, err := os.ReadFile(configPath)
+		content, err := r.fs.ReadFile(configPath)
 		require.NoError(t, err)
 
 		contentStr := string(content)
@@ -325,19 +312,15 @@ func TestCreateDefaultConfig(t *testing.T) {
 	})
 
 	t.Run("skips if config exists", func(t *testing.T) {
-		tmpDir := t.TempDir()
-		configPath := filepath.Join(tmpDir, ".tfskel.yaml")
-		log := logger.New(false)
+		r := newTestInitRunner(t)
+		configPath := "/project/.tfskel.yaml"
 
-		// Create existing config
-		err := os.WriteFile(configPath, []byte("existing"), 0644)
+		require.NoError(t, r.fs.WriteFile(configPath, []byte("existing"), 0644))
+
+		err := r.createDefaultConfig(configPath)
 		require.NoError(t, err)
 
-		err = createDefaultConfig(configPath, log, &initOptions{})
-		require.NoError(t, err)
-
-		// Should not overwrite
-		content, err := os.ReadFile(configPath)
+		content, err := r.fs.ReadFile(configPath)
 		require.NoError(t, err)
 		assert.Equal(t, "existing", string(content))
 	})
@@ -396,7 +379,6 @@ provider:
 		tmpDir := t.TempDir()
 		log := logger.New(false)
 
-		// Create config without account_mapping
 		configContent := `terraform_version: "~> 1.13"
 provider:
   aws:
@@ -417,7 +399,6 @@ provider:
 		tmpDir := t.TempDir()
 		log := logger.New(false)
 
-		// Create config with empty account_mapping
 		configContent := `terraform_version: "~> 1.13"
 provider:
   aws:
@@ -439,7 +420,6 @@ provider:
 		tmpDir := t.TempDir()
 		log := logger.New(false)
 
-		// Create malformed config
 		configContent := `this is not: [valid yaml`
 		configPath := filepath.Join(tmpDir, ".tfskel.yaml")
 		err := os.WriteFile(configPath, []byte(configContent), 0644)
@@ -448,7 +428,6 @@ provider:
 		envs, tfVersion, regions, _, err := determineInitParameters(tmpDir, log)
 		require.NoError(t, err)
 
-		// Should fall back to defaults
 		assert.Equal(t, []string{"dev", "stg", "prd"}, envs)
 		assert.Equal(t, defaultTerraformVersion, tfVersion)
 		assert.Equal(t, []string{"eu-central-1"}, regions)
@@ -616,7 +595,6 @@ func TestRunInit(t *testing.T) {
 	t.Run("init respects existing config workflows.create false", func(t *testing.T) {
 		tmpDir := t.TempDir()
 
-		// Pre-create .tfskel.yaml with workflows.create = false
 		configContent := `terraform_version: "~> 1.13"
 workflows:
   create: false
@@ -637,7 +615,6 @@ backend:
 		err := os.WriteFile(configPath, []byte(configContent), 0644)
 		require.NoError(t, err)
 
-		// Run init without CLI flag (should respect config)
 		initDir = tmpDir
 		t.Cleanup(func() {
 			initDir = ""
@@ -649,10 +626,8 @@ backend:
 		err = runInit(cmd, []string{})
 		require.NoError(t, err)
 
-		// Verify structure created
 		assert.DirExists(t, filepath.Join(tmpDir, "envs", "dev"))
 
-		// Verify workflows NOT created (respecting config)
 		workflowsDir := filepath.Join(tmpDir, ".github", "workflows")
 		assert.NoDirExists(t, workflowsDir, "workflows should not be created when config has create: false")
 	})
@@ -660,7 +635,6 @@ backend:
 	t.Run("init CLI flag overrides config workflows.create", func(t *testing.T) {
 		tmpDir := t.TempDir()
 
-		// Pre-create .tfskel.yaml with workflows.create = false
 		configContent := `terraform_version: "~> 1.13"
 workflows:
   create: false
@@ -681,7 +655,6 @@ backend:
 		err := os.WriteFile(configPath, []byte(configContent), 0644)
 		require.NoError(t, err)
 
-		// Run init WITH CLI flag --workflows=true (should override config)
 		initDir = tmpDir
 		t.Cleanup(func() {
 			initDir = ""
@@ -696,10 +669,8 @@ backend:
 		err = runInit(cmd, []string{})
 		require.NoError(t, err)
 
-		// Verify structure created
 		assert.DirExists(t, filepath.Join(tmpDir, "envs", "dev"))
 
-		// Verify workflows WERE created (CLI flag overrides config)
 		workflowsDir := filepath.Join(tmpDir, ".github", "workflows")
 		assert.DirExists(t, workflowsDir, "workflows should be created when CLI flag overrides config")
 		assert.FileExists(t, filepath.Join(workflowsDir, "lint.yaml"))

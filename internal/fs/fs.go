@@ -55,7 +55,7 @@ func (fs *OSFileSystem) ReadFile(path string) ([]byte, error) {
 // FileExists checks if a file exists
 func (fs *OSFileSystem) FileExists(path string) bool {
 	info, err := os.Stat(path)
-	if os.IsNotExist(err) {
+	if err != nil {
 		return false
 	}
 	return !info.IsDir()
@@ -64,7 +64,7 @@ func (fs *OSFileSystem) FileExists(path string) bool {
 // DirExists checks if a directory exists
 func (fs *OSFileSystem) DirExists(path string) bool {
 	info, err := os.Stat(path)
-	if os.IsNotExist(err) {
+	if err != nil {
 		return false
 	}
 	return info.IsDir()
