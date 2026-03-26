@@ -11,11 +11,11 @@ set -euo pipefail
 #
 # Environment variables:
 #   TFSKEL_VERSION  — version to install (default: latest release tag)
-#   INSTALL_DIR     — install destination  (default: /usr/local/bin)
+#   INSTALL_DIR     — install destination  (default: ~/.local/bin)
 # ─────────────────────────────────────────────
 
 REPO="ishuar/tfskel"
-INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
+INSTALL_DIR="${INSTALL_DIR:-${HOME}/.local/bin}"
 
 # ── Colors ───────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
@@ -103,12 +103,15 @@ main() {
 
   tar -xzf "${TMP}/${filename}" -C "${TMP}" tfskel
 
-  mkdir -p "$INSTALL_DIR"
   local dest="${INSTALL_DIR}/tfskel"
-  if [[ -w "$INSTALL_DIR" ]]; then
+  if [[ -d "$INSTALL_DIR" && -w "$INSTALL_DIR" ]]; then
     mv "${TMP}/tfskel" "$dest"
-  else
+  elif [[ -d "$INSTALL_DIR" ]]; then
     info "Installing to ${dest} (requires sudo)..."
+    sudo mv "${TMP}/tfskel" "$dest"
+  else
+    info "Creating ${INSTALL_DIR} and installing (requires sudo)..."
+    sudo mkdir -p "$INSTALL_DIR"
     sudo mv "${TMP}/tfskel" "$dest"
   fi
 
