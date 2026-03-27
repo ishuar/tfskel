@@ -1,6 +1,8 @@
 package plan
 
 import (
+	"sort"
+
 	"github.com/spf13/viper"
 )
 
@@ -118,7 +120,15 @@ func (a *PlanAnalyzer) analyzeOutputChanges(plan *TerraformPlan, analysis *PlanA
 		return
 	}
 
-	for name, raw := range plan.OutputChanges {
+	// Collect and sort output names for deterministic ordering
+	names := make([]string, 0, len(plan.OutputChanges))
+	for name := range plan.OutputChanges {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	for _, name := range names {
+		raw := plan.OutputChanges[name]
 		entry, ok := raw.(map[string]any)
 		if !ok {
 			continue
