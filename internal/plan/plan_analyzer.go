@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"slices"
 	"sort"
 
 	"github.com/spf13/viper"
@@ -148,13 +149,13 @@ func (a *PlanAnalyzer) analyzeOutputChanges(plan *TerraformPlan, analysis *PlanA
 		})
 
 		switch {
-		case contains(actions, ActionCreate) && !contains(actions, ActionDelete):
+		case slices.Contains(actions, ActionCreate) && !slices.Contains(actions, ActionDelete):
 			analysis.OutputAdditions++
-		case contains(actions, ActionDelete) && contains(actions, ActionCreate):
+		case slices.Contains(actions, ActionDelete) && slices.Contains(actions, ActionCreate):
 			analysis.OutputReplacements++
-		case contains(actions, ActionDelete):
+		case slices.Contains(actions, ActionDelete):
 			analysis.OutputDeletions++
-		case contains(actions, ActionUpdate):
+		case slices.Contains(actions, ActionUpdate):
 			analysis.OutputModifications++
 		}
 	}
@@ -197,22 +198,22 @@ func isNoOp(actions []string) bool {
 // determineSeverity assesses the risk level of a change
 func (a *PlanAnalyzer) determineSeverity(actions []string, resourceType string) Severity {
 	// Critical: Any deletion (data loss risk)
-	if contains(actions, ActionDelete) {
+	if slices.Contains(actions, ActionDelete) {
 		return SeverityCritical
 	}
 
 	// High: Updates to critical infrastructure resources
-	if a.isCriticalResource(resourceType) && contains(actions, ActionUpdate) {
+	if a.isCriticalResource(resourceType) && slices.Contains(actions, ActionUpdate) {
 		return SeverityHigh
 	}
 
 	// Medium: Standard resource updates
-	if contains(actions, ActionUpdate) {
+	if slices.Contains(actions, ActionUpdate) {
 		return SeverityMedium
 	}
 
 	// Low: Additions only (no risk)
-	if contains(actions, ActionCreate) {
+	if slices.Contains(actions, ActionCreate) {
 		return SeverityLow
 	}
 
@@ -221,19 +222,19 @@ func (a *PlanAnalyzer) determineSeverity(actions []string, resourceType string) 
 
 // isCriticalResource checks if a resource type is considered critical
 func (a *PlanAnalyzer) isCriticalResource(resourceType string) bool {
-	return contains(a.criticalResourceTypes, resourceType)
+	return slices.Contains(a.criticalResourceTypes, resourceType)
 }
 
 // updateCounts updates the analysis counters based on actions
 func (a *PlanAnalyzer) updateCounts(analysis *PlanAnalysis, actions []string) {
 	switch {
-	case contains(actions, ActionCreate) && !contains(actions, ActionDelete):
+	case slices.Contains(actions, ActionCreate) && !slices.Contains(actions, ActionDelete):
 		analysis.Additions++
-	case contains(actions, ActionDelete) && contains(actions, ActionCreate):
+	case slices.Contains(actions, ActionDelete) && slices.Contains(actions, ActionCreate):
 		analysis.Replacements++
-	case contains(actions, ActionDelete):
+	case slices.Contains(actions, ActionDelete):
 		analysis.Deletions++
-	case contains(actions, ActionUpdate):
+	case slices.Contains(actions, ActionUpdate):
 		analysis.Modifications++
 	}
 }

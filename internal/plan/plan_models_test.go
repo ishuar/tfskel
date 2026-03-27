@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -127,7 +128,7 @@ func TestContainsAction(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := contains(tt.actions, tt.action)
+			got := slices.Contains(tt.actions, tt.action)
 			assert.Equal(t, tt.want, got)
 		})
 	}

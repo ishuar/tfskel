@@ -157,11 +157,6 @@ func (s Severity) Order() int {
 	}
 }
 
-// contains checks if a string is present in the given slice.
-func contains(items []string, item string) bool {
-	return slices.Contains(items, item)
-}
-
 // formatActions converts an action list to a human-readable string.
 // Returns "replace" for delete+create combinations, joins multiple actions with comma.
 func formatActions(actions []string) string {
@@ -171,7 +166,7 @@ func formatActions(actions []string) string {
 	if len(actions) == 1 {
 		return actions[0]
 	}
-	if contains(actions, ActionDelete) && contains(actions, ActionCreate) {
+	if slices.Contains(actions, ActionDelete) && slices.Contains(actions, ActionCreate) {
 		return ActionReplace
 	}
 	return strings.Join(actions, ", ")
