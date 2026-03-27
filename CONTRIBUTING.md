@@ -113,7 +113,9 @@ make help           # Show all available commands
    git commit -m "feat: add new feature"
    ```
 
-   We use [Conventional Commits](https://www.conventionalcommits.org/) for automated changelog generation and releases:
+   We use [Conventional Commits](https://www.conventionalcommits.org/) for automated changelog generation and releases.
+
+   **Types:**
    - `feat:` - New feature (bumps minor version)
    - `fix:` - Bug fix (bumps patch version)
    - `perf:` - Performance improvement (bumps patch version)
@@ -125,9 +127,37 @@ make help           # Show all available commands
    - `chore:` - Maintenance tasks
    - `style:` - Code style changes
 
+   **Scopes** (use ONE per commit/PR title):
+
+   | Category | Scope | Covers |
+   |----------|-------|--------|
+   | Commands | `cmd` | CLI commands (init, scaffold, diff, review) |
+   | Internal | `config` | Configuration system |
+   | Internal | `templates` | Template rendering |
+   | Internal | `generator` | Template generation |
+   | Internal | `plan` | Plan parsing/analysis |
+   | Internal | `format` | Output formatting |
+   | Internal | `fs` | File system operations |
+   | Tooling | `build` | Build system/Makefile |
+   | Tooling | `ci` | GitHub Actions/CI |
+   | Tooling | `deps` | Go dependencies |
+   | Tooling | `test` | Test infrastructure |
+   | General | `docs` | Documentation only (no scope needed) |
+   | General | `chore` | Maintenance tasks (no scope needed) |
+
+   **Format:** `type(scope): description`
+
+   Examples:
+   ```
+   feat(cmd): add --dry-run flag to scaffold
+   fix(plan): handle null values in JSON parsing
+   build(deps): bump cobra to v1.8.0
+   docs: update installation guide
+   ```
+
    For breaking changes, add `!` after the type or include `BREAKING CHANGE:` in the footer:
    ```bash
-   git commit -m "feat!: redesign CLI interface
+   git commit -m "feat(cmd)!: redesign CLI interface
 
    BREAKING CHANGE: The --output flag has been renamed to --format"
    ```
@@ -282,25 +312,7 @@ go test -run TestMyFunction ./internal/config
 
 ### Pull Request Template
 
-```markdown
-## Description
-Brief description of changes
-
-## Type of Change
-- [ ] Bug fix
-- [ ] New feature
-- [ ] Breaking change
-- [ ] Documentation update
-
-## Testing
-Describe tests you've added or run
-
-## Checklist
-- [ ] Tests pass locally
-- [ ] Code follows style guidelines
-- [ ] Documentation updated
-- [ ] Changelog updated
-```
+The repo includes a lightweight PR template (`.github/PULL_REQUEST_TEMPLATE.md`). Just fill in **what changed and why**, and add reviewer notes if anything is non-obvious.
 
 ## Questions?
 
@@ -313,7 +325,5 @@ Feel free to:
 
 Contributors will be recognized in:
 - README.md contributors section
-- Release notes
-- Project documentation
 
 Thank you for contributing to tfskel! 🎉
