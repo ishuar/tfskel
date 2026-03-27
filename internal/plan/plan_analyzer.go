@@ -1,8 +1,8 @@
 package plan
 
 import (
-	"fmt"
 	"slices"
+	"sort"
 
 	"github.com/spf13/viper"
 )
@@ -77,7 +77,7 @@ func (a *PlanAnalyzer) Analyze(plan *TerraformPlan) *PlanAnalysis {
 			Name:          rc.Name,
 			Provider:      rc.ProviderName,
 			Actions:       rc.Change.Actions,
-			ActionString:  a.formatActions(rc.Change.Actions),
+			ActionString:  formatActions(rc.Change.Actions),
 			Severity:      a.determineSeverity(rc.Change.Actions, rc.Type),
 			ModuleAddress: rc.ModuleAddress,
 		}
@@ -105,52 +105,115 @@ func (a *PlanAnalyzer) Analyze(plan *TerraformPlan) *PlanAnalysis {
 		analysis.ByAction[analyzed.ActionString]++
 	}
 
-	analysis.HasChanges = analysis.TotalChanges > 0
+	// Analyze output changes
+	a.analyzeOutputChanges(plan, analysis)
+
+	analysis.HasChanges = analysis.TotalChanges > 0 || len(analysis.OutputChanges) > 0
 	return analysis
+}
+
+// analyzeOutputChanges parses the plan's output_changes map and populates the analysis.
+// The plan JSON stores output_changes as map[string]any where each value has:
+//
+//	{"actions": [...], "before_sensitive": bool, "after_sensitive": bool, ...}
+func (a *PlanAnalyzer) analyzeOutputChanges(plan *TerraformPlan, analysis *PlanAnalysis) {
+	if len(plan.OutputChanges) == 0 {
+		return
+	}
+
+	// Collect and sort output names for deterministic ordering
+	names := make([]string, 0, len(plan.OutputChanges))
+	for name := range plan.OutputChanges {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	for _, name := range names {
+		raw := plan.OutputChanges[name]
+		entry, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		actions := extractStringSlice(entry, "actions")
+		if len(actions) == 0 || isNoOp(actions) {
+			continue
+		}
+
+		sensitive := extractBool(entry, "before_sensitive") || extractBool(entry, "after_sensitive")
+
+		analysis.OutputChanges = append(analysis.OutputChanges, OutputChange{
+			Name:      name,
+			Actions:   actions,
+			Sensitive: sensitive,
+		})
+
+		switch {
+		case slices.Contains(actions, ActionCreate) && !slices.Contains(actions, ActionDelete):
+			analysis.OutputAdditions++
+		case slices.Contains(actions, ActionDelete) && slices.Contains(actions, ActionCreate):
+			analysis.OutputReplacements++
+		case slices.Contains(actions, ActionDelete):
+			analysis.OutputDeletions++
+		case slices.Contains(actions, ActionUpdate):
+			analysis.OutputModifications++
+		}
+	}
+}
+
+// extractStringSlice extracts a []string from a map entry's "key" field.
+func extractStringSlice(m map[string]any, key string) []string {
+	raw, ok := m[key]
+	if !ok {
+		return nil
+	}
+	arr, ok := raw.([]any)
+	if !ok {
+		return nil
+	}
+	result := make([]string, 0, len(arr))
+	for _, v := range arr {
+		if s, ok := v.(string); ok {
+			result = append(result, s)
+		}
+	}
+	return result
+}
+
+// extractBool extracts a bool from a map entry, returning false if missing or wrong type.
+func extractBool(m map[string]any, key string) bool {
+	raw, ok := m[key]
+	if !ok {
+		return false
+	}
+	b, ok := raw.(bool)
+	return ok && b
 }
 
 // isNoOp checks if actions represent no operation
 func isNoOp(actions []string) bool {
-	if len(actions) == 1 && actions[0] == "no-op" {
-		return true
-	}
-	return false
-}
-
-// formatActions converts action list to human-readable string
-func (a *PlanAnalyzer) formatActions(actions []string) string {
-	if len(actions) == 0 {
-		return "no-op"
-	}
-	if len(actions) == 1 {
-		return actions[0]
-	}
-	// Handle replace (delete + create)
-	if containsAction(actions, "delete") && containsAction(actions, "create") {
-		return "replace"
-	}
-	return fmt.Sprintf("%v", actions)
+	return len(actions) == 1 && actions[0] == ActionNoOp
 }
 
 // determineSeverity assesses the risk level of a change
 func (a *PlanAnalyzer) determineSeverity(actions []string, resourceType string) Severity {
 	// Critical: Any deletion (data loss risk)
-	if containsAction(actions, "delete") {
+	if slices.Contains(actions, ActionDelete) {
 		return SeverityCritical
 	}
 
 	// High: Updates to critical infrastructure resources
-	if a.isCriticalResource(resourceType) && containsAction(actions, "update") {
+	if a.isCriticalResource(resourceType) && slices.Contains(actions, ActionUpdate) {
 		return SeverityHigh
 	}
 
 	// Medium: Standard resource updates
-	if containsAction(actions, "update") {
+	if slices.Contains(actions, ActionUpdate) {
 		return SeverityMedium
 	}
 
 	// Low: Additions only (no risk)
-	if containsAction(actions, "create") {
+	if slices.Contains(actions, ActionCreate) {
 		return SeverityLow
 	}
 
@@ -165,18 +228,13 @@ func (a *PlanAnalyzer) isCriticalResource(resourceType string) bool {
 // updateCounts updates the analysis counters based on actions
 func (a *PlanAnalyzer) updateCounts(analysis *PlanAnalysis, actions []string) {
 	switch {
-	case containsAction(actions, "create") && !containsAction(actions, "delete"):
+	case slices.Contains(actions, ActionCreate) && !slices.Contains(actions, ActionDelete):
 		analysis.Additions++
-	case containsAction(actions, "delete") && containsAction(actions, "create"):
+	case slices.Contains(actions, ActionDelete) && slices.Contains(actions, ActionCreate):
 		analysis.Replacements++
-	case containsAction(actions, "delete"):
+	case slices.Contains(actions, ActionDelete):
 		analysis.Deletions++
-	case containsAction(actions, "update"):
+	case slices.Contains(actions, ActionUpdate):
 		analysis.Modifications++
 	}
-}
-
-// containsAction checks if an action is in the actions list
-func containsAction(actions []string, action string) bool {
-	return slices.Contains(actions, action)
 }
