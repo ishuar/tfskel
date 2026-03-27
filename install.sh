@@ -9,19 +9,29 @@ set -euo pipefail
 #   curl -fsSL <raw-url>/install.sh | TFSKEL_VERSION=0.7.0 bash
 #   INSTALL_DIR=~/.local/bin bash install.sh
 #
+# Prefer downloading and inspecting before running:
+#   curl -fsSL <raw-url>/install.sh -o install.sh
+#   less install.sh
+#   TFSKEL_VERSION=0.7.0 bash install.sh
+#
 # Environment variables:
 #   TFSKEL_VERSION  — version to install (default: latest release tag)
 #   INSTALL_DIR     — install destination  (default: ~/.local/bin)
+#   TFSKEL_DEBUG    — set to 1 to enable bash debug tracing (set -x)
 # ─────────────────────────────────────────────
+
+if [[ "${TFSKEL_DEBUG:-0}" == "1" ]]; then
+  set -x
+fi
 
 REPO="ishuar/tfskel"
 INSTALL_DIR="${INSTALL_DIR:-${HOME}/.local/bin}"
 
 # ── Colors ───────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
-info()  { echo -e "${GREEN}[✓]${NC}  $*" >&2; }
-warn()  { echo -e "${YELLOW}[!]${NC}  $*" >&2; }
-error() { echo -e "${RED}[✗]${NC}  $*" >&2; exit 1; }
+info()  { printf "${GREEN}[✓]${NC}  %s\n" "$*" >&2; }
+warn()  { printf "${YELLOW}[!]${NC}  %s\n" "$*" >&2; }
+error() { printf "${RED}[✗]${NC}  %s\n" "$*" >&2; exit 1; }
 
 # ── Resolve version ───────────────────────────
 resolve_version() {
@@ -62,9 +72,14 @@ verify_checksum() {
   local file="$1" checksums="$2"
   local expected actual
 
-  expected="$(grep "$(basename "$file")" "$checksums" | awk '{print $1}')"
+  local name
+  name="$(basename "$file")"
+  expected="$(grep -F "$name" "$checksums" | grep -w "$name" | awk '{print $1}')"
   if [[ -z "$expected" ]]; then
-    error "Checksum entry not found for $(basename "$file") — aborting."
+    error "Checksum entry not found for ${name} — aborting."
+  fi
+  if [[ "$(echo "$expected" | wc -l)" -gt 1 ]]; then
+    error "Multiple checksum entries found for ${name} — aborting."
   fi
 
   if command -v sha256sum &>/dev/null; then
@@ -109,16 +124,21 @@ main() {
   elif [[ -d "$INSTALL_DIR" ]]; then
     info "Installing to ${dest} (requires sudo)..."
     sudo mv "${TMP}/tfskel" "$dest"
+  elif mkdir -p "$INSTALL_DIR" 2>/dev/null; then
+    mv "${TMP}/tfskel" "$dest"
   else
     info "Creating ${INSTALL_DIR} and installing (requires sudo)..."
     sudo mkdir -p "$INSTALL_DIR"
     sudo mv "${TMP}/tfskel" "$dest"
   fi
 
-  if command -v tfskel &>/dev/null; then
-    info "Installed $(tfskel --version) to ${dest}"
+  if [[ -x "$dest" ]]; then
+    info "Installed $("$dest" --version) to ${dest}"
+    if ! command -v tfskel &>/dev/null; then
+      warn "tfskel is not in your PATH. Run: export PATH=\"${INSTALL_DIR}:\$PATH\""
+    fi
   else
-    warn "Installed to ${dest}, but it's not in your PATH. Run: export PATH=\"${INSTALL_DIR}:\$PATH\""
+    error "Installation failed — ${dest} is not executable."
   fi
 }
 
