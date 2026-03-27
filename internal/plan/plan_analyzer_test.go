@@ -461,6 +461,13 @@ func TestPlanAnalyzer_AnalyzeOutputChanges(t *testing.T) {
 			wantCount:        1,
 			wantReplacements: 1,
 			wantHasChanges:   true,
+			validateOutputChanges: func(t *testing.T, changes []OutputChange) {
+				t.Helper()
+				require.Len(t, changes, 1)
+				assert.Equal(t, "replaced_output", changes[0].Name)
+				assert.Equal(t, []string{"delete", "create"}, changes[0].Actions)
+				assert.False(t, changes[0].Sensitive)
+			},
 		},
 		{
 			name: "sensitive output",
@@ -498,14 +505,20 @@ func TestPlanAnalyzer_AnalyzeOutputChanges(t *testing.T) {
 					"before_sensitive": false,
 					"after_sensitive":  false,
 				},
+				"replaced_output": map[string]any{
+					"actions":          []any{"delete", "create"},
+					"before_sensitive": false,
+					"after_sensitive":  false,
+				},
 				"stable_output": map[string]any{
 					"actions": []any{"no-op"},
 				},
 			},
-			wantCount:         3,
+			wantCount:         4,
 			wantAdditions:     1,
 			wantDeletions:     1,
 			wantModifications: 1,
+			wantReplacements:  1,
 			wantHasChanges:    true,
 		},
 		{

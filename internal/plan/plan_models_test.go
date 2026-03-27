@@ -27,7 +27,7 @@ func TestSeverityOrder(t *testing.T) {
 	}
 }
 
-func Test_sortResourcesBySeverity(t *testing.T) {
+func TestSortResourcesBySeverity(t *testing.T) {
 	// Create resources in random order
 	resources := []AnalyzedResource{
 		{Name: "low1", Severity: SeverityLow},
@@ -52,7 +52,7 @@ func Test_sortResourcesBySeverity(t *testing.T) {
 	assert.Equal(t, expected, actual, "Should be sorted by severity with stable order")
 }
 
-func Test_formatActions(t *testing.T) {
+func TestFormatActions(t *testing.T) {
 	tests := []struct {
 		name    string
 		actions []string
@@ -98,7 +98,7 @@ func Test_formatActions(t *testing.T) {
 	}
 }
 
-func Test_containsAction(t *testing.T) {
+func TestContainsAction(t *testing.T) {
 	tests := []struct {
 		name    string
 		actions []string
@@ -127,7 +127,7 @@ func Test_containsAction(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := containsAction(tt.actions, tt.action)
+			got := contains(tt.actions, tt.action)
 			assert.Equal(t, tt.want, got)
 		})
 	}
