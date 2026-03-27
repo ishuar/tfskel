@@ -12,21 +12,14 @@ Use [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): 
 
 **Scopes** (pick one):
 
-| Category | Scope | Covers |
-|----------|-------|--------|
-| Commands | `cmd` | CLI commands (init, scaffold, diff, review) |
-| Internal | `config` | Configuration system |
-| Internal | `templates` | Template rendering |
-| Internal | `generator` | Template generation |
-| Internal | `plan` | Plan parsing/analysis |
-| Internal | `format` | Output formatting |
-| Internal | `fs` | File system operations |
-| Tooling | `build` | Build system/Makefile |
-| Tooling | `ci` | GitHub Actions/CI |
-| Tooling | `deps` | Go dependencies |
-| Tooling | `test` | Test infrastructure |
-| General | `docs` | Documentation only (no scope needed) |
-| General | `chore` | Maintenance tasks (no scope needed) |
+| Category | Scope      | Covers                                      |
+| -------- | ---------- | ------------------------------------------- |
+| Commands | `cmd`      | CLI commands (init, scaffold, diff, review) |
+| Internal | `config`   | Configuration system                        |
+| Internal | `template` | Template rendering                          |
+| Internal | `generate` | Template generation                         |
+| Internal | `plan`     | Plan parsing/analysis                       |
+| Internal | `diff`     | Diff computation                            |
 
 Breaking changes: add `!` after the type, e.g. `feat(cmd)!: redesign CLI interface`
 
