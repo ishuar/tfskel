@@ -19,6 +19,9 @@
 
 # tfskel
 
+> [!WARNING]
+> This project is in early development. APIs, commands, and configurations may introduce breaking changes between releases.
+
 [`tfskel`](https://github.com/ishuar/tfskel) is a CLI tool that helps you run Terraform without the operational chaos.
 
 It standardizes project structure, reduces drift, and makes plans easier to reason about, so you can spend less time managing Terraform and more time terraforming your infrastructure. No wrappers. No unnecessary abstraction. With `tfskel` Just well-structured, scalable Terraform that stays maintainable as you grow.
@@ -52,16 +55,17 @@ It gives you a clean, opinionated foundation that keeps your Terraform projects 
 👉 Check out this https://github.com/ishuar/tfskel-demo/pull/2 to see _how to initialize a new terraform monorepo in just 4 steps and leverage the built-in GitHub Actions workflows_:
 
 
+
 ## Installation
 
-### Quick Install (recommended)
+### Quick Install
 
 ```bash
+# Install a specific version (recommended)
+curl -fsSL https://raw.githubusercontent.com/ishuar/tfskel/main/install.sh | TFSKEL_VERSION=0.7.0 bash
+
 # Install latest version
 curl -fsSL https://raw.githubusercontent.com/ishuar/tfskel/main/install.sh | bash
-
-# Install a specific version
-curl -fsSL https://raw.githubusercontent.com/ishuar/tfskel/main/install.sh | TFSKEL_VERSION=0.7.0 bash
 
 # Custom install directory
 curl -fsSL https://raw.githubusercontent.com/ishuar/tfskel/main/install.sh | INSTALL_DIR=~/.local/bin bash
