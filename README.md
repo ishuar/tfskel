@@ -54,12 +54,23 @@ It gives you a clean, opinionated foundation that keeps your Terraform projects 
 
 ## Installation
 
-```bash
-# Install via Go
-go install github.com/ishuar/tfskel@latest
+### Quick Install (recommended)
 
-# Or download from releases
-# https://github.com/ishuar/tfskel/releases
+```bash
+# Install latest version
+curl -fsSL https://raw.githubusercontent.com/ishuar/tfskel/main/install.sh | bash
+
+# Install a specific version
+curl -fsSL https://raw.githubusercontent.com/ishuar/tfskel/main/install.sh | TFSKEL_VERSION=0.7.0 bash
+
+# Custom install directory
+curl -fsSL https://raw.githubusercontent.com/ishuar/tfskel/main/install.sh | INSTALL_DIR=~/.local/bin bash
+```
+
+### Install via Go
+
+```bash
+go install github.com/ishuar/tfskel@latest
 ```
 Make sure `$HOME/go/bin` is in your PATH.
 
