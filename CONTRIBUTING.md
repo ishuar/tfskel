@@ -86,6 +86,7 @@ make help           # Show all available commands
 ### Development Workflow
 
 1. **Create a branch**
+
    ```bash
    git checkout -b feature/my-new-feature
    ```
@@ -96,6 +97,7 @@ make help           # Show all available commands
    - Update documentation as needed
 
 3. **Test your changes**
+
    ```bash
    # Run all tests
    go test ./...
@@ -108,6 +110,7 @@ make help           # Show all available commands
    ```
 
 4. **Commit your changes**
+
    ```bash
    git add .
    git commit -m "feat: add new feature"
@@ -129,25 +132,19 @@ make help           # Show all available commands
 
    **Scopes** (use ONE per commit/PR title):
 
-   | Category | Scope | Covers |
-   |----------|-------|--------|
-   | Commands | `cmd` | CLI commands (init, scaffold, diff, review) |
-   | Internal | `config` | Configuration system |
-   | Internal | `templates` | Template rendering |
-   | Internal | `generator` | Template generation |
-   | Internal | `plan` | Plan parsing/analysis |
-   | Internal | `format` | Output formatting |
-   | Internal | `fs` | File system operations |
-   | Tooling | `build` | Build system/Makefile |
-   | Tooling | `ci` | GitHub Actions/CI |
-   | Tooling | `deps` | Go dependencies |
-   | Tooling | `test` | Test infrastructure |
-   | General | `docs` | Documentation only (no scope needed) |
-   | General | `chore` | Maintenance tasks (no scope needed) |
+   | Category | Scope      | Covers                                      |
+   | -------- | ---------- | ------------------------------------------- |
+   | Commands | `cmd`      | CLI commands (init, scaffold, diff, review) |
+   | Internal | `config`   | Configuration system                        |
+   | Internal | `template` | Template rendering                          |
+   | Internal | `generate` | Template generation                         |
+   | Internal | `plan`     | Plan parsing/analysis                       |
+   | Internal | `diff`     | Diff computation                            |
 
    **Format:** `type(scope): description`
 
    Examples:
+
    ```
    feat(cmd): add --dry-run flag to scaffold
    fix(plan): handle null values in JSON parsing
@@ -156,6 +153,7 @@ make help           # Show all available commands
    ```
 
    For breaking changes, add `!` after the type or include `BREAKING CHANGE:` in the footer:
+
    ```bash
    git commit -m "feat(cmd)!: redesign CLI interface
 
@@ -165,6 +163,7 @@ make help           # Show all available commands
    **See [Release System](docs/release-system.md) for complete details on automated releases.**
 
 5. **Push to your fork**
+
    ```bash
    git push origin feature/my-new-feature
    ```
@@ -317,6 +316,7 @@ The repo includes a lightweight PR template (`.github/PULL_REQUEST_TEMPLATE.md`)
 ## Questions?
 
 Feel free to:
+
 - Open an issue with the `question` label
 - Start a discussion in GitHub Discussions
 - Reach out to maintainers
@@ -324,6 +324,7 @@ Feel free to:
 ## Recognition
 
 Contributors will be recognized in:
+
 - README.md contributors section
 
 Thank you for contributing to tfskel! 🎉
