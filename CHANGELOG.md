@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.7.1](https://github.com/ishuar/tfskel/compare/v0.7.0...v0.7.1) (2026-03-27)
+
+
+### ✨ Features
+
+* **plan:** include terraform output changes in the plan review ([#65](https://github.com/ishuar/tfskel/issues/65)) ([439cba7](https://github.com/ishuar/tfskel/commit/439cba72f2538ba9d7a5d3745a7b12f49ee4a36d))
+
+
+### 📦 Other Changes
+
+* added an installation script to avoid go dependency ([#66](https://github.com/ishuar/tfskel/issues/66)) ([ca97d3f](https://github.com/ishuar/tfskel/commit/ca97d3f54450b5ae037ab2ec10066f488ba17f65))
+* **review/plan:** bisected plan_formatter into dedicated components ([439cba7](https://github.com/ishuar/tfskel/commit/439cba72f2538ba9d7a5d3745a7b12f49ee4a36d))
+* update scopes for contributing ([#69](https://github.com/ishuar/tfskel/issues/69)) ([0bbf033](https://github.com/ishuar/tfskel/commit/0bbf033f7a27fa768fe9e332dc955f4ef50b66e4))
+* updated docs & release please config to include other changes section ([#67](https://github.com/ishuar/tfskel/issues/67)) ([f72bd36](https://github.com/ishuar/tfskel/commit/f72bd36fd538d8aba6cd906ccf504d1ba3c8cdb1))
+
 ## [0.7.0](https://github.com/ishuar/tfskel/compare/v0.6.0...v0.7.0) (2026-03-26)
 
 
