@@ -290,9 +290,12 @@ func (f *PlanFormatter) printGroupSummary(w io.Writer, styles format.CommonStyle
 		sorted = append(sorted, groupCount{name, count})
 	}
 
-	// Sort by count descending using standard library
+	// Sort by count descending, then by name ascending for stable output
 	sort.Slice(sorted, func(i, j int) bool {
-		return sorted[i].count > sorted[j].count
+		if sorted[i].count != sorted[j].count {
+			return sorted[i].count > sorted[j].count
+		}
+		return sorted[i].name < sorted[j].name
 	})
 
 	// Limit to topN if specified
