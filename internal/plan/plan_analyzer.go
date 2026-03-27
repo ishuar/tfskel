@@ -148,13 +148,13 @@ func (a *PlanAnalyzer) analyzeOutputChanges(plan *TerraformPlan, analysis *PlanA
 		})
 
 		switch {
-		case containsAction(actions, ActionCreate) && !containsAction(actions, ActionDelete):
+		case contains(actions, ActionCreate) && !contains(actions, ActionDelete):
 			analysis.OutputAdditions++
-		case containsAction(actions, ActionDelete) && containsAction(actions, ActionCreate):
+		case contains(actions, ActionDelete) && contains(actions, ActionCreate):
 			analysis.OutputReplacements++
-		case containsAction(actions, ActionDelete):
+		case contains(actions, ActionDelete):
 			analysis.OutputDeletions++
-		case containsAction(actions, ActionUpdate):
+		case contains(actions, ActionUpdate):
 			analysis.OutputModifications++
 		}
 	}
@@ -197,22 +197,22 @@ func isNoOp(actions []string) bool {
 // determineSeverity assesses the risk level of a change
 func (a *PlanAnalyzer) determineSeverity(actions []string, resourceType string) Severity {
 	// Critical: Any deletion (data loss risk)
-	if containsAction(actions, ActionDelete) {
+	if contains(actions, ActionDelete) {
 		return SeverityCritical
 	}
 
 	// High: Updates to critical infrastructure resources
-	if a.isCriticalResource(resourceType) && containsAction(actions, ActionUpdate) {
+	if a.isCriticalResource(resourceType) && contains(actions, ActionUpdate) {
 		return SeverityHigh
 	}
 
 	// Medium: Standard resource updates
-	if containsAction(actions, ActionUpdate) {
+	if contains(actions, ActionUpdate) {
 		return SeverityMedium
 	}
 
 	// Low: Additions only (no risk)
-	if containsAction(actions, ActionCreate) {
+	if contains(actions, ActionCreate) {
 		return SeverityLow
 	}
 
@@ -221,19 +221,19 @@ func (a *PlanAnalyzer) determineSeverity(actions []string, resourceType string) 
 
 // isCriticalResource checks if a resource type is considered critical
 func (a *PlanAnalyzer) isCriticalResource(resourceType string) bool {
-	return containsAction(a.criticalResourceTypes, resourceType)
+	return contains(a.criticalResourceTypes, resourceType)
 }
 
 // updateCounts updates the analysis counters based on actions
 func (a *PlanAnalyzer) updateCounts(analysis *PlanAnalysis, actions []string) {
 	switch {
-	case containsAction(actions, ActionCreate) && !containsAction(actions, ActionDelete):
+	case contains(actions, ActionCreate) && !contains(actions, ActionDelete):
 		analysis.Additions++
-	case containsAction(actions, ActionDelete) && containsAction(actions, ActionCreate):
+	case contains(actions, ActionDelete) && contains(actions, ActionCreate):
 		analysis.Replacements++
-	case containsAction(actions, ActionDelete):
+	case contains(actions, ActionDelete):
 		analysis.Deletions++
-	case containsAction(actions, ActionUpdate):
+	case contains(actions, ActionUpdate):
 		analysis.Modifications++
 	}
 }

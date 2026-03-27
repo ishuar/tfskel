@@ -157,9 +157,9 @@ func (s Severity) Order() int {
 	}
 }
 
-// containsAction checks if an action is in the actions list
-func containsAction(actions []string, action string) bool {
-	return slices.Contains(actions, action)
+// contains checks if a string is present in the given slice.
+func contains(items []string, item string) bool {
+	return slices.Contains(items, item)
 }
 
 // formatActions converts an action list to a human-readable string.
@@ -171,7 +171,7 @@ func formatActions(actions []string) string {
 	if len(actions) == 1 {
 		return actions[0]
 	}
-	if containsAction(actions, ActionDelete) && containsAction(actions, ActionCreate) {
+	if contains(actions, ActionDelete) && contains(actions, ActionCreate) {
 		return ActionReplace
 	}
 	return strings.Join(actions, ", ")
