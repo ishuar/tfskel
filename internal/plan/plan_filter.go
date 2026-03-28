@@ -50,7 +50,7 @@ func (f *ResourceFilter) IsEmpty() bool {
 // Returns a descriptive error for unknown values or conflicting filters.
 func (f *ResourceFilter) Validate() error {
 	if len(f.Severities) > 0 && f.MinSeverity != "" {
-		return fmt.Errorf("%w", ErrConflictingFilters)
+		return ErrConflictingFilters
 	}
 	for _, s := range f.Severities {
 		if !containsFold(validSeverities, s) {
@@ -112,7 +112,7 @@ func FilterResources(resources []AnalyzedResource, filter *ResourceFilter) []Ana
 	if filter == nil || filter.IsEmpty() {
 		return resources
 	}
-	var filtered []AnalyzedResource
+	filtered := make([]AnalyzedResource, 0, len(resources))
 	for _, r := range resources {
 		if filter.Match(r) {
 			filtered = append(filtered, r)

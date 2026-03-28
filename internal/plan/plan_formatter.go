@@ -60,16 +60,10 @@ func NewPlanFormatterWithConfig(useColor bool, topResourcesCount int) *PlanForma
 // NewPlanFormatterFiltered creates a formatter with filter metadata.
 // totalResourceCount is the original unfiltered count, activeFilters are human-readable descriptions.
 func NewPlanFormatterFiltered(useColor bool, topResourcesCount int, totalResourceCount int, activeFilters []string) *PlanFormatter {
-	if topResourcesCount < 0 {
-		topResourcesCount = DefaultTopResourcesCount
-	}
-	return &PlanFormatter{
-		useColor:           useColor,
-		terminalWidth:      detectTerminalWidth(),
-		topResourcesCount:  topResourcesCount,
-		totalResourceCount: totalResourceCount,
-		activeFilters:      activeFilters,
-	}
+	f := NewPlanFormatterWithConfig(useColor, topResourcesCount)
+	f.totalResourceCount = totalResourceCount
+	f.activeFilters = activeFilters
+	return f
 }
 
 // Format outputs the plan analysis in the specified format

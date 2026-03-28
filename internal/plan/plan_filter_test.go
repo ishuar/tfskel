@@ -200,9 +200,10 @@ func TestFilterResources(t *testing.T) {
 		assert.Equal(t, "a", got[0].Name)
 	})
 
-	t.Run("returns nil slice when nothing matches", func(t *testing.T) {
+	t.Run("returns empty slice when nothing matches", func(t *testing.T) {
 		got := FilterResources(resources, &ResourceFilter{Actions: []string{"replace"}})
-		assert.Nil(t, got)
+		assert.Empty(t, got)
+		assert.NotNil(t, got)
 	})
 }
 
