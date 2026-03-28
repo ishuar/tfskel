@@ -51,6 +51,46 @@ func TestPlanFormatter_formatCSV_SortsBySeverity(t *testing.T) {
 	assert.Contains(t, dataLines[3], "low", "Fourth row should be low")
 }
 
+func TestPlanFormatter_formatCSV_FilterComments(t *testing.T) {
+	formatter := NewPlanFormatterFiltered(false, DefaultTopResourcesCount, 5, []string{"severity=critical", "action=delete"})
+
+	analysis := &PlanAnalysis{
+		TerraformVersion: "1.14.3",
+		TotalChanges:     5,
+		ResourceChanges: []AnalyzedResource{
+			{Address: "aws_s3_bucket.gone", Name: "gone", Type: "aws_s3_bucket", ActionString: "delete", Severity: SeverityCritical},
+		},
+	}
+
+	var buf bytes.Buffer
+	err := formatter.formatCSV(analysis, &buf)
+	require.NoError(t, err)
+
+	output := buf.String()
+	assert.Contains(t, output, "# Filters: severity=critical; action=delete")
+	assert.Contains(t, output, "# Showing 1 of 5 resources (filtered)")
+}
+
+func TestPlanFormatter_formatCSV_NoFilterComments(t *testing.T) {
+	formatter := NewPlanFormatter(false)
+
+	analysis := &PlanAnalysis{
+		TerraformVersion: "1.14.3",
+		TotalChanges:     1,
+		ResourceChanges: []AnalyzedResource{
+			{Address: "aws_instance.web", Name: "web", Type: "aws_instance", ActionString: "create", Severity: SeverityLow},
+		},
+	}
+
+	var buf bytes.Buffer
+	err := formatter.formatCSV(analysis, &buf)
+	require.NoError(t, err)
+
+	output := buf.String()
+	assert.NotContains(t, output, "# Filters:")
+	assert.NotContains(t, output, "filtered")
+}
+
 func TestPlanFormatter_formatCSV_OutputChanges(t *testing.T) {
 	tests := []struct {
 		name          string

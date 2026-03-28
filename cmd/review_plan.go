@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/ishuar/tfskel/internal/format"
 	"github.com/ishuar/tfskel/internal/logger"
@@ -16,6 +17,9 @@ var (
 	reviewPlanFile         string
 	reviewPlanFormat       string
 	reviewPlanTopResources int
+	filterSeverity         []string
+	minSeverity            string
+	filterAction           []string
 )
 
 var (
@@ -24,7 +28,9 @@ var (
 	// ErrFileNotFound indicates the specified file does not exist
 	ErrFileNotFound = errors.New("json plan file not found")
 	// ErrInvalidFormat indicates an unsupported output format was specified
-	ErrInvalidFormat = errors.New("invalid format: must be one of table, json, csv")
+	ErrInvalidFormat = errors.New("invalid format")
+	// ErrInvalidFilter indicates an invalid filter value was specified
+	ErrInvalidFilter = errors.New("invalid filter")
 )
 
 // reviewPlanCmd represents the review plan command
@@ -64,7 +70,19 @@ Severity Levels:
   tfskel review plan --json-file tfplan.json --no-color
 
   # Limit top resource summaries to 5 items
-  tfskel review plan --json-file tfplan.json --top-resources-count 5`,
+  tfskel review plan --json-file tfplan.json --top-resources-count 5
+
+  # Show only critical and high severity changes
+  tfskel review plan --json-file tfplan.json --filter-severity critical,high
+
+  # Show changes at high severity or above (high + critical)
+  tfskel review plan --json-file tfplan.json --min-severity high
+
+  # Show only deletions and replacements
+  tfskel review plan --json-file tfplan.json --filter-action delete,replace
+
+  # Combine filters (AND semantics)
+  tfskel review plan --json-file tfplan.json --min-severity high --filter-action delete`,
 	RunE: runReviewPlan,
 }
 
@@ -81,6 +99,13 @@ func init() {
 		"Output format: table, json, csv")
 	reviewPlanCmd.Flags().IntVar(&reviewPlanTopResources, "top-resources-count", -1,
 		"Number of resources to show in top-N summaries (default: 10, 0 = unlimited)")
+	reviewPlanCmd.Flags().StringSliceVar(&filterSeverity, "filter-severity", nil,
+		"Filter by exact severity: critical, high, medium, low (comma-separated)")
+	reviewPlanCmd.Flags().StringVar(&minSeverity, "min-severity", "",
+		"Show resources at or above this severity: low, medium, high, critical")
+	reviewPlanCmd.Flags().StringSliceVar(&filterAction, "filter-action", nil,
+		"Filter by action: create, update, delete, replace (comma-separated)")
+	reviewPlanCmd.MarkFlagsMutuallyExclusive("filter-severity", "min-severity")
 }
 
 func runReviewPlan(cmd *cobra.Command, _ []string) error {
@@ -89,12 +114,24 @@ func runReviewPlan(cmd *cobra.Command, _ []string) error {
 	log := logger.NewWithOptions(viper.GetBool("verbose"), useColor)
 
 	// Validate output format
+	validFormats := []string{string(format.FormatTable), string(format.FormatJSON), string(format.FormatCSV)}
 	switch format.OutputFormat(reviewPlanFormat) {
 	case format.FormatTable, format.FormatJSON, format.FormatCSV:
 		// valid format
 	default:
 		log.Errorf("Invalid format: %s", reviewPlanFormat)
-		return fmt.Errorf("%w", ErrInvalidFormat)
+		return fmt.Errorf("%w: %s (must be one of %s)", ErrInvalidFormat, reviewPlanFormat, strings.Join(validFormats, ", "))
+	}
+
+	// Validate filters
+	filter := &plan.ResourceFilter{
+		Severities:  filterSeverity,
+		MinSeverity: minSeverity,
+		Actions:     filterAction,
+	}
+	if err := filter.Validate(); err != nil {
+		log.Errorf("Invalid filter: %v", err)
+		return fmt.Errorf("%w: %w", ErrInvalidFilter, err)
 	}
 
 	// Check if file exists
@@ -137,6 +174,13 @@ func runReviewPlan(cmd *cobra.Command, _ []string) error {
 
 	log.Infof("Found %d resource changes", analysis.TotalChanges)
 
+	// Apply resource filters (display-only: summary totals and exit codes reflect the full plan)
+	totalResourceCount := len(analysis.ResourceChanges)
+	if !filter.IsEmpty() {
+		analysis.ResourceChanges = plan.FilterResources(analysis.ResourceChanges, filter)
+		log.Infof("Filtered to %d of %d resources", len(analysis.ResourceChanges), totalResourceCount)
+	}
+
 	// Load plan analysis config for formatter settings
 	planConfig := plan.LoadAnalysisConfig(viper.GetViper())
 
@@ -148,7 +192,12 @@ func runReviewPlan(cmd *cobra.Command, _ []string) error {
 
 	// Color profile already initialized in root PersistentPreRunE
 	// Format and output using internal package
-	formatter := plan.NewPlanFormatterWithConfig(useColor, topResourcesCount)
+	var formatter *plan.PlanFormatter
+	if !filter.IsEmpty() {
+		formatter = plan.NewPlanFormatterFiltered(useColor, topResourcesCount, totalResourceCount, filter.Descriptions())
+	} else {
+		formatter = plan.NewPlanFormatterWithConfig(useColor, topResourcesCount)
+	}
 	if err := formatter.Format(analysis, format.OutputFormat(reviewPlanFormat), os.Stdout); err != nil {
 		log.Errorf("Failed to format output: %v", err)
 		return fmt.Errorf("failed to format output: %w", err)

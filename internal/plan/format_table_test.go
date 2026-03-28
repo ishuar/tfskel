@@ -124,6 +124,44 @@ func TestPlanFormatter_writeTableOutputChanges(t *testing.T) {
 	}
 }
 
+func TestPlanFormatter_writeTableResourceDetails_Filtered(t *testing.T) {
+	formatter := NewPlanFormatterFiltered(false, DefaultTopResourcesCount, 10, []string{"severity=critical"})
+	formatter.tableWidth = 100
+
+	analysis := &PlanAnalysis{
+		ResourceChanges: []AnalyzedResource{
+			{Name: "deleted", Type: "aws_s3_bucket", ActionString: "delete", Severity: SeverityCritical},
+			{Name: "replaced", Type: "aws_vpc", ActionString: "replace", Severity: SeverityCritical},
+		},
+	}
+
+	var buf bytes.Buffer
+	err := formatter.writeTableResourceDetails(&buf, analysis, newTestStyles())
+	require.NoError(t, err)
+
+	output := buf.String()
+	assert.Contains(t, output, "Showing 2 of 10 resources (filtered)")
+}
+
+func TestPlanFormatter_writeTableResourceDetails_Unfiltered(t *testing.T) {
+	formatter := NewPlanFormatter(false)
+	formatter.tableWidth = 100
+
+	analysis := &PlanAnalysis{
+		ResourceChanges: []AnalyzedResource{
+			{Name: "instance", Type: "aws_instance", ActionString: "create", Severity: SeverityLow},
+		},
+	}
+
+	var buf bytes.Buffer
+	err := formatter.writeTableResourceDetails(&buf, analysis, newTestStyles())
+	require.NoError(t, err)
+
+	output := buf.String()
+	assert.Contains(t, output, "Showing 1 resources")
+	assert.NotContains(t, output, "filtered")
+}
+
 // countOutputAction counts output changes containing the given action.
 func countOutputAction(changes []OutputChange, action string) int {
 	count := 0

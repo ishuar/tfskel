@@ -27,10 +27,12 @@ var (
 
 // PlanFormatter handles formatting of plan analysis results
 type PlanFormatter struct {
-	useColor          bool
-	terminalWidth     int
-	tableWidth        int // Consistent width for all tables
-	topResourcesCount int // Number of resources to show in top-N summaries
+	useColor           bool
+	terminalWidth      int
+	tableWidth         int      // Consistent width for all tables
+	topResourcesCount  int      // Number of resources to show in top-N summaries
+	totalResourceCount int      // Original unfiltered count; 0 means not filtered
+	activeFilters      []string // Human-readable filter descriptions
 }
 
 // NewPlanFormatter creates a new plan formatter with auto-detected terminal width
@@ -52,6 +54,21 @@ func NewPlanFormatterWithConfig(useColor bool, topResourcesCount int) *PlanForma
 		useColor:          useColor,
 		terminalWidth:     detectTerminalWidth(),
 		topResourcesCount: topResourcesCount,
+	}
+}
+
+// NewPlanFormatterFiltered creates a formatter with filter metadata.
+// totalResourceCount is the original unfiltered count, activeFilters are human-readable descriptions.
+func NewPlanFormatterFiltered(useColor bool, topResourcesCount int, totalResourceCount int, activeFilters []string) *PlanFormatter {
+	if topResourcesCount < 0 {
+		topResourcesCount = DefaultTopResourcesCount
+	}
+	return &PlanFormatter{
+		useColor:           useColor,
+		terminalWidth:      detectTerminalWidth(),
+		topResourcesCount:  topResourcesCount,
+		totalResourceCount: totalResourceCount,
+		activeFilters:      activeFilters,
 	}
 }
 
