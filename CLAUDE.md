@@ -45,6 +45,7 @@ make build    # build binary
 | Missing required flag    | No           | User knows the command, just forgot a flag      |
 | Mutually exclusive flags | No           | User knows both flags, just combined them wrong |
 | Invalid flag value       | No           | User knows the flag, just got the value wrong   |
+| Wrong number of args     | No           | User knows the command, just forgot an argument |
 | Runtime errors           | No           | Nothing to do with CLI syntax                   |
 | No subcommand given      | **Yes**      | User needs to discover available subcommands    |
 
