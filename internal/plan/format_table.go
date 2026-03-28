@@ -312,8 +312,13 @@ func (f *PlanFormatter) printGroupSummary(w io.Writer, styles format.CommonStyle
 	})
 
 	// Limit to topN if specified
-	if topN > 0 && len(sorted) > topN {
+	totalGroups := len(sorted)
+	if topN > 0 && totalGroups > topN {
 		sorted = sorted[:topN]
+		countMsg := fmt.Sprintf("Showing top %d of %d", topN, totalGroups)
+		if _, err := fmt.Fprintln(w, styles.MutedStyle.Render(countMsg)); err != nil {
+			return fmt.Errorf("failed to write group count: %w", err)
+		}
 	}
 
 	// Build table data
