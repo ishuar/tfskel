@@ -47,7 +47,8 @@ Note: Hidden directories (starting with .) are automatically skipped.`,
 
   # Check home directory with JSON output
   tfskel diff config --dir ~/terraform --format json`,
-	RunE: runDiffConfig,
+	SilenceUsage: true,
+	RunE:         runDiffConfig,
 }
 
 func init() {
@@ -60,8 +61,6 @@ func init() {
 }
 
 func runDiffConfig(cmd *cobra.Command, _ []string) error {
-	cmd.SilenceUsage = true
-
 	log := logger.NewWithOptions(viper.GetBool("verbose"), useColor)
 
 	// Validate and normalize directory

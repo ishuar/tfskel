@@ -48,8 +48,9 @@ Subcommands:
 
   # Using the short alias
   tfskel sc myapp --env dev --region us-east-1`,
-	Args: cobra.ExactArgs(1),
-	RunE: runScaffold,
+	Args:         cobra.ExactArgs(1),
+	SilenceUsage: true,
+	RunE:         runScaffold,
 }
 
 var scaffoldWorkflowsCmd = &cobra.Command{
@@ -71,7 +72,8 @@ Configuration:
 
   # Generate workflow with custom config
   tfskel scaffold workflows --env prd --config ./my-config.yaml`,
-	RunE: runScaffoldWorkflows,
+	SilenceUsage: true,
+	RunE:         runScaffoldWorkflows,
 }
 
 var (
@@ -128,8 +130,6 @@ func init() {
 }
 
 func runScaffold(cmd *cobra.Command, args []string) error {
-	cmd.SilenceUsage = true
-
 	// Initialize logger
 	log := logger.NewWithOptions(viper.GetBool("verbose"), useColor)
 
@@ -187,8 +187,6 @@ func runScaffold(cmd *cobra.Command, args []string) error {
 }
 
 func runScaffoldWorkflows(cmd *cobra.Command, _ []string) error {
-	cmd.SilenceUsage = true
-
 	log := logger.NewWithOptions(viper.GetBool("verbose"), useColor)
 	log.Debug("Starting scaffold workflows command")
 
