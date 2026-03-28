@@ -86,7 +86,7 @@ func TestRenderer_Render(t *testing.T) {
 
 	t.Run("non-existent template returns error", func(t *testing.T) {
 		_, err := renderer.Render("nonexistent.tmpl", &Data{})
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "template")
 		assert.Contains(t, err.Error(), "not found")
 	})
@@ -141,7 +141,7 @@ func TestRenderer_GetTemplateSource(t *testing.T) {
 	})
 }
 
-func TestRenderer_NewWithCustomTemplates(t *testing.T) {
+func TestNewRendererWithCustomTemplates(t *testing.T) {
 	t.Run("with empty custom dir uses defaults", func(t *testing.T) {
 		renderer, err := NewRendererWithCustomTemplates("")
 		require.NoError(t, err)
@@ -153,7 +153,7 @@ func TestRenderer_NewWithCustomTemplates(t *testing.T) {
 
 	t.Run("with non-existent custom dir returns error", func(t *testing.T) {
 		_, err := NewRendererWithCustomTemplates("/nonexistent/path")
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "does not exist")
 	})
 }
