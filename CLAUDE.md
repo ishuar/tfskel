@@ -34,3 +34,19 @@ make build    # build binary
 
 - Follow Effective Go
 - See CONTRIBUTING.md for full guidelines
+
+### CLI Error Outputs
+
+#### Design Principle
+
+| Error Type               | Shows Usage? | Reasoning                                       |
+|--------------------------|--------------|-------------------------------------------------|
+| Unknown flag             | No           | User knows the command, just mistyped a flag    |
+| Missing required flag    | No           | User knows the command, just forgot a flag      |
+| Mutually exclusive flags | No           | User knows both flags, just combined them wrong |
+| Invalid flag value       | No           | User knows the flag, just got the value wrong   |
+| Wrong number of args     | No           | User knows the command, just forgot an argument |
+| Runtime errors           | No           | Nothing to do with CLI syntax                   |
+| No subcommand given      | **Yes**      | User needs to discover available subcommands    |
+
+**Rule of thumb:** Show usage when the user doesn't know what commands/flags exist. Suppress it when they clearly do but made a mistake. Users who need help will use `--help`.

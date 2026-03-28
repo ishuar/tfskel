@@ -63,6 +63,14 @@ func Execute() error {
 func init() {
 	cobra.OnInitialize(initConfig)
 
+	// Suppress usage text on flag validation errors (e.g. mutually exclusive flags,
+	// unknown flags). Users who triggered a flag error clearly know the interface;
+	// dumping the full usage block just buries the actual error message.
+	rootCmd.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
+		cmd.SilenceUsage = true
+		return err
+	})
+
 	// Define command groups
 	rootCmd.AddGroup(&cobra.Group{
 		ID:    "main",
