@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 )
 
 // formatCSV outputs analysis as CSV with metadata and resource details using proper CSV escaping
@@ -21,8 +22,13 @@ func (f *PlanFormatter) formatCSV(analysis *PlanAnalysis, w io.Writer) error {
 			analysis.Additions, analysis.Modifications, analysis.Deletions, analysis.Replacements),
 		fmt.Sprintf("# Output Changes: %d (added: %d, deleted: %d, modified: %d, replaced: %d)",
 			len(analysis.OutputChanges), analysis.OutputAdditions, analysis.OutputDeletions, analysis.OutputModifications, analysis.OutputReplacements),
-		"#",
 	}
+	if len(f.activeFilters) > 0 {
+		comments = append(comments, "# Filters: "+strings.Join(f.activeFilters, "; "))
+		comments = append(comments, fmt.Sprintf("# Showing %d of %d resources (filtered)",
+			len(analysis.ResourceChanges), f.totalResourceCount))
+	}
+	comments = append(comments, "#")
 	for _, comment := range comments {
 		if _, err := fmt.Fprintln(w, comment); err != nil {
 			return fmt.Errorf("failed to write comment: %w", err)

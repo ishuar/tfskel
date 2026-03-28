@@ -132,8 +132,21 @@ func (f *PlanFormatter) writeTableResourceDetails(w io.Writer, analysis *PlanAna
 	if _, err := fmt.Fprintln(w, styles.HeaderStyle.Render("Resource Changes (detailed)")); err != nil {
 		return fmt.Errorf("failed to write resource changes header: %w", err)
 	}
-	if _, err := fmt.Fprintln(w, styles.MutedStyle.Render(fmt.Sprintf("Showing %d resources", len(analysis.ResourceChanges)))); err != nil {
+	noun := "resources"
+	if len(analysis.ResourceChanges) == 1 {
+		noun = "resource"
+	}
+	countMsg := fmt.Sprintf("Showing %d %s", len(analysis.ResourceChanges), noun)
+	if f.totalResourceCount > 0 && f.totalResourceCount != len(analysis.ResourceChanges) {
+		countMsg = fmt.Sprintf("Showing %d of %d %s (filtered)", len(analysis.ResourceChanges), f.totalResourceCount, noun)
+	}
+	if _, err := fmt.Fprintln(w, styles.MutedStyle.Render(countMsg)); err != nil {
 		return fmt.Errorf("failed to write resource count: %w", err)
+	}
+	if len(f.activeFilters) > 0 {
+		if _, err := fmt.Fprintln(w, styles.MutedStyle.Render("Filters: "+strings.Join(f.activeFilters, "; "))); err != nil {
+			return fmt.Errorf("failed to write filter info: %w", err)
+		}
 	}
 
 	resourceData := f.buildResourceData(analysis.ResourceChanges)
