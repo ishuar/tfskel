@@ -65,7 +65,8 @@ Severity Levels:
 
   # Limit top resource summaries to 5 items
   tfskel review plan --json-file tfplan.json --top-resources-count 5`,
-	RunE: runReviewPlan,
+	SilenceUsage: true,
+	RunE:         runReviewPlan,
 }
 
 func init() {
@@ -84,8 +85,6 @@ func init() {
 }
 
 func runReviewPlan(cmd *cobra.Command, _ []string) error {
-	cmd.SilenceUsage = true
-
 	log := logger.NewWithOptions(viper.GetBool("verbose"), useColor)
 
 	// Validate output format
@@ -122,7 +121,6 @@ func runReviewPlan(cmd *cobra.Command, _ []string) error {
 	planData, err := plan.ParsePlanFile(reviewPlanFile)
 	if err != nil {
 		log.Errorf("Failed to parse plan file: %v", err)
-		cmd.SilenceUsage = true
 		return fmt.Errorf("failed to parse plan file: %w", err)
 	}
 

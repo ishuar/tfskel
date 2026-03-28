@@ -74,7 +74,8 @@ Recommendations:
 
   # Initialize with explicit config file
   tfskel init --config /path/to/config.yaml`,
-	RunE: runInit,
+	SilenceUsage: true,
+	RunE:         runInit,
 }
 
 var (
@@ -92,9 +93,7 @@ func init() {
 	initCmd.Flags().BoolVar(&initForce, "force", false, "with --upgrade, overwrite files even without source markers")
 }
 
-func runInit(cmd *cobra.Command, _ []string) error {
-	cmd.SilenceUsage = true
-
+func runInit(_ *cobra.Command, _ []string) error {
 	// Initialize logger
 	log := logger.NewWithOptions(viper.GetBool("verbose"), useColor)
 
