@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.7.2](https://github.com/ishuar/tfskel/compare/v0.7.1...v0.7.2) (2026-03-28)
+
+
+### ✨ Features
+
+* **plan:** add severity and action filters for plan review ([#71](https://github.com/ishuar/tfskel/issues/71)) ([1a3290e](https://github.com/ishuar/tfskel/commit/1a3290e75995c07bee7073d7ef0920ad808c87af))
+* **plan:** show total resource count when top-N truncates results ([#75](https://github.com/ishuar/tfskel/issues/75)) ([b8f5b03](https://github.com/ishuar/tfskel/commit/b8f5b0326730a736b899b93373c0ff1c26633037))
+
+
+### 📦 Other Changes
+
+* **cmd:** move SilenceUsage to command structs and centralize flag error handling ([#73](https://github.com/ishuar/tfskel/issues/73)) ([04f8a5a](https://github.com/ishuar/tfskel/commit/04f8a5aa3707310486d5f29c46f7f7bacf5714fc))
+
 ## [0.7.1](https://github.com/ishuar/tfskel/compare/v0.7.0...v0.7.1) (2026-03-27)
 
 
