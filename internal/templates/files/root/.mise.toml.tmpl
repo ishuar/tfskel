@@ -1,0 +1,8 @@
+min_version = "2024.9.0"
+
+[tools]
+terraform = "{{ .TerraformVersion | stripConstraint }}"
+tflint = "{{ toolVersion .Tools "tflint" }}"
+trivy = "{{ toolVersion .Tools "trivy" }}"
+pre-commit = "{{ toolVersion .Tools "pre-commit" }}"
+awscli = "{{ toolVersion .Tools "awscli" }}"

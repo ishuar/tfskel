@@ -35,7 +35,7 @@ func TestCreateProjectStructure(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify all root configuration files are created
-		for _, filename := range []string{".gitignore", ".pre-commit-config.yaml", ".tflint.hcl", "trivy.yaml", ".tfskel.yaml"} {
+		for _, filename := range []string{".gitignore", ".pre-commit-config.yaml", ".tflint.hcl", "trivy.yaml", ".tfskel.yaml", ".mise.toml"} {
 			filePath := filepath.Join(baseDir, filename)
 			assert.True(t, r.fs.FileExists(filePath), "Root config file %s should exist", filename)
 
@@ -214,6 +214,95 @@ func TestCreateProjectStructure(t *testing.T) {
 		require.NoError(t, readErr)
 		assert.Equal(t, "# custom lint", string(content), "existing workflow file should not be overwritten")
 	})
+
+	t.Run("creates .mise.toml with correct terraform version", func(t *testing.T) {
+		r := newTestInitRunner(t)
+		baseDir := "/project"
+
+		err := r.createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, []string{"dev"}, false)
+		require.NoError(t, err)
+
+		misePath := filepath.Join(baseDir, ".mise.toml")
+		assert.True(t, r.fs.FileExists(misePath), ".mise.toml should be created")
+
+		content, err := r.fs.ReadFile(misePath)
+		require.NoError(t, err)
+		contentStr := string(content)
+		assert.Contains(t, contentStr, `terraform = "1.13.1"`)
+		assert.Contains(t, contentStr, "min_version")
+	})
+
+	t.Run(".mise.toml uses latest for tools when no tools config", func(t *testing.T) {
+		r := newTestInitRunner(t)
+		baseDir := "/project"
+
+		err := r.createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, []string{"dev"}, false)
+		require.NoError(t, err)
+
+		content, err := r.fs.ReadFile(filepath.Join(baseDir, ".mise.toml"))
+		require.NoError(t, err)
+		contentStr := string(content)
+		assert.Contains(t, contentStr, `tflint = "latest"`)
+		assert.Contains(t, contentStr, `trivy = "latest"`)
+		assert.Contains(t, contentStr, `pre-commit = "latest"`)
+		assert.Contains(t, contentStr, `awscli = "latest"`)
+	})
+
+	t.Run(".mise.toml respects pinned tool versions from config", func(t *testing.T) {
+		renderer, err := templates.NewRenderer()
+		require.NoError(t, err)
+		r := &initRunner{
+			fs:       fs.NewMemoryFileSystem(),
+			log:      logger.New(false),
+			renderer: renderer,
+			tools: map[string]string{
+				"tflint": "0.50.0",
+				"trivy":  "0.58.2",
+			},
+		}
+		baseDir := "/project"
+
+		err = r.createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, []string{"dev"}, false)
+		require.NoError(t, err)
+
+		content, err := r.fs.ReadFile(filepath.Join(baseDir, ".mise.toml"))
+		require.NoError(t, err)
+		contentStr := string(content)
+		assert.Contains(t, contentStr, `tflint = "0.50.0"`, "pinned tflint version should be used")
+		assert.Contains(t, contentStr, `trivy = "0.58.2"`, "pinned trivy version should be used")
+		assert.Contains(t, contentStr, `pre-commit = "latest"`, "unpinned tools should default to latest")
+		assert.Contains(t, contentStr, `terraform = "1.13.1"`, "terraform version from config should be used")
+	})
+
+	t.Run(".mise.toml strips terraform version constraint", func(t *testing.T) {
+		r := newTestInitRunner(t)
+		baseDir := "/project"
+
+		// Pass a constraint-style version (already stripped by determineInitParameters in real usage,
+		// but test that stripConstraint in the template handles it)
+		err := r.createProjectStructure(baseDir, "~> 1.13", []string{"eu-central-1"}, []string{"dev"}, false)
+		require.NoError(t, err)
+
+		content, err := r.fs.ReadFile(filepath.Join(baseDir, ".mise.toml"))
+		require.NoError(t, err)
+		assert.Contains(t, string(content), `terraform = "1.13"`, "constraint should be stripped")
+		assert.NotContains(t, string(content), "~>", "constraint operator should not appear in .mise.toml")
+	})
+
+	t.Run("does not overwrite existing .mise.toml", func(t *testing.T) {
+		r := newTestInitRunner(t)
+		baseDir := "/project"
+
+		misePath := filepath.Join(baseDir, ".mise.toml")
+		require.NoError(t, r.fs.WriteFile(misePath, []byte("# custom mise config"), 0644))
+
+		err := r.createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, []string{"dev"}, false)
+		require.NoError(t, err)
+
+		content, err := r.fs.ReadFile(misePath)
+		require.NoError(t, err)
+		assert.Equal(t, "# custom mise config", string(content), "existing .mise.toml should not be overwritten")
+	})
 }
 
 func TestCreateFileFromTemplate(t *testing.T) {
@@ -331,7 +420,7 @@ func TestDetermineInitParameters(t *testing.T) {
 		tmpDir := t.TempDir()
 		log := logger.New(false)
 
-		envs, tfVersion, regions, _, err := determineInitParameters(tmpDir, log)
+		envs, tfVersion, regions, _, _, err := determineInitParameters(tmpDir, log)
 		require.NoError(t, err)
 
 		assert.Equal(t, []string{"dev", "stg", "prd"}, envs)
@@ -361,7 +450,7 @@ provider:
 		err := os.WriteFile(configPath, []byte(configContent), 0644)
 		require.NoError(t, err)
 
-		envs, tfVersion, regions, _, err := determineInitParameters(tmpDir, log)
+		envs, tfVersion, regions, _, _, err := determineInitParameters(tmpDir, log)
 		require.NoError(t, err)
 
 		// Check that all environments from account_mapping are present
@@ -390,7 +479,7 @@ provider:
 		err := os.WriteFile(configPath, []byte(configContent), 0644)
 		require.NoError(t, err)
 
-		_, _, _, _, err = determineInitParameters(tmpDir, log)
+		_, _, _, _, _, err = determineInitParameters(tmpDir, log)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "account_mapping is missing or empty")
 	})
@@ -411,7 +500,7 @@ provider:
 		err := os.WriteFile(configPath, []byte(configContent), 0644)
 		require.NoError(t, err)
 
-		_, _, _, _, err = determineInitParameters(tmpDir, log)
+		_, _, _, _, _, err = determineInitParameters(tmpDir, log)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "account_mapping is missing or empty")
 	})
@@ -425,7 +514,7 @@ provider:
 		err := os.WriteFile(configPath, []byte(configContent), 0644)
 		require.NoError(t, err)
 
-		envs, tfVersion, regions, _, err := determineInitParameters(tmpDir, log)
+		envs, tfVersion, regions, _, _, err := determineInitParameters(tmpDir, log)
 		require.NoError(t, err)
 
 		assert.Equal(t, []string{"dev", "stg", "prd"}, envs)
@@ -447,7 +536,7 @@ provider:
 		err := os.WriteFile(configPath, []byte(configContent), 0644)
 		require.NoError(t, err)
 
-		_, tfVersion, _, _, err := determineInitParameters(tmpDir, log)
+		_, tfVersion, _, _, _, err := determineInitParameters(tmpDir, log)
 		require.NoError(t, err)
 
 		assert.Equal(t, "1.10.2", tfVersion)
@@ -467,10 +556,62 @@ provider:
 		err := os.WriteFile(configPath, []byte(configContent), 0644)
 		require.NoError(t, err)
 
-		_, _, regions, _, err := determineInitParameters(tmpDir, log)
+		_, _, regions, _, _, err := determineInitParameters(tmpDir, log)
 		require.NoError(t, err)
 
 		assert.Equal(t, []string{"eu-central-1"}, regions)
+	})
+
+	t.Run("returns tools map from config", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		log := logger.New(false)
+
+		configContent := `terraform_version: "~> 1.13"
+provider:
+  aws:
+    account_mapping:
+      dev: "111111111111"
+tools:
+  tflint: "0.50.0"
+  trivy: "0.58.2"
+`
+		err := os.WriteFile(filepath.Join(tmpDir, ".tfskel.yaml"), []byte(configContent), 0644)
+		require.NoError(t, err)
+
+		_, _, _, _, tools, err := determineInitParameters(tmpDir, log)
+		require.NoError(t, err)
+
+		assert.Equal(t, "0.50.0", tools["tflint"])
+		assert.Equal(t, "0.58.2", tools["trivy"])
+	})
+
+	t.Run("returns nil tools when config has no tools section", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		log := logger.New(false)
+
+		configContent := `terraform_version: "~> 1.13"
+provider:
+  aws:
+    account_mapping:
+      dev: "111111111111"
+`
+		err := os.WriteFile(filepath.Join(tmpDir, ".tfskel.yaml"), []byte(configContent), 0644)
+		require.NoError(t, err)
+
+		_, _, _, _, tools, err := determineInitParameters(tmpDir, log)
+		require.NoError(t, err)
+
+		assert.Nil(t, tools, "tools should be nil when not configured")
+	})
+
+	t.Run("returns nil tools when no config file exists", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		log := logger.New(false)
+
+		_, _, _, _, tools, err := determineInitParameters(tmpDir, log)
+		require.NoError(t, err)
+
+		assert.Nil(t, tools)
 	})
 }
 
@@ -490,7 +631,7 @@ provider:
 		err := os.WriteFile(filepath.Join(tmpDir, ".tfskel.yaml"), []byte(configContent), 0644)
 		require.NoError(t, err)
 
-		_, _, _, createWorkflows, err := determineInitParameters(tmpDir, log)
+		_, _, _, createWorkflows, _, err := determineInitParameters(tmpDir, log)
 		require.NoError(t, err)
 		assert.False(t, createWorkflows)
 	})
@@ -508,7 +649,7 @@ provider:
 		err := os.WriteFile(filepath.Join(tmpDir, ".tfskel.yaml"), []byte(configContent), 0644)
 		require.NoError(t, err)
 
-		_, _, _, createWorkflows, err := determineInitParameters(tmpDir, log)
+		_, _, _, createWorkflows, _, err := determineInitParameters(tmpDir, log)
 		require.NoError(t, err)
 		assert.True(t, createWorkflows)
 	})
@@ -516,7 +657,7 @@ provider:
 	t.Run("returns false when no config file exists", func(t *testing.T) {
 		tmpDir := t.TempDir()
 
-		_, _, _, createWorkflows, err := determineInitParameters(tmpDir, log)
+		_, _, _, createWorkflows, _, err := determineInitParameters(tmpDir, log)
 		require.NoError(t, err)
 		assert.False(t, createWorkflows)
 	})
@@ -533,7 +674,7 @@ provider:
 		err := os.WriteFile(filepath.Join(tmpDir, ".tfskel.yaml"), []byte(configContent), 0644)
 		require.NoError(t, err)
 
-		_, _, _, createWorkflows, err := determineInitParameters(tmpDir, log)
+		_, _, _, createWorkflows, _, err := determineInitParameters(tmpDir, log)
 		require.NoError(t, err)
 		assert.False(t, createWorkflows)
 	})
@@ -544,7 +685,7 @@ provider:
 		err := os.WriteFile(filepath.Join(tmpDir, ".tfskel.yaml"), []byte(`this is not: [valid yaml`), 0644)
 		require.NoError(t, err)
 
-		_, _, _, createWorkflows, err := determineInitParameters(tmpDir, log)
+		_, _, _, createWorkflows, _, err := determineInitParameters(tmpDir, log)
 		require.NoError(t, err)
 		assert.False(t, createWorkflows)
 	})

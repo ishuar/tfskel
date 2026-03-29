@@ -13,6 +13,7 @@ import (
 	"github.com/ishuar/tfskel/internal/generate"
 	"github.com/ishuar/tfskel/internal/logger"
 	"github.com/ishuar/tfskel/internal/templates"
+	"github.com/ishuar/tfskel/internal/toolcheck"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.yaml.in/yaml/v4"
@@ -39,9 +40,10 @@ type initRunner struct {
 	upgrade  bool
 	force    bool
 	dryRun   bool
+	tools    map[string]string // tool version pins from config (nil = all "latest")
 }
 
-func newInitRunner(filesystem fs.FileSystem, log *logger.Logger, upgrade, force, dryRun bool) (*initRunner, error) {
+func newInitRunner(filesystem fs.FileSystem, log *logger.Logger, upgrade, force, dryRun bool, tools map[string]string) (*initRunner, error) {
 	renderer, err := templates.NewRenderer()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create renderer: %w", err)
@@ -53,6 +55,7 @@ func newInitRunner(filesystem fs.FileSystem, log *logger.Logger, upgrade, force,
 		upgrade:  upgrade,
 		force:    force,
 		dryRun:   dryRun,
+		tools:    tools,
 	}, nil
 }
 
@@ -61,11 +64,18 @@ var initCmd = &cobra.Command{
 	GroupID: "main",
 	Short:   "Initialize tfskel project structure",
 	Long: `Initializes a new Terraform monorepo with an environment-and-region-based
-directory layout with sensible defaults already in place
+directory layout with sensible defaults already in place.
 
-Recommendations:
-  - Ensure required tools are installed: terraform, tflint, trivy, pre-commit
-  - Install pre-commit hooks post init with: pre-commit install --install-hooks`,
+Generates a .mise.toml file declaring all required tools (terraform, tflint,
+trivy, pre-commit, awscli) so they can be installed with a single command:
+
+  mise install
+
+Tool versions default to "latest" but can be pinned in .tfskel.yaml:
+
+  tools:
+    tflint: "0.50.0"
+    trivy: "0.58.2"`,
 	Example: `  # Initialize in current directory (uses .tfskel.yaml if present)
   tfskel init
 
@@ -125,7 +135,7 @@ func runInit(_ *cobra.Command, _ []string) error {
 
 	// Determine environments, regions, and terraform version
 	// Priority: existing .tfskel.yaml in target dir > defaults
-	environments, terraformVersion, regions, workflowsFromConfig, err := determineInitParameters(targetDir, log)
+	environments, terraformVersion, regions, workflowsFromConfig, tools, err := determineInitParameters(targetDir, log)
 	if err != nil {
 		return err
 	}
@@ -139,7 +149,7 @@ func runInit(_ *cobra.Command, _ []string) error {
 		filesystem = fs.NewDryRunFileSystem(filesystem)
 	}
 
-	runner, err := newInitRunner(filesystem, log, initUpgrade, initForce, dryRun)
+	runner, err := newInitRunner(filesystem, log, initUpgrade, initForce, dryRun, tools)
 	if err != nil {
 		return err
 	}
@@ -153,6 +163,12 @@ func runInit(_ *cobra.Command, _ []string) error {
 	} else {
 		log.Successf("Successfully initialized tfskel project structure in: %s", targetDir)
 	}
+
+	// Run tool detection and print status report (read-only, never blocks init)
+	checker := toolcheck.NewChecker(&toolcheck.OSCommandRunner{}, toolcheck.DefaultTools())
+	report := checker.CheckAll()
+	log.Info("")
+	log.Info(toolcheck.FormatReport(report))
 
 	return nil
 }
@@ -178,9 +194,9 @@ func extractVersionFromConstraint(constraint string) string {
 	return version
 }
 
-// determineInitParameters determines environments, terraform version, regions, and workflows flag
+// determineInitParameters determines environments, terraform version, regions, workflows flag, and tool versions.
 // Priority: existing .tfskel.yaml in target dir > defaults
-func determineInitParameters(targetDir string, log *logger.Logger) ([]string, string, []string, bool, error) {
+func determineInitParameters(targetDir string, log *logger.Logger) ([]string, string, []string, bool, map[string]string, error) {
 	// Default values for bootstrapping new projects
 	defaultEnvironments := []string{"dev", "stg", "prd"}
 	defaultRegions := []string{"eu-central-1"}
@@ -190,7 +206,7 @@ func determineInitParameters(targetDir string, log *logger.Logger) ([]string, st
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		// No config file exists, use defaults
 		log.Debugf("No .tfskel.yaml found in target directory, using default environments: %v", defaultEnvironments)
-		return defaultEnvironments, defaultTerraformVersion, defaultRegions, false, nil
+		return defaultEnvironments, defaultTerraformVersion, defaultRegions, false, nil, nil
 	}
 
 	// Config file exists, read it
@@ -204,14 +220,14 @@ func determineInitParameters(targetDir string, log *logger.Logger) ([]string, st
 	if err := v.ReadInConfig(); err != nil {
 		// If we can't read the config, warn and use defaults
 		log.Warnf("Failed to read existing .tfskel.yaml: %v, using defaults", err)
-		return defaultEnvironments, defaultTerraformVersion, defaultRegions, false, nil
+		return defaultEnvironments, defaultTerraformVersion, defaultRegions, false, nil, nil
 	}
 
 	// Unmarshal into config struct
 	cfg := &config.Config{}
 	if err := v.Unmarshal(cfg); err != nil {
 		log.Warnf("Failed to parse .tfskel.yaml: %v, using defaults", err)
-		return defaultEnvironments, defaultTerraformVersion, defaultRegions, false, nil
+		return defaultEnvironments, defaultTerraformVersion, defaultRegions, false, nil, nil
 	}
 
 	// Ensure nested structures exist
@@ -234,7 +250,7 @@ func determineInitParameters(targetDir string, log *logger.Logger) ([]string, st
 		log.Infof("Using %d environment(s) from config account_mapping: %v", len(environments), environments)
 	} else {
 		// Config exists but no account_mapping - this is an error
-		return nil, "", nil, false, fmt.Errorf("existing .tfskel.yaml found but %w; account mappings are required. Please add environment mappings to .tfskel.yaml", ErrMissingAccountMapping)
+		return nil, "", nil, false, nil, fmt.Errorf("existing .tfskel.yaml found but %w; account mappings are required. Please add environment mappings to .tfskel.yaml", ErrMissingAccountMapping)
 	}
 
 	// Extract terraform version
@@ -254,7 +270,7 @@ func determineInitParameters(targetDir string, log *logger.Logger) ([]string, st
 	}
 
 	createWorkflows := cfg.Workflows != nil && cfg.Workflows.Create
-	return environments, terraformVersion, regions, createWorkflows, nil
+	return environments, terraformVersion, regions, createWorkflows, cfg.Tools, nil
 }
 
 func (r *initRunner) createProjectStructure(baseDir, terraformVersion string, regions, environments []string, createWorkflows bool) error {
@@ -278,6 +294,15 @@ func (r *initRunner) createProjectStructure(baseDir, terraformVersion string, re
 		if err := r.createFileFromTemplate(filepath.Join(baseDir, file.filename), file.templateName, nil); err != nil {
 			return err
 		}
+	}
+
+	// Create .mise.toml with tool versions (terraform pinned, others from config or "latest")
+	miseData := &templates.Data{
+		TerraformVersion: terraformVersion,
+		Tools:            r.tools,
+	}
+	if err := r.createFileFromTemplate(filepath.Join(baseDir, ".mise.toml"), "root/.mise.toml.tmpl", miseData); err != nil {
+		return err
 	}
 
 	// Create .tfskel.yaml config file
@@ -452,6 +477,9 @@ func (r *initRunner) upgradeFile(targetPath, templateName string, data any, logP
 func (r *initRunner) renderTemplate(templateName string, data any) (string, error) {
 	if data == nil {
 		return r.renderer.Render(templateName, &templates.Data{})
+	}
+	if d, ok := data.(*templates.Data); ok {
+		return r.renderer.Render(templateName, d)
 	}
 	if m, ok := data.(map[string]string); ok {
 		return r.renderer.Render(templateName, &templates.Data{

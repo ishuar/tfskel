@@ -34,6 +34,15 @@ func stripConstraint(version string) string {
 	return strings.TrimSpace(version)
 }
 
+// toolVersion returns the pinned version for a tool from the tools map,
+// or "latest" if the tool is not configured or has an empty value.
+func toolVersion(tools map[string]string, name string) string {
+	if v, ok := tools[name]; ok && v != "" {
+		return v
+	}
+	return "latest"
+}
+
 // funcMap provides common template functions for both default and custom templates
 var funcMap = template.FuncMap{
 	"replace":         strings.ReplaceAll,
@@ -48,6 +57,7 @@ var funcMap = template.FuncMap{
 	"join":            strings.Join,
 	"split":           strings.Split,
 	"stripConstraint": stripConstraint,
+	"toolVersion":     toolVersion,
 }
 
 //go:embed files/**/*.tmpl files/**/*.yaml
@@ -75,8 +85,9 @@ type Data struct {
 	TerraformVersion   string
 	AWSProviderVersion string
 	DefaultTags        map[string]string
-	AWSRoleArn         string // AWS role ARN for terraform workflows
-	WorkflowFileName   string // Generated workflow filename for self-reference in triggers
+	AWSRoleArn         string            // AWS role ARN for terraform workflows
+	WorkflowFileName   string            // Generated workflow filename for self-reference in triggers
+	Tools              map[string]string // Tool version pins for .mise.toml (empty map = all "latest")
 }
 
 // Renderer handles template rendering

@@ -186,3 +186,81 @@ func TestRenderer_GetTemplateHash(t *testing.T) {
 		assert.NotEmpty(t, hash, "static files should also have hashes")
 	})
 }
+
+func TestToolVersion(t *testing.T) {
+	t.Run("returns pinned version when set", func(t *testing.T) {
+		tools := map[string]string{"tflint": "0.50.0"}
+		assert.Equal(t, "0.50.0", toolVersion(tools, "tflint"))
+	})
+
+	t.Run("returns latest when tool not in map", func(t *testing.T) {
+		tools := map[string]string{"tflint": "0.50.0"}
+		assert.Equal(t, "latest", toolVersion(tools, "trivy"))
+	})
+
+	t.Run("returns latest for nil map", func(t *testing.T) {
+		assert.Equal(t, "latest", toolVersion(nil, "tflint"))
+	})
+
+	t.Run("returns latest for empty string value", func(t *testing.T) {
+		tools := map[string]string{"tflint": ""}
+		assert.Equal(t, "latest", toolVersion(tools, "tflint"))
+	})
+
+	t.Run("returns latest for empty map", func(t *testing.T) {
+		tools := map[string]string{}
+		assert.Equal(t, "latest", toolVersion(tools, "tflint"))
+	})
+
+	t.Run("preserves explicit latest value", func(t *testing.T) {
+		tools := map[string]string{"trivy": "latest"}
+		assert.Equal(t, "latest", toolVersion(tools, "trivy"))
+	})
+}
+
+func TestRenderer_Render_MiseToml(t *testing.T) {
+	renderer, err := NewRenderer()
+	require.NoError(t, err)
+
+	t.Run("renders with pinned tools", func(t *testing.T) {
+		data := &Data{
+			TerraformVersion: "~> 1.13",
+			Tools: map[string]string{
+				"tflint": "0.50.0",
+				"trivy":  "0.58.2",
+			},
+		}
+
+		content, err := renderer.Render("root/.mise.toml.tmpl", data)
+		require.NoError(t, err)
+		assert.Contains(t, content, `terraform = "1.13"`)
+		assert.Contains(t, content, `tflint = "0.50.0"`)
+		assert.Contains(t, content, `trivy = "0.58.2"`)
+		assert.Contains(t, content, `pre-commit = "latest"`)
+		assert.Contains(t, content, `awscli = "latest"`)
+		assert.Contains(t, content, "min_version")
+	})
+
+	t.Run("renders with nil tools map defaults to latest", func(t *testing.T) {
+		data := &Data{
+			TerraformVersion: "1.13.1",
+		}
+
+		content, err := renderer.Render("root/.mise.toml.tmpl", data)
+		require.NoError(t, err)
+		assert.Contains(t, content, `terraform = "1.13.1"`)
+		assert.Contains(t, content, `tflint = "latest"`)
+		assert.Contains(t, content, `trivy = "latest"`)
+	})
+
+	t.Run("strips constraint from terraform version", func(t *testing.T) {
+		data := &Data{
+			TerraformVersion: ">= 1.10.2",
+		}
+
+		content, err := renderer.Render("root/.mise.toml.tmpl", data)
+		require.NoError(t, err)
+		assert.Contains(t, content, `terraform = "1.10.2"`)
+		assert.NotContains(t, content, ">=")
+	})
+}
