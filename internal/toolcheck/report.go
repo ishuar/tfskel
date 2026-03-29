@@ -80,6 +80,8 @@ func formatToolLine(t ToolResult) (string, string) {
 		return symbolMiseManaged, "(will be installed by mise)"
 	case StatusMiseInstalled:
 		return symbolMiseInstalled, "(installed by mise, but not activated)"
+	case StatusGlobalPath:
+		return symbolGlobalPath, ""
 	}
 	return symbolMissing, ""
 }
