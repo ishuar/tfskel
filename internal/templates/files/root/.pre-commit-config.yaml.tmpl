@@ -14,3 +14,11 @@ repos:
       - id: detect-private-key
       - id: check-yaml
       - id: trailing-whitespace
+  - repo: local
+    hooks:
+      - id: tfskel-sync-check
+        name: Check tfskel config sync
+        entry: tfskel init --check
+        language: system
+        pass_filenames: false
+        files: '\.tfskel\.yaml$'
