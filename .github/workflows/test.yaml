@@ -105,6 +105,8 @@ jobs:
       run: go build -v -ldflags="-w -s" -o tfskel .
 
     - name: Test binary (go)
+      env:
+        FORCE_COLOR: 1
       run: |
         ./tfskel --version
         ./tfskel init --dry-run
