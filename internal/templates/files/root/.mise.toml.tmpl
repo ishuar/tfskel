@@ -1,3 +1,7 @@
+# mise: dev tool manager — pins tool versions, runs post-install hooks,
+# and trusts per-environment configs so `mise install` is all you need.
+# https://mise.jdx.dev
+
 min_version = "2024.9.0"
 
 [tools]
@@ -6,6 +10,12 @@ terraform = "{{ .TerraformVersion | stripConstraint }}"
 {{ .Name }} = "{{ .Version }}"
 {{- end }}
 
-[hooks.enter]
-shell = "bash"
-script = 'command -v tfskel >/dev/null 2>&1 && tfskel init --check 2>/dev/null || true'
+[hooks]
+# After mise install: set up pre-commit hooks and trust mise configs
+postinstall = """
+pre-commit install --install-hooks
+mise trust .
+{{- range .Environments }}
+[ -f "./envs/{{ . }}/.mise.toml" ] && mise trust "./envs/{{ . }}/.mise.toml"
+{{- end }}
+"""

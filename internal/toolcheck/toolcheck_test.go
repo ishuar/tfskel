@@ -455,7 +455,7 @@ func TestFormatReport(t *testing.T) {
 
 		output := FormatReport(report)
 		assert.Contains(t, output, "✓ Terraform")
-		assert.Contains(t, output, "? Trivy")
+		assert.Contains(t, output, "↓ Trivy")
 		assert.Contains(t, output, "will be installed by mise")
 	})
 
@@ -562,7 +562,7 @@ func TestFormatReport(t *testing.T) {
 
 		output := FormatReport(report)
 		assert.Contains(t, output, "! Trivy")
-		assert.Contains(t, output, "? TFLint")
+		assert.Contains(t, output, "↓ TFLint")
 		assert.Contains(t, output, "mise install")
 		assert.Contains(t, output, "mise activate zsh")
 	})

@@ -10,7 +10,8 @@ import (
 type ToolStatus int
 
 const (
-	// StatusInstalled indicates the tool was found on PATH and its version was parsed.
+	// StatusInstalled indicates the tool was found on PATH; version parsing is
+	// attempted but may fail (Version can be empty).
 	StatusInstalled ToolStatus = iota
 	// StatusMissing indicates the tool was not found on PATH.
 	StatusMissing

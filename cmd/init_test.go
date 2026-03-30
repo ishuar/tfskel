@@ -936,6 +936,7 @@ func TestUpgradeFileDetectsDataDrift(t *testing.T) {
 		// Now upgrade with new version — should detect data drift and update
 		miseData := &templates.Data{
 			TerraformVersion: "1.14.0",
+			Environments:     []string{"dev"},
 		}
 		err = r.upgradeFile(misePath, "root/.mise.toml.tmpl", miseData, ".mise.toml")
 		require.NoError(t, err)
@@ -968,6 +969,7 @@ func TestUpgradeFileDetectsDataDrift(t *testing.T) {
 		// Upgrade with same data — should skip
 		miseData := &templates.Data{
 			TerraformVersion: "1.13.1",
+			Environments:     []string{"dev"},
 		}
 		err = r.upgradeFile(misePath, "root/.mise.toml.tmpl", miseData, ".mise.toml")
 		require.NoError(t, err)

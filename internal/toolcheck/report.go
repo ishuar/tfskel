@@ -9,7 +9,7 @@ import (
 const (
 	symbolInstalled     = "✓"
 	symbolMissing       = "✗"
-	symbolMiseManaged   = "?"
+	symbolMiseManaged   = "↓"
 	symbolMiseInstalled = "!"
 	symbolGlobalPath    = "~"
 )

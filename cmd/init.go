@@ -328,6 +328,7 @@ func (r *initRunner) createProjectStructure(baseDir, terraformVersion string, re
 	miseData := &templates.Data{
 		TerraformVersion: terraformVersion,
 		Tools:            r.tools,
+		Environments:     environments,
 	}
 	if err := r.createFileFromTemplate(filepath.Join(baseDir, ".mise.toml"), "root/.mise.toml.tmpl", miseData); err != nil {
 		return err
@@ -546,15 +547,6 @@ func (r *initRunner) checkProjectDrift(baseDir, terraformVersion string, environ
 	var drifted []string
 
 	// Check root config files (rendered with nil data)
-	rootConfigFiles := []struct {
-		filename     string
-		templateName string
-	}{
-		{".gitignore", "root/.gitignore.tmpl"},
-		{".pre-commit-config.yaml", "root/.pre-commit-config.yaml.tmpl"},
-		{".tflint.hcl", "root/.tflint.hcl.tmpl"},
-		{"trivy.yaml", "root/trivy.yaml.tmpl"},
-	}
 	for _, file := range rootConfigFiles {
 		if r.isDrifted(filepath.Join(baseDir, file.filename), file.templateName, nil) {
 			drifted = append(drifted, file.filename)
@@ -565,6 +557,7 @@ func (r *initRunner) checkProjectDrift(baseDir, terraformVersion string, environ
 	miseData := &templates.Data{
 		TerraformVersion: terraformVersion,
 		Tools:            r.tools,
+		Environments:     environments,
 	}
 	if r.isDrifted(filepath.Join(baseDir, ".mise.toml"), "root/.mise.toml.tmpl", miseData) {
 		drifted = append(drifted, ".mise.toml")
@@ -591,14 +584,14 @@ func (r *initRunner) isDrifted(filePath, templateName string, data *templates.Da
 
 	existing, err := r.fs.ReadFile(filePath)
 	if err != nil {
-		r.log.Debugf("drift check skipped for %s: %v", filePath, err)
-		return false
+		r.log.Warnf("drift check: cannot read %s: %v", filePath, err)
+		return true
 	}
 
 	rendered, err := r.renderTemplate(templateName, data)
 	if err != nil {
-		r.log.Debugf("drift check skipped for %s: %v", filePath, err)
-		return false
+		r.log.Warnf("drift check: cannot render %s: %v", filePath, err)
+		return true
 	}
 
 	// Inject source marker to match what createFileFromTemplate writes to disk

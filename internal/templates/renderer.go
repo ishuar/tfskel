@@ -106,6 +106,7 @@ type Data struct {
 	AWSRoleArn         string            // AWS role ARN for terraform workflows
 	WorkflowFileName   string            // Generated workflow filename for self-reference in triggers
 	Tools              map[string]string // Tool version pins for .mise.toml (empty map = all "latest")
+	Environments       []string          // Environment names (e.g. "dev", "stg", "prd")
 }
 
 // Renderer handles template rendering
