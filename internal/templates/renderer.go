@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"text/template"
 )
@@ -20,6 +21,32 @@ var (
 	// ErrTemplateNotFound indicates the requested template was not found
 	ErrTemplateNotFound = errors.New("template not found")
 )
+
+// MiseTool represents a single tool entry for .mise.toml rendering.
+type MiseTool struct {
+	Name    string
+	Version string
+}
+
+// defaultMiseTools are the non-terraform tools that always appear in .mise.toml.
+var defaultMiseTools = []string{"awscli", "pre-commit", "tflint", "trivy"}
+
+// BuildMiseTools builds a sorted slice of MiseTool from the default tool list,
+// resolving versions from the user's tools map. Unpinned tools default to "latest".
+func BuildMiseTools(userTools map[string]string) []MiseTool {
+	result := make([]MiseTool, 0, len(defaultMiseTools))
+	for _, name := range defaultMiseTools {
+		v := "latest"
+		if userTools != nil {
+			if pinned, ok := userTools[name]; ok && pinned != "" {
+				v = pinned
+			}
+		}
+		result = append(result, MiseTool{Name: name, Version: v})
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
+	return result
+}
 
 // stripConstraint removes version constraint operators (~>, >=, <=, >, <, =) and returns just the version number
 // Example: "~> 1.14.3" -> "1.14.3"
@@ -88,6 +115,7 @@ type Data struct {
 	AWSRoleArn         string            // AWS role ARN for terraform workflows
 	WorkflowFileName   string            // Generated workflow filename for self-reference in triggers
 	Tools              map[string]string // Tool version pins for .mise.toml (empty map = all "latest")
+	MiseTools          []MiseTool        // Merged default tools with resolved versions for .mise.toml range loop
 }
 
 // Renderer handles template rendering

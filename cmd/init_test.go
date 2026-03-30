@@ -818,6 +818,262 @@ backend:
 	})
 }
 
+func TestCheckProjectDrift(t *testing.T) {
+	t.Run("no drift when files match config", func(t *testing.T) {
+		r := newTestInitRunner(t)
+		baseDir := "/project"
+
+		// Generate the project first
+		err := r.createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, []string{"dev"}, false)
+		require.NoError(t, err)
+
+		// Check for drift — should find none
+		drifted := r.checkProjectDrift(baseDir, "1.13.1", []string{"dev"})
+		assert.Empty(t, drifted, "no drift expected when files match config")
+	})
+
+	t.Run("detects .mise.toml drift when terraform version changes", func(t *testing.T) {
+		r := newTestInitRunner(t)
+		baseDir := "/project"
+
+		// Generate with version 1.13.1
+		err := r.createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, []string{"dev"}, false)
+		require.NoError(t, err)
+
+		// Check with version 1.14.0 — .mise.toml and .terraform-version should drift
+		drifted := r.checkProjectDrift(baseDir, "1.14.0", []string{"dev"})
+		assert.Contains(t, drifted, ".mise.toml")
+		assert.Contains(t, drifted, filepath.Join("envs", "dev", ".terraform-version"))
+	})
+
+	t.Run("detects .mise.toml drift when tool versions change", func(t *testing.T) {
+		renderer, err := templates.NewRenderer()
+		require.NoError(t, err)
+
+		r := &initRunner{
+			fs:       fs.NewMemoryFileSystem(),
+			log:      logger.New(false),
+			renderer: renderer,
+			tools:    map[string]string{"tflint": "0.50.0"},
+		}
+		baseDir := "/project"
+
+		// Generate with tflint 0.50.0
+		err = r.createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, []string{"dev"}, false)
+		require.NoError(t, err)
+
+		// Now check with tflint 0.51.0 — should detect .mise.toml drift
+		r.tools = map[string]string{"tflint": "0.51.0"}
+		drifted := r.checkProjectDrift(baseDir, "1.13.1", []string{"dev"})
+		assert.Contains(t, drifted, ".mise.toml")
+	})
+
+	t.Run("no drift for missing files", func(t *testing.T) {
+		r := newTestInitRunner(t)
+		baseDir := "/empty-project"
+
+		// Don't generate anything — check against empty directory
+		drifted := r.checkProjectDrift(baseDir, "1.13.1", []string{"dev"})
+		assert.Empty(t, drifted, "missing files should not be reported as drift")
+	})
+
+	t.Run("detects drift across multiple environments", func(t *testing.T) {
+		r := newTestInitRunner(t)
+		baseDir := "/project"
+
+		err := r.createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, []string{"dev", "stg", "prd"}, false)
+		require.NoError(t, err)
+
+		// Bump terraform version
+		drifted := r.checkProjectDrift(baseDir, "1.14.0", []string{"dev", "stg", "prd"})
+		assert.Contains(t, drifted, ".mise.toml")
+		assert.Contains(t, drifted, filepath.Join("envs", "dev", ".terraform-version"))
+		assert.Contains(t, drifted, filepath.Join("envs", "stg", ".terraform-version"))
+		assert.Contains(t, drifted, filepath.Join("envs", "prd", ".terraform-version"))
+	})
+
+	t.Run("does not report root config files as drifted when template unchanged", func(t *testing.T) {
+		r := newTestInitRunner(t)
+		baseDir := "/project"
+
+		err := r.createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, []string{"dev"}, false)
+		require.NoError(t, err)
+
+		// Only change tool versions — root config files (.gitignore, etc) should not drift
+		r.tools = map[string]string{"tflint": "0.99.0"}
+		drifted := r.checkProjectDrift(baseDir, "1.13.1", []string{"dev"})
+		assert.NotContains(t, drifted, ".gitignore")
+		assert.NotContains(t, drifted, ".pre-commit-config.yaml")
+		assert.NotContains(t, drifted, ".tflint.hcl")
+		assert.NotContains(t, drifted, "trivy.yaml")
+		assert.Contains(t, drifted, ".mise.toml", "only .mise.toml should drift when tool version changes")
+	})
+}
+
+func TestUpgradeFileDetectsDataDrift(t *testing.T) {
+	t.Run("upgrade detects terraform version drift in .mise.toml", func(t *testing.T) {
+		renderer, err := templates.NewRenderer()
+		require.NoError(t, err)
+
+		r := &initRunner{
+			fs:       fs.NewMemoryFileSystem(),
+			log:      logger.New(false),
+			renderer: renderer,
+			upgrade:  true,
+		}
+		baseDir := "/project"
+
+		// Generate with version 1.13.1
+		err = r.createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, []string{"dev"}, false)
+		require.NoError(t, err)
+
+		// Read the original .mise.toml
+		misePath := filepath.Join(baseDir, ".mise.toml")
+		original, err := r.fs.ReadFile(misePath)
+		require.NoError(t, err)
+		assert.Contains(t, string(original), `terraform = "1.13.1"`)
+
+		// Now upgrade with new version — should detect data drift and update
+		miseData := &templates.Data{
+			TerraformVersion: "1.14.0",
+			MiseTools:        templates.BuildMiseTools(nil),
+		}
+		err = r.upgradeFile(misePath, "root/.mise.toml.tmpl", miseData, ".mise.toml")
+		require.NoError(t, err)
+
+		upgraded, err := r.fs.ReadFile(misePath)
+		require.NoError(t, err)
+		assert.Contains(t, string(upgraded), `terraform = "1.14.0"`, "upgrade should update to new version")
+		assert.NotContains(t, string(upgraded), `terraform = "1.13.1"`)
+	})
+
+	t.Run("upgrade skips when content matches", func(t *testing.T) {
+		renderer, err := templates.NewRenderer()
+		require.NoError(t, err)
+
+		r := &initRunner{
+			fs:       fs.NewMemoryFileSystem(),
+			log:      logger.New(false),
+			renderer: renderer,
+			upgrade:  true,
+		}
+		baseDir := "/project"
+
+		err = r.createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, []string{"dev"}, false)
+		require.NoError(t, err)
+
+		misePath := filepath.Join(baseDir, ".mise.toml")
+		original, err := r.fs.ReadFile(misePath)
+		require.NoError(t, err)
+
+		// Upgrade with same data — should skip
+		miseData := &templates.Data{
+			TerraformVersion: "1.13.1",
+			MiseTools:        templates.BuildMiseTools(nil),
+		}
+		err = r.upgradeFile(misePath, "root/.mise.toml.tmpl", miseData, ".mise.toml")
+		require.NoError(t, err)
+
+		after, err := r.fs.ReadFile(misePath)
+		require.NoError(t, err)
+		assert.Equal(t, string(original), string(after), "content should not change when versions match")
+	})
+}
+
+func TestCheckFlagValidation(t *testing.T) {
+	t.Run("--check conflicts with --upgrade", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		initDir = tmpDir
+		initCheck = true
+		initUpgrade = true
+		t.Cleanup(func() {
+			initDir = ""
+			initCheck = false
+			initUpgrade = false
+		})
+
+		cmd := &cobra.Command{}
+		cmd.Flags().String("config", "", "config file")
+
+		err := runInit(cmd, []string{})
+		require.Error(t, err)
+		assert.ErrorIs(t, err, ErrCheckConflictsWithUpgrade)
+	})
+
+	t.Run("--check returns no error when in sync", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		// Seed config so init and check resolve the same terraform version
+		configContent := `terraform_version: "1.13.1"
+provider:
+  aws:
+    account_mapping:
+      dev: "111111111111"
+`
+		require.NoError(t, os.WriteFile(filepath.Join(tmpDir, ".tfskel.yaml"), []byte(configContent), 0644))
+
+		initDir = tmpDir
+		initCheck = false
+		t.Cleanup(func() {
+			initDir = ""
+			initCheck = false
+		})
+
+		cmd := &cobra.Command{}
+		cmd.Flags().String("config", "", "config file")
+
+		err := runInit(cmd, []string{})
+		require.NoError(t, err)
+
+		// Now run --check — should pass
+		initCheck = true
+		err = runInit(cmd, []string{})
+		assert.NoError(t, err)
+	})
+
+	t.Run("--check returns error when drifted", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		// Create a config with terraform 1.13
+		configContent := `terraform_version: "~> 1.13"
+provider:
+  aws:
+    account_mapping:
+      dev: "111111111111"
+`
+		require.NoError(t, os.WriteFile(filepath.Join(tmpDir, ".tfskel.yaml"), []byte(configContent), 0644))
+
+		// Init the project
+		initDir = tmpDir
+		initCheck = false
+		t.Cleanup(func() {
+			initDir = ""
+			initCheck = false
+		})
+
+		cmd := &cobra.Command{}
+		cmd.Flags().String("config", "", "config file")
+
+		err := runInit(cmd, []string{})
+		require.NoError(t, err)
+
+		// Now change the config to terraform 1.14
+		configContent = `terraform_version: "~> 1.14"
+provider:
+  aws:
+    account_mapping:
+      dev: "111111111111"
+`
+		require.NoError(t, os.WriteFile(filepath.Join(tmpDir, ".tfskel.yaml"), []byte(configContent), 0644))
+
+		// Run --check — should detect drift
+		initCheck = true
+		err = runInit(cmd, []string{})
+		require.Error(t, err)
+		assert.ErrorIs(t, err, ErrConfigDrift)
+	})
+}
+
 func TestInitCmd(t *testing.T) {
 	assert.NotNil(t, initCmd)
 	assert.Equal(t, "init", initCmd.Use)
