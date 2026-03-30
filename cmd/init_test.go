@@ -319,12 +319,12 @@ func TestCreateFileFromTemplate(t *testing.T) {
 		assert.NotEmpty(t, string(content))
 	})
 
-	t.Run("create file from template with map data", func(t *testing.T) {
+	t.Run("create file from template with data", func(t *testing.T) {
 		r := newTestInitRunner(t)
 		targetPath := "/project/test/file.txt"
 
-		err := r.createFileFromTemplate(targetPath, "root/.terraform-version.tmpl", map[string]string{
-			"TerraformVersion": "1.13.1",
+		err := r.createFileFromTemplate(targetPath, "root/.terraform-version.tmpl", &templates.Data{
+			TerraformVersion: "1.13.1",
 		})
 		require.NoError(t, err)
 
@@ -936,7 +936,6 @@ func TestUpgradeFileDetectsDataDrift(t *testing.T) {
 		// Now upgrade with new version — should detect data drift and update
 		miseData := &templates.Data{
 			TerraformVersion: "1.14.0",
-			MiseTools:        templates.BuildMiseTools(nil),
 		}
 		err = r.upgradeFile(misePath, "root/.mise.toml.tmpl", miseData, ".mise.toml")
 		require.NoError(t, err)
@@ -969,7 +968,6 @@ func TestUpgradeFileDetectsDataDrift(t *testing.T) {
 		// Upgrade with same data — should skip
 		miseData := &templates.Data{
 			TerraformVersion: "1.13.1",
-			MiseTools:        templates.BuildMiseTools(nil),
 		}
 		err = r.upgradeFile(misePath, "root/.mise.toml.tmpl", miseData, ".mise.toml")
 		require.NoError(t, err)

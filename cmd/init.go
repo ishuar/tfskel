@@ -20,8 +20,6 @@ import (
 )
 
 var (
-	// ErrUnsupportedDataType indicates an unsupported data type was encountered during template rendering
-	ErrUnsupportedDataType = errors.New("unsupported data type for template rendering")
 	// ErrMissingAccountMapping indicates AWS account mapping configuration is missing
 	ErrMissingAccountMapping = errors.New("provider.aws.account_mapping is missing or empty")
 	// ErrForceRequiresUpgrade indicates --force was used without --upgrade
@@ -35,6 +33,21 @@ var (
 const (
 	defaultTerraformVersion = "1.13.1"
 )
+
+// initManagedFile pairs a target filename with its source template.
+type initManagedFile struct {
+	filename     string
+	templateName string
+}
+
+// rootConfigFiles lists root config files managed by init (rendered with nil data).
+// Shared between createProjectStructure and checkProjectDrift.
+var rootConfigFiles = []initManagedFile{
+	{".gitignore", "root/.gitignore.tmpl"},
+	{".pre-commit-config.yaml", "root/.pre-commit-config.yaml.tmpl"},
+	{".tflint.hcl", "root/.tflint.hcl.tmpl"},
+	{"trivy.yaml", "root/trivy.yaml.tmpl"},
+}
 
 // initRunner bundles dependencies for init command file operations.
 type initRunner struct {
@@ -305,16 +318,6 @@ func (r *initRunner) createProjectStructure(baseDir, terraformVersion string, re
 	}
 
 	// Create root configuration files from templates
-	rootConfigFiles := []struct {
-		filename     string
-		templateName string
-	}{
-		{".gitignore", "root/.gitignore.tmpl"},
-		{".pre-commit-config.yaml", "root/.pre-commit-config.yaml.tmpl"},
-		{".tflint.hcl", "root/.tflint.hcl.tmpl"},
-		{"trivy.yaml", "root/trivy.yaml.tmpl"},
-	}
-
 	for _, file := range rootConfigFiles {
 		if err := r.createFileFromTemplate(filepath.Join(baseDir, file.filename), file.templateName, nil); err != nil {
 			return err
@@ -325,7 +328,6 @@ func (r *initRunner) createProjectStructure(baseDir, terraformVersion string, re
 	miseData := &templates.Data{
 		TerraformVersion: terraformVersion,
 		Tools:            r.tools,
-		MiseTools:        templates.BuildMiseTools(r.tools),
 	}
 	if err := r.createFileFromTemplate(filepath.Join(baseDir, ".mise.toml"), "root/.mise.toml.tmpl", miseData); err != nil {
 		return err
@@ -343,10 +345,8 @@ func (r *initRunner) createProjectStructure(baseDir, terraformVersion string, re
 
 		// Create .terraform-version file
 		tfVersionPath := filepath.Join(envPath, ".terraform-version")
-		data := map[string]string{
-			"TerraformVersion": terraformVersion,
-		}
-		if err := r.createFileFromTemplate(tfVersionPath, "root/.terraform-version.tmpl", data); err != nil {
+		tfVersionData := &templates.Data{TerraformVersion: terraformVersion}
+		if err := r.createFileFromTemplate(tfVersionPath, "root/.terraform-version.tmpl", tfVersionData); err != nil {
 			return err
 		}
 
@@ -399,7 +399,7 @@ func (r *initRunner) createProjectStructure(baseDir, terraformVersion string, re
 	return nil
 }
 
-func (r *initRunner) createFileFromTemplate(targetPath, templateName string, data any) error {
+func (r *initRunner) createFileFromTemplate(targetPath, templateName string, data *templates.Data) error {
 	// Compute a relative path for logging; fall back to base name on error
 	logPath := targetPath
 	if cwd, err := os.Getwd(); err == nil {
@@ -442,7 +442,7 @@ func (r *initRunner) createFileFromTemplate(targetPath, templateName string, dat
 }
 
 // upgradeFile handles the upgrade logic for an existing init-managed file.
-func (r *initRunner) upgradeFile(targetPath, templateName string, data any, logPath string) error {
+func (r *initRunner) upgradeFile(targetPath, templateName string, data *templates.Data, logPath string) error {
 	// Read existing file and check source marker
 	existingContent, err := r.fs.ReadFile(targetPath)
 	if err != nil {
@@ -491,7 +491,7 @@ func (r *initRunner) upgradeFile(targetPath, templateName string, data any, logP
 // upgradeFromMarker handles upgrade when a valid source marker is present.
 // It compares re-rendered content against the existing file to detect both
 // template changes and data drift (e.g. version bumps in .tfskel.yaml).
-func (r *initRunner) upgradeFromMarker(targetPath, templateName string, data any, logPath string, marker *generate.SourceMarker, existingContent []byte, upgradeVerb string) error {
+func (r *initRunner) upgradeFromMarker(targetPath, templateName string, data *templates.Data, logPath string, marker *generate.SourceMarker, existingContent []byte, upgradeVerb string) error {
 	if marker.Template != templateName {
 		r.log.Debugf("%s source marker template mismatch (%s != %s), skipping", logPath, marker.Template, templateName)
 		return nil
@@ -522,19 +522,11 @@ func (r *initRunner) upgradeFromMarker(targetPath, templateName string, data any
 }
 
 // renderTemplate renders a template with optional data for init command.
-func (r *initRunner) renderTemplate(templateName string, data any) (string, error) {
+func (r *initRunner) renderTemplate(templateName string, data *templates.Data) (string, error) {
 	if data == nil {
-		return r.renderer.Render(templateName, &templates.Data{})
+		data = &templates.Data{}
 	}
-	if d, ok := data.(*templates.Data); ok {
-		return r.renderer.Render(templateName, d)
-	}
-	if m, ok := data.(map[string]string); ok {
-		return r.renderer.Render(templateName, &templates.Data{
-			TerraformVersion: m["TerraformVersion"],
-		})
-	}
-	return "", ErrUnsupportedDataType
+	return r.renderer.Render(templateName, data)
 }
 
 // writeFile writes content to the file via the filesystem abstraction.
@@ -573,7 +565,6 @@ func (r *initRunner) checkProjectDrift(baseDir, terraformVersion string, environ
 	miseData := &templates.Data{
 		TerraformVersion: terraformVersion,
 		Tools:            r.tools,
-		MiseTools:        templates.BuildMiseTools(r.tools),
 	}
 	if r.isDrifted(filepath.Join(baseDir, ".mise.toml"), "root/.mise.toml.tmpl", miseData) {
 		drifted = append(drifted, ".mise.toml")
@@ -582,8 +573,8 @@ func (r *initRunner) checkProjectDrift(baseDir, terraformVersion string, environ
 	// Check .terraform-version files per environment
 	for _, env := range environments {
 		tfVersionPath := filepath.Join(baseDir, "envs", env, ".terraform-version")
-		data := map[string]string{"TerraformVersion": terraformVersion}
-		if r.isDrifted(tfVersionPath, "root/.terraform-version.tmpl", data) {
+		tfVersionData := &templates.Data{TerraformVersion: terraformVersion}
+		if r.isDrifted(tfVersionPath, "root/.terraform-version.tmpl", tfVersionData) {
 			drifted = append(drifted, filepath.Join("envs", env, ".terraform-version"))
 		}
 	}
@@ -593,18 +584,20 @@ func (r *initRunner) checkProjectDrift(baseDir, terraformVersion string, environ
 
 // isDrifted compares a file on disk with what the template would render now.
 // Returns false if the file does not exist (nothing to drift against).
-func (r *initRunner) isDrifted(filePath, templateName string, data any) bool {
+func (r *initRunner) isDrifted(filePath, templateName string, data *templates.Data) bool {
 	if !r.fs.FileExists(filePath) {
 		return false
 	}
 
 	existing, err := r.fs.ReadFile(filePath)
 	if err != nil {
+		r.log.Debugf("drift check skipped for %s: %v", filePath, err)
 		return false
 	}
 
 	rendered, err := r.renderTemplate(templateName, data)
 	if err != nil {
+		r.log.Debugf("drift check skipped for %s: %v", filePath, err)
 		return false
 	}
 

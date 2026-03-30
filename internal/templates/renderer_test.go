@@ -187,37 +187,6 @@ func TestRenderer_GetTemplateHash(t *testing.T) {
 	})
 }
 
-func TestToolVersion(t *testing.T) {
-	t.Run("returns pinned version when set", func(t *testing.T) {
-		tools := map[string]string{"tflint": "0.50.0"}
-		assert.Equal(t, "0.50.0", toolVersion(tools, "tflint"))
-	})
-
-	t.Run("returns latest when tool not in map", func(t *testing.T) {
-		tools := map[string]string{"tflint": "0.50.0"}
-		assert.Equal(t, "latest", toolVersion(tools, "trivy"))
-	})
-
-	t.Run("returns latest for nil map", func(t *testing.T) {
-		assert.Equal(t, "latest", toolVersion(nil, "tflint"))
-	})
-
-	t.Run("returns latest for empty string value", func(t *testing.T) {
-		tools := map[string]string{"tflint": ""}
-		assert.Equal(t, "latest", toolVersion(tools, "tflint"))
-	})
-
-	t.Run("returns latest for empty map", func(t *testing.T) {
-		tools := map[string]string{}
-		assert.Equal(t, "latest", toolVersion(tools, "tflint"))
-	})
-
-	t.Run("preserves explicit latest value", func(t *testing.T) {
-		tools := map[string]string{"trivy": "latest"}
-		assert.Equal(t, "latest", toolVersion(tools, "trivy"))
-	})
-}
-
 func TestBuildMiseTools(t *testing.T) {
 	t.Run("nil user tools includes all defaults as latest", func(t *testing.T) {
 		result := BuildMiseTools(nil)
@@ -266,7 +235,6 @@ func TestRenderer_Render_MiseToml(t *testing.T) {
 		data := &Data{
 			TerraformVersion: "~> 1.13",
 			Tools:            tools,
-			MiseTools:        BuildMiseTools(tools),
 		}
 
 		content, err := renderer.Render("root/.mise.toml.tmpl", data)
@@ -282,7 +250,6 @@ func TestRenderer_Render_MiseToml(t *testing.T) {
 	t.Run("renders with nil tools map defaults to latest", func(t *testing.T) {
 		data := &Data{
 			TerraformVersion: "1.13.1",
-			MiseTools:        BuildMiseTools(nil),
 		}
 
 		content, err := renderer.Render("root/.mise.toml.tmpl", data)
@@ -295,7 +262,6 @@ func TestRenderer_Render_MiseToml(t *testing.T) {
 	t.Run("strips constraint from terraform version", func(t *testing.T) {
 		data := &Data{
 			TerraformVersion: ">= 1.10.2",
-			MiseTools:        BuildMiseTools(nil),
 		}
 
 		content, err := renderer.Render("root/.mise.toml.tmpl", data)
