@@ -1,4 +1,4 @@
-package diff
+package version
 
 import "time"
 
@@ -22,10 +22,8 @@ type DriftStatus string
 const (
 	// StatusInSync indicates versions are synchronized with expected values
 	StatusInSync DriftStatus = "in-sync"
-	// StatusMinorDrift indicates minor version differences
-	StatusMinorDrift DriftStatus = "minor-drift"
-	// StatusMajorDrift indicates major version differences
-	StatusMajorDrift DriftStatus = "major-drift"
+	// StatusDrift indicates version differences (any severity)
+	StatusDrift DriftStatus = "drift"
 	// StatusMissing indicates expected version is missing
 	StatusMissing DriftStatus = "missing"
 	// StatusNotManaged indicates resource is not managed in tfskel config
@@ -63,11 +61,10 @@ type DriftReport struct {
 
 // DriftSummary provides aggregated statistics
 type DriftSummary struct {
-	TotalFiles          int                       `json:"totalFiles"`
-	FilesInSync         int                       `json:"filesInSync"`
-	FilesWithMinorDrift int                       `json:"filesWithMinorDrift"`
-	FilesWithMajorDrift int                       `json:"filesWithMajorDrift"`
-	FilesWithErrors     int                       `json:"filesWithErrors"`
-	TerraformVersions   map[string]int            `json:"terraformVersions"` // version -> count
-	ProviderVersions    map[string]map[string]int `json:"providerVersions"`  // provider -> version -> count
+	TotalFiles        int                       `json:"totalFiles"`
+	FilesInSync       int                       `json:"filesInSync"`
+	FilesWithDrift    int                       `json:"filesWithDrift"`
+	FilesWithErrors   int                       `json:"filesWithErrors"`
+	TerraformVersions map[string]int            `json:"terraformVersions"` // version -> count
+	ProviderVersions  map[string]map[string]int `json:"providerVersions"`  // provider -> version -> count
 }

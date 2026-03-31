@@ -136,7 +136,12 @@ func (c *Checker) checkTool(def ToolDef, miseFound bool) ToolResult {
 	// Tool found, try to get version
 	output, err := c.runner.RunCommand(def.Binary, def.VersionCmd...)
 	if err != nil {
-		// Tool exists but version check failed; still mark installed
+		// If the binary is a mise shim but the underlying tool is not installed,
+		// the version command will fail. Reclassify as mise-managed so the user
+		// gets a "run mise install" hint instead of a false positive.
+		if miseFound && (result.Status == StatusInstalled || result.Status == StatusGlobalPath) {
+			result.Status = StatusMiseManaged
+		}
 		return result
 	}
 

@@ -4,9 +4,12 @@
 
 min_version = "2024.9.0"
 
+[settings]
+experimental = true
+
 [tools]
 terraform = "{{ .TerraformVersion | stripConstraint }}"
-{{- range (miseTools .Tools) }}
+{{- range miseTools }}
 {{ .Name }} = "{{ .Version }}"
 {{- end }}
 

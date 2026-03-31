@@ -1,4 +1,4 @@
-package diff
+package version
 
 import (
 	"fmt"
@@ -47,7 +47,7 @@ func (a *Analyzer) Analyze(scanRoot string, versionInfos []VersionInfo) *DriftRe
 		// Update summary statistics
 		if record.HasDrift {
 			report.FilesWithDrift++
-			categorizeDriftSeverity(&report.Summary, record)
+			report.Summary.FilesWithDrift++
 		} else {
 			report.Summary.FilesInSync++
 		}
@@ -66,26 +66,6 @@ func (a *Analyzer) Analyze(scanRoot string, versionInfos []VersionInfo) *DriftRe
 	}
 
 	return report
-}
-
-// categorizeDriftSeverity determines if a drift is major or minor and updates summary counts
-func categorizeDriftSeverity(summary *DriftSummary, record DriftRecord) {
-	hasMajor := record.TerraformDriftStatus == StatusMajorDrift
-
-	if !hasMajor {
-		for _, pd := range record.Providers {
-			if pd.DriftStatus == StatusMajorDrift {
-				hasMajor = true
-				break
-			}
-		}
-	}
-
-	if hasMajor {
-		summary.FilesWithMajorDrift++
-	} else {
-		summary.FilesWithMinorDrift++
-	}
 }
 
 // analyzeVersionInfo compares a single version info against config
@@ -164,31 +144,22 @@ func (a *Analyzer) compareProviderVersion(expected, actual string) DriftStatus {
 }
 
 // compareSemverConstraints compares two version constraint strings
-// and determines if it's major or minor drift
+// and determines if they target the same major.minor version.
 func (a *Analyzer) compareSemverConstraints(expected, actual string) DriftStatus {
 	expectedMajor, expectedMinor := extractVersionNumbers(expected)
 	actualMajor, actualMinor := extractVersionNumbers(actual)
 
-	// If we can't parse, assume major drift for safety
+	// If we can't parse, assume drift for safety
 	if expectedMajor == -1 || actualMajor == -1 {
-		return StatusMajorDrift
+		return StatusDrift
 	}
 
-	// Major version difference
-	if expectedMajor != actualMajor {
-		return StatusMajorDrift
+	if expectedMajor != actualMajor || expectedMinor != actualMinor {
+		return StatusDrift
 	}
 
-	// Minor version difference (or patch)
-	if expectedMinor != actualMinor {
-		return StatusMinorDrift
-	}
-
-	// Different constraints but same version numbers (e.g., "= 1.13" vs "~> 1.13")
-	if expected != actual {
-		return StatusMinorDrift
-	}
-
+	// Same major.minor — treat as in-sync regardless of constraint operator
+	// or patch version (e.g., "1.13.1" vs "~> 1.13" are both targeting 1.13).
 	return StatusInSync
 }
 
@@ -220,11 +191,6 @@ func extractVersionNumbers(version string) (major, minor int) {
 	return major, minor
 }
 
-// HasCriticalDrift checks if there's any major version drift
-func (r *DriftReport) HasCriticalDrift() bool {
-	return r.Summary.FilesWithMajorDrift > 0
-}
-
 // ExitCode returns appropriate exit code for CI/CD
 // 0 = no drift, 1 = drift detected, 2 = errors
 func (r *DriftReport) ExitCode() int {
@@ -239,20 +205,13 @@ func (r *DriftReport) ExitCode() int {
 
 // GetDriftSummaryText returns a human-readable summary
 func (r *DriftReport) GetDriftSummaryText() string {
-	major := r.Summary.FilesWithMajorDrift
-	minor := r.Summary.FilesWithMinorDrift
-
-	var msg string
 	if r.FilesWithDrift == 0 {
-		msg = fmt.Sprintf("All %d files are in sync", r.TotalFiles)
-	} else {
-		msg = fmt.Sprintf("%d of %d files have drift (minor: %d, major: %d)",
-			r.FilesWithDrift, r.TotalFiles, minor, major)
+		return fmt.Sprintf("All %d files are in sync", r.TotalFiles)
+	}
 
-		// Add error info inline if present
-		if r.Summary.FilesWithErrors > 0 {
-			msg += fmt.Sprintf(", %d files with errors", r.Summary.FilesWithErrors)
-		}
+	msg := fmt.Sprintf("%d of %d files have drift", r.FilesWithDrift, r.TotalFiles)
+	if r.Summary.FilesWithErrors > 0 {
+		msg += fmt.Sprintf(", %d files with errors", r.Summary.FilesWithErrors)
 	}
 
 	return msg
