@@ -14,7 +14,6 @@ import (
 
 var (
 	validateFormat string
-	validateOnly   string
 	validateSkip   string
 )
 
@@ -28,15 +27,15 @@ two validation checks:
   config  — Terraform/provider version constraints and .terraform-version files match config
   tools   — required tools are installed and at expected versions (compared against .mise.toml)
 
-By default all checks run. Use --only or --skip to control which checks execute.`,
+By default all checks run. Use --skip to exclude specific checks.`,
 	Example: `  # Run all checks
   tfskel validate
 
-  # Run only version drift check
-  tfskel validate --only config
-
   # Skip tool checks
   tfskel validate --skip tools
+
+  # Skip config checks
+  tfskel validate --skip config
 
   # Machine-readable JSON output for CI
   tfskel validate --format json`,
@@ -49,18 +48,15 @@ func init() {
 
 	validateCmd.Flags().StringVarP(&validateFormat, "format", "f", "table",
 		"Output format: table, json, csv")
-	validateCmd.Flags().StringVar(&validateOnly, "only", "",
-		"Comma-separated checks to run (config, tools)")
 	validateCmd.Flags().StringVar(&validateSkip, "skip", "",
 		"Comma-separated checks to skip (config, tools)")
-	validateCmd.MarkFlagsMutuallyExclusive("only", "skip")
 }
 
 func runValidate(cmd *cobra.Command, _ []string) error {
 	log := logger.NewWithOptions(viper.GetBool("verbose"), useColor)
 
 	// Parse check selection
-	checks, err := validate.ParseCheckSelection(validateOnly, validateSkip)
+	checks, err := validate.ParseCheckSelection(validateSkip)
 	if err != nil {
 		return err
 	}

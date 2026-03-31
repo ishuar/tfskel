@@ -9,89 +9,52 @@ import (
 
 func TestParseCheckSelection(t *testing.T) {
 	tests := []struct {
-		name    string
-		only    string
-		skip    string
-		want    map[CheckName]bool
-		wantErr error
-		errMsg  string
+		name   string
+		skip   string
+		want   map[CheckName]bool
+		errMsg string
 	}{
 		{
-			name: "both empty returns nil (all checks)",
-			only: "",
+			name: "empty returns nil (all checks)",
 			skip: "",
 			want: nil,
 		},
 		{
-			name: "only config",
-			only: "config",
-			skip: "",
-			want: map[CheckName]bool{CheckConfig: true},
-		},
-		{
-			name: "only both checks",
-			only: "config,tools",
-			skip: "",
-			want: map[CheckName]bool{CheckConfig: true, CheckTools: true},
-		},
-		{
-			name: "only with spaces",
-			only: " config , tools ",
-			skip: "",
-			want: map[CheckName]bool{CheckConfig: true, CheckTools: true},
-		},
-		{
 			name: "skip tools",
-			only: "",
 			skip: "tools",
 			want: map[CheckName]bool{CheckConfig: true},
 		},
 		{
 			name: "skip config",
-			only: "",
 			skip: "config",
 			want: map[CheckName]bool{CheckTools: true},
 		},
 		{
 			name: "skip all",
-			only: "",
 			skip: "config,tools",
 			want: map[CheckName]bool{},
 		},
 		{
-			name:    "mutually exclusive",
-			only:    "config",
-			skip:    "tools",
-			wantErr: ErrMutuallyExclusive,
-		},
-		{
-			name:   "invalid only check",
-			only:   "bogus",
-			skip:   "",
-			errMsg: `unknown check "bogus"`,
+			name: "skip with spaces",
+			skip: " config , tools ",
+			want: map[CheckName]bool{},
 		},
 		{
 			name:   "invalid skip check",
-			only:   "",
 			skip:   "nope",
 			errMsg: `unknown check "nope"`,
 		},
 		{
 			name:   "files is no longer valid",
-			only:   "files",
-			skip:   "",
+			skip:   "files",
 			errMsg: `unknown check "files"`,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ParseCheckSelection(tt.only, tt.skip)
+			got, err := ParseCheckSelection(tt.skip)
 
-			if tt.wantErr != nil {
-				require.ErrorIs(t, err, tt.wantErr)
-				return
-			}
 			if tt.errMsg != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMsg)

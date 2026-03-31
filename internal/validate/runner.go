@@ -8,12 +8,8 @@ import (
 	"github.com/ishuar/tfskel/internal/config"
 )
 
-var (
-	// ErrUnknownCheck indicates an invalid check name was provided.
-	ErrUnknownCheck = errors.New("unknown check")
-	// ErrMutuallyExclusive indicates --only and --skip were both specified.
-	ErrMutuallyExclusive = errors.New("--only and --skip are mutually exclusive")
-)
+// ErrUnknownCheck indicates an invalid check name was provided.
+var ErrUnknownCheck = errors.New("unknown check")
 
 // Runner orchestrates validation checks.
 type Runner struct {
@@ -89,31 +85,13 @@ func (r *Runner) runCheck(check CheckName, report *Report) ([]Finding, CheckResu
 	}
 }
 
-// ParseCheckSelection parses --only or --skip flag values into a check map.
-// Returns an error if any name is invalid.
-func ParseCheckSelection(only, skip string) (map[CheckName]bool, error) {
-	if only != "" && skip != "" {
-		return nil, ErrMutuallyExclusive
-	}
-
-	if only == "" && skip == "" {
+// ParseCheckSelection parses the --skip flag value into a check map.
+// Returns nil (run all) when skip is empty.
+func ParseCheckSelection(skip string) (map[CheckName]bool, error) {
+	if skip == "" {
 		return nil, nil //nolint:nilnil // nil means "run all checks"
 	}
 
-	if only != "" {
-		names := strings.Split(only, ",")
-		checks := make(map[CheckName]bool)
-		for _, name := range names {
-			name = strings.TrimSpace(name)
-			if !ValidCheckName(name) {
-				return nil, fmt.Errorf("%w %q; valid checks: config, tools", ErrUnknownCheck, name)
-			}
-			checks[CheckName(name)] = true
-		}
-		return checks, nil
-	}
-
-	// --skip: start with all, remove skipped
 	names := strings.Split(skip, ",")
 	checks := map[CheckName]bool{
 		CheckConfig: true,
