@@ -845,35 +845,31 @@ User runs: tfskel init
        └── .github/workflows/
 ```
 
-### Drift Command Flows
+### Validate Command Flow
 
-#### Drift Version Flow
 ```
-User runs: tfskel diff config --dir ./envs
+User runs: tfskel validate
 
-1. CLI Layer (cmd/drift_version.go)
-   ├─ Parse flags (path, format, no-color)
-   └─ Validate path exists and is directory
+1. CLI Layer (cmd/validate.go)
+   ├─ Parse flags (skip, format, no-color)
+   └─ Load config from .tfskel.yaml
        │
        ▼
-2. Config Layer (internal/config)
-   └─ Load expected versions from .tfskel.yaml
+2. Runner (internal/validate)
+   ├─ Config check:
+   │   ├─ Scan directory tree for .tf files (internal/version)
+   │   ├─ Parse HCL, extract version constraints
+   │   ├─ Compare against .tfskel.yaml
+   │   └─ Check .terraform-version files
+   ├─ Tool check:
+   │   ├─ Detect installed tools (internal/toolcheck)
+   │   ├─ Parse .mise.toml for expected versions
+   │   └─ Compare installed vs expected
        │
        ▼
-3. Drift Detection (internal/diff)
-   ├─ Scan directory tree recursively
-   ├─ Parse .tf files with HCL parser
-   ├─ Extract version constraints
-   └─ Compare against expected versions
-       │
-       ▼
-4. Analysis and Formatting
-   ├─ Categorize drift (matches, mismatches, missing)
-   └─ Format output (table/JSON/CSV)
-       │
-       ▼
-5. Result
-   └─ Version drift report with exit code
+3. Formatting and Result
+   ├─ Format output (table/JSON/CSV)
+   └─ Exit code: 0 = pass, 1 = findings, 2 = errors
 ```
 
 #### Drift Plan Flow

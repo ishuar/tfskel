@@ -117,10 +117,10 @@ tfskel scaffold myapp --env dev --region us-east-1
 tfskel scaffold workflows --env dev
 ```
 
-4. **Check for version drift**:
+4. **Validate project health**:
 
 ```bash
-tfskel diff config
+tfskel validate
 ```
 
 ---
@@ -652,61 +652,42 @@ tfskel scaffold workflows --env dev --dry-run
 > [!NOTE]
 > `workflows.name` is a **plain string** — Go template syntax is not supported. The env prefix and `.yaml` extension are added automatically. Example: `name: "terraform"` + `--env dev` → `dev-terraform.yaml`.
 
-### `tfskel diff`
+### `tfskel validate`
 
-Parent command for diff detection capabilities. Use subcommands for specific analyses.
-
-**Subcommands**:
-- `config` - Detect Terraform and provider version drift
-
----
-
-### `tfskel diff config`
-
-Detect Terraform and provider version drift across your repository.
+Checks whether your project is in sync with `.tfskel.yaml` by running two validation checks: config drift detection and tool installation status.
 
 **Usage**:
 ```bash
-tfskel diff config [flags]
+tfskel validate [flags]
 ```
 
 **Flags**:
-- `--dir, -d`: Directory to scan for Terraform files (default: current directory)
+- `--skip`: Comma-separated checks to skip (`config`, `tools`)
 - `--format, -f`: Output format: table, json, csv (default: table)
 - `--no-color`: Disable colored output
-- `--config`: Path to config file for expected versions (default: .tfskel.yaml)
+- `--config`: Path to config file (default: .tfskel.yaml)
 - `--verbose, -v`: Enable verbose output
 
 **Examples**:
 
 ```bash
-# Check version drift in current directory
-tfskel diff config
+# Run all checks
+tfskel validate
 
-# Check specific subdirectory
-tfskel diff config --dir ./envs
+# Skip tool checks
+tfskel validate --skip tools
 
 # Output as JSON for CI/CD
-tfskel diff config --format json > drift-report.json
+tfskel validate --format json > validate-report.json
 
 # Output as CSV
-tfskel diff config --format csv --no-color > drift.csv
+tfskel validate --format csv --no-color > validate.csv
 ```
 
 **What it does**:
-1. Recursively scans directory for `.tf` files
-2. Parses HCL to extract terraform and provider version constraints
-3. Compares against expected versions in .tfskel.yaml
-4. Categorizes drift:
-   - **In-Sync**: Version matches configuration
-   - **Minor Drift**: Patch or minor version difference
-   - **Major Drift**: Major version mismatch
-   - **Missing**: Version not specified in file
-   - **Not Managed**: Provider not in .tfskel.yaml
-5. Generates comprehensive report with:
-   - Per-file drift details
-   - Aggregated version statistics
-   - Drift severity summary
+1. **Config check**: Recursively scans for `.tf` files, parses HCL to extract version constraints, compares against `.tfskel.yaml`, and checks `.terraform-version` files for mismatches
+2. **Tool check**: Detects required tools (terraform, tflint, trivy, etc.), checks installation status via mise, and compares installed versions against `.mise.toml` pins
+3. Generates a unified report with findings and exit codes for CI/CD
 6. Outputs in requested format (table/json/csv)
 
 **Drift Detection Features**:
@@ -1665,22 +1646,22 @@ tfskel scaffold webapp --env prd --region ap-southeast-1
 Detect and fix version inconsistencies:
 
 ```bash
-# Check for drift
-tfskel diff config
+# Run all validation checks
+tfskel validate
 
-# Export drift report to CSV
-tfskel diff config --format csv --no-color > drift-report.csv
+# Export validation report to CSV
+tfskel validate --format csv --no-color > validate-report.csv
 
-# Check specific environment
-tfskel diff config --dir ./envs/prd
+# Skip tool checks, only check config drift
+tfskel validate --skip tools
 
 # Output as JSON for automated processing
-tfskel diff config --format json > drift.json
+tfskel validate --format json > validate.json
 ```
 
 **Common Drift Scenarios**:
 
-1. **Major version drift**: Different major versions across environments
+1. **Version drift**: Different versions across environments
    ```bash
    # Found: dev uses ~> 5.0, prd uses ~> 6.0
    # Action: Update .tfskel.yaml and regenerate

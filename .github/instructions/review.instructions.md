@@ -102,7 +102,7 @@ Command structure should feel predictable:
 ```
 tfskel init
 tfskel scaffold
-tfskel diff
+tfskel validate
 ```
 
 Each command must:
