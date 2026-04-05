@@ -69,11 +69,18 @@ func RunConfigCheck(cfg *config.Config, scanDir string) ([]Finding, CheckResult,
 	findings = append(findings, tvFindings...)
 	totalFiles += tvCount
 
+	// Count unique files with findings so Passed reflects file-level metrics.
+	uniqueFiles := make(map[string]bool, len(findings))
+	for _, f := range findings {
+		uniqueFiles[f.Resource] = true
+	}
+
 	result := CheckResult{
-		Check:  CheckConfig,
-		Total:  totalFiles,
-		Passed: totalFiles - len(findings),
-		Issues: len(findings),
+		Check:             CheckConfig,
+		Total:             totalFiles,
+		Passed:            totalFiles - len(uniqueFiles),
+		Issues:            len(findings),
+		AffectedResources: len(uniqueFiles),
 	}
 	if len(findings) > 0 {
 		result.Status = StatusFail
@@ -99,8 +106,7 @@ func checkTerraformVersionFiles(cfg *config.Config, scanDir string) ([]Finding, 
 	count := 0
 
 	// Walk the directory tree looking for .terraform-version files.
-	//nolint:errcheck // WalkDir errors are handled inside the callback; the walk itself only fails on root access issues.
-	filepath.WalkDir(scanDir, func(path string, d os.DirEntry, err error) error {
+	if err := filepath.WalkDir(scanDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -118,7 +124,18 @@ func checkTerraformVersionFiles(cfg *config.Config, scanDir string) ([]Finding, 
 
 		data, readErr := os.ReadFile(path)
 		if readErr != nil {
-			return nil //nolint:nilerr // skip unreadable files
+			relPath := path
+			if rel, relErr := filepath.Rel(scanDir, path); relErr == nil {
+				relPath = rel
+			}
+			findings = append(findings, Finding{
+				Check:     CheckConfig,
+				Resource:  relPath,
+				Component: "terraform-version-file",
+				Message:   "could not read .terraform-version file",
+				Detail:    readErr.Error(),
+			})
+			return nil
 		}
 
 		actual := strings.TrimSpace(string(data))
@@ -143,7 +160,9 @@ func checkTerraformVersionFiles(cfg *config.Config, scanDir string) ([]Finding, 
 		}
 
 		return nil
-	})
+	}); err != nil {
+		return nil, 0
+	}
 
 	return findings, count
 }

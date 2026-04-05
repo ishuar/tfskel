@@ -5,6 +5,7 @@ import (
 
 	"github.com/ishuar/tfskel/internal/toolcheck"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCheckToolVersions_Mismatch(t *testing.T) {
@@ -120,6 +121,22 @@ terraform = "1.14.0"
 	assert.Equal(t, "1.14.0", findings[0].Expected)
 	assert.Equal(t, "1.13.5", findings[0].Actual)
 	assert.Equal(t, "installed version does not match expected", findings[0].Message)
+}
+
+func TestCheckToolVersions_MalformedMiseToml(t *testing.T) {
+	dir := t.TempDir()
+	writeMiseToml(t, dir, `not valid toml [[[`)
+
+	report := &toolcheck.Report{
+		Tools: []toolcheck.ToolResult{
+			{Name: "Terraform", Binary: "terraform", MisePlugin: "terraform", Status: toolcheck.StatusInstalled, Version: "1.13.0"},
+		},
+	}
+
+	findings := checkToolVersions(dir, report)
+	require.Len(t, findings, 1)
+	assert.Equal(t, ".mise.toml", findings[0].Resource)
+	assert.Contains(t, findings[0].Message, "failed to parse .mise.toml")
 }
 
 func TestCheckToolVersions_ToolNotInMiseToml(t *testing.T) {

@@ -75,7 +75,11 @@ func (f *Formatter) formatTable(report *Report, w io.Writer) error {
 	if _, err := fmt.Fprintln(buf, styles.TitleStyle.Render("━━━ Validation Report ━━━")); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintf(buf, "%s  .\n", styles.MutedStyle.Render("Directory:")); err != nil {
+	dir := "."
+	if report != nil && report.Directory != "" {
+		dir = report.Directory
+	}
+	if _, err := fmt.Fprintf(buf, "%s  %s\n", styles.MutedStyle.Render("Directory:"), dir); err != nil {
 		return err
 	}
 
@@ -161,11 +165,22 @@ func (f *Formatter) passSummary(c CheckResult) string {
 func (f *Formatter) failSummary(c CheckResult) string {
 	switch c.Check {
 	case CheckConfig:
-		return fmt.Sprintf("%d of %d files with version drift", c.Issues, c.Total)
+		files := c.AffectedResources
+		if files == 0 {
+			files = c.Issues
+		}
+		return fmt.Sprintf("%d of %d files with version drift", files, c.Total)
 	case CheckTools:
 		noun := "findings"
 		if c.Issues == 1 {
 			noun = "finding"
+		}
+		if c.AffectedResources > 0 && c.AffectedResources != c.Issues {
+			toolNoun := "tools"
+			if c.AffectedResources == 1 {
+				toolNoun = "tool"
+			}
+			return fmt.Sprintf("%d %s, %d %s", c.AffectedResources, toolNoun, c.Issues, noun)
 		}
 		return fmt.Sprintf("%d tool %s", c.Issues, noun)
 	}
@@ -242,10 +257,14 @@ func (f *Formatter) writeToolDetails(w io.Writer, report *Report, styles format.
 		if _, err := fmt.Fprintln(w, styles.HeaderStyle.Render("Required Tools")); err != nil {
 			return err
 		}
-		// FormatReport includes a "Running pre-flight checks...\n\n" header;
-		// strip it since we render our own styled heading above.
+		// FormatReport includes its own heading followed by a blank line.
+		// Strip everything up to and including the first blank line so we can
+		// render our own styled heading above, without depending on the exact
+		// header text used by toolcheck.FormatReport.
 		full := toolcheck.FormatReport(tr)
-		full = strings.TrimPrefix(full, "Running pre-flight checks...\n\n")
+		if parts := strings.SplitN(full, "\n\n", 2); len(parts) == 2 {
+			full = parts[1]
+		}
 		if _, err := fmt.Fprint(w, full); err != nil {
 			return err
 		}

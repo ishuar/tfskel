@@ -17,8 +17,4 @@ terraform = "{{ .TerraformVersion | stripConstraint }}"
 # After mise install: set up pre-commit hooks and trust mise configs
 postinstall = """
 pre-commit install --install-hooks
-mise trust .
-{{- range .Environments }}
-[ -f "./envs/{{ . }}/.mise.toml" ] && mise trust "./envs/{{ . }}/.mise.toml"
-{{- end }}
 """

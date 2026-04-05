@@ -246,18 +246,19 @@ func TestChecker_CheckAll(t *testing.T) {
 		assert.Empty(t, report.Tools[0].Version, "version should be empty when version check fails")
 	})
 
-	t.Run("mise shim on PATH but tool not installed", func(t *testing.T) {
+	t.Run("mise which succeeds but version command fails", func(t *testing.T) {
+		// mise which succeeds (tool is configured in mise), but the version
+		// command fails. Keep StatusInstalled so the user sees an accurate
+		// diagnostic — mise manages it but something is wrong with the install.
 		runner := &mockRunner{
 			paths: map[string]string{
 				"mise":   "/usr/local/bin/mise",
 				"tflint": "/home/user/.local/share/mise/shims/tflint",
 			},
 			commands: map[string]string{
-				// mise which succeeds — shim is configured
 				"mise which tflint": "/home/user/.local/share/mise/installs/tflint/0.61.0/bin/tflint",
 			},
 			errors: map[string]error{
-				// but the actual version command fails — tool not really installed
 				"tflint --version": errors.New("exit status 1"),
 			},
 		}
@@ -268,8 +269,8 @@ func TestChecker_CheckAll(t *testing.T) {
 		report := checker.CheckAll()
 
 		require.Len(t, report.Tools, 1)
-		assert.Equal(t, StatusMiseManaged, report.Tools[0].Status,
-			"tool with mise shim but failing version command should be mise-managed, not installed")
+		assert.Equal(t, StatusInstalled, report.Tools[0].Status,
+			"mise which succeeded so tool is installed; version failure is a separate issue")
 		assert.Empty(t, report.Tools[0].Version)
 	})
 

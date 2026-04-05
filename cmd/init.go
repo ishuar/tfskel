@@ -37,7 +37,6 @@ type initManagedFile struct {
 }
 
 // rootConfigFiles lists root config files managed by init (rendered with nil data).
-// Shared between createProjectStructure and validate file check.
 var rootConfigFiles = []initManagedFile{
 	{".gitignore", "root/.gitignore.tmpl"},
 	{".pre-commit-config.yaml", "root/.pre-commit-config.yaml.tmpl"},
@@ -202,7 +201,7 @@ func extractVersionFromConstraint(constraint string) string {
 	return version
 }
 
-// determineInitParameters determines environments, terraform version, regions, workflows flag, and tool versions.
+// determineInitParameters determines environments, terraform version, regions, and the workflows flag.
 // Priority: existing .tfskel.yaml in target dir > defaults
 func determineInitParameters(targetDir string, log *logger.Logger) ([]string, string, []string, bool, error) {
 	// Default values for bootstrapping new projects

@@ -274,6 +274,27 @@ func TestFormatter_FormatTable(t *testing.T) {
 		output := buf.String()
 		assert.Contains(t, output, "3 findings")
 	})
+
+	t.Run("tools summary shows unique tools and total findings", func(t *testing.T) {
+		f := &Formatter{useColor: false, terminalWidth: 120}
+		report := &Report{
+			Checks: []CheckResult{
+				{Check: CheckConfig, Status: StatusPass, Total: 1, Passed: 1},
+				{Check: CheckTools, Status: StatusFail, Total: 5, Passed: 3, Issues: 3, AffectedResources: 2},
+			},
+			Findings: []Finding{
+				{Check: CheckTools, Resource: "Terraform", Message: "installed globally"},
+				{Check: CheckTools, Resource: "Terraform", Component: "version", Message: "version mismatch"},
+				{Check: CheckTools, Resource: "TFLint", Message: "not installed"},
+			},
+		}
+
+		var buf bytes.Buffer
+		require.NoError(t, f.Format(report, format.FormatTable, &buf))
+
+		output := buf.String()
+		assert.Contains(t, output, "2 tools, 3 findings")
+	})
 }
 
 // --- Unsupported format ---

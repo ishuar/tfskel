@@ -50,17 +50,21 @@ type Finding struct {
 
 // CheckResult holds the summary outcome for a single check.
 type CheckResult struct {
-	Check  CheckName   `json:"check"`
-	Status CheckStatus `json:"status"`
-	Total  int         `json:"total"`
-	Passed int         `json:"passed"`
-	Issues int         `json:"issues"`
+	Check             CheckName   `json:"check"`
+	Status            CheckStatus `json:"status"`
+	Total             int         `json:"total"`
+	Passed            int         `json:"passed"`
+	Issues            int         `json:"issues"`
+	AffectedResources int         `json:"affectedResources,omitempty"` // unique resources with findings (e.g. unique tools)
 }
 
 // Report is the top-level validation result.
 type Report struct {
 	Checks   []CheckResult `json:"checks"`
 	Findings []Finding     `json:"findings"`
+
+	// Directory is the scan root displayed in table output.
+	Directory string `json:"directory,omitempty"`
 
 	// ToolReport holds the raw toolcheck report for detailed table rendering.
 	// Excluded from JSON/CSV output — only used by the table formatter.

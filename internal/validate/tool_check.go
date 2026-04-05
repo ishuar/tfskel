@@ -2,6 +2,7 @@ package validate
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/ishuar/tfskel/internal/toolcheck"
@@ -54,11 +55,18 @@ func RunToolCheck(dir string) ([]Finding, CheckResult, *toolcheck.Report, error)
 	// Version mismatch detection: compare installed versions against .mise.toml pins.
 	findings = append(findings, checkToolVersions(dir, report)...)
 
+	// Count unique tools with findings for the summary line.
+	uniqueTools := make(map[string]bool, len(findings))
+	for _, f := range findings {
+		uniqueTools[f.Resource] = true
+	}
+
 	result := CheckResult{
-		Check:  CheckTools,
-		Total:  total,
-		Passed: total - len(findings),
-		Issues: len(findings),
+		Check:             CheckTools,
+		Total:             total,
+		Passed:            total - len(uniqueTools),
+		Issues:            len(findings),
+		AffectedResources: len(uniqueTools),
 	}
 	if len(findings) > 0 {
 		result.Status = StatusFail
@@ -77,7 +85,12 @@ func checkToolVersions(dir string, report *toolcheck.Report) []Finding {
 		if errors.Is(err, ErrMiseTomlNotFound) {
 			return nil
 		}
-		return nil
+		return []Finding{{
+			Check:    CheckTools,
+			Resource: ".mise.toml",
+			Message:  fmt.Sprintf("failed to parse .mise.toml: %v", err),
+			Detail:   "fix .mise.toml syntax to enable version checks",
+		}}
 	}
 
 	var findings []Finding

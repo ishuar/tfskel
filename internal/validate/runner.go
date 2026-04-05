@@ -37,7 +37,7 @@ func NewRunner(cfg *config.Config, dir string, checks map[CheckName]bool) *Runne
 
 // Run executes all selected checks and returns a unified report.
 func (r *Runner) Run() *Report {
-	report := &Report{}
+	report := &Report{Directory: r.dir}
 
 	for _, check := range AllChecks() {
 		if !r.checks[check] {
