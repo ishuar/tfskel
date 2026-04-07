@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.8.0](https://github.com/ishuar/tfskel/compare/v0.7.2...v0.8.0) (2026-04-07)
+
+
+### ⚠ BREAKING CHANGES
+
+* **cmd:** `tfskel diff config` has been removed. Use `tfskel validate` instead.
+
+### ✨ Features
+
+* **cmd:** replace diff config with validate command ([#79](https://github.com/ishuar/tfskel/issues/79)) ([682a679](https://github.com/ishuar/tfskel/commit/682a679c7c0907dd8b9dd6b27ba5baf451b5c8eb))
+* **toolcheck:** add mise-aware pre-flight checks with actionable shell hints ([8307d09](https://github.com/ishuar/tfskel/commit/8307d09c724b85222b5e8888a15384ffc8e1d317))
+
+
+### 🐞 Bug Fixes
+
+* **cmd:** improve validate accuracy, unique-resource counting, and error handling ([682a679](https://github.com/ishuar/tfskel/commit/682a679c7c0907dd8b9dd6b27ba5baf451b5c8eb))
+* **cmd:** replace inline toolcheck in init with pointer to tfskel validate ([682a679](https://github.com/ishuar/tfskel/commit/682a679c7c0907dd8b9dd6b27ba5baf451b5c8eb))
+* **cmd:** use segment-boundary version matching so 1.13 does not falsely match 1.130 ([682a679](https://github.com/ishuar/tfskel/commit/682a679c7c0907dd8b9dd6b27ba5baf451b5c8eb))
+* **generator:** upgradeFile now compares full rendered content (matching `internal/generate/upgrade.go` behavior) ([8307d09](https://github.com/ishuar/tfskel/commit/8307d09c724b85222b5e8888a15384ffc8e1d317))
+
+
+### 📦 Other Changes
+
+* **cmd:** update docs, demo GIF, and CI for validate command ([682a679](https://github.com/ishuar/tfskel/commit/682a679c7c0907dd8b9dd6b27ba5baf451b5c8eb))
+* improve installation section readability in README ([#80](https://github.com/ishuar/tfskel/issues/80)) ([be4900f](https://github.com/ishuar/tfskel/commit/be4900feb7fd812c45c05be83b87601f8bd0f720))
+
 ## [0.7.2](https://github.com/ishuar/tfskel/compare/v0.7.1...v0.7.2) (2026-03-28)
 
 
