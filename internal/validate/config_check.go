@@ -143,7 +143,7 @@ func checkTerraformVersionFiles(cfg *config.Config, scanDir string) ([]Finding, 
 			return nil
 		}
 
-		if !strings.HasPrefix(actual, expectedVersion) {
+		if !versionsMatchAtSegmentBoundary(actual, expectedVersion) {
 			relPath := path
 			if rel, relErr := filepath.Rel(scanDir, path); relErr == nil {
 				relPath = rel
@@ -161,8 +161,35 @@ func checkTerraformVersionFiles(cfg *config.Config, scanDir string) ([]Finding, 
 
 		return nil
 	}); err != nil {
-		return nil, 0
+		// Return any findings collected before the walk error, plus a finding
+		// for the walk failure itself so the caller knows something went wrong.
+		relPath := scanDir
+		findings = append(findings, Finding{
+			Check:     CheckConfig,
+			Resource:  relPath,
+			Component: "terraform-version-file",
+			Message:   "failed to walk directory",
+			Detail:    err.Error(),
+		})
+		return findings, count
 	}
 
 	return findings, count
+}
+
+// versionsMatchAtSegmentBoundary checks whether actual starts with expected at
+// a version segment boundary. For example, expected "1.13" matches "1.13",
+// "1.13.1", and "1.13.0-rc1" but NOT "1.130" or "1.139".
+func versionsMatchAtSegmentBoundary(actual, expected string) bool {
+	if !strings.HasPrefix(actual, expected) {
+		return false
+	}
+	// If actual is exactly expected, it matches.
+	if len(actual) == len(expected) {
+		return true
+	}
+	// The character immediately after the prefix must be a segment separator
+	// (dot, dash for pre-release) or end-of-string (already handled above).
+	next := actual[len(expected)]
+	return next == '.' || next == '-' || next == '+'
 }

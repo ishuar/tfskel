@@ -367,13 +367,15 @@ func (f *Formatter) formatJSON(report *Report, w io.Writer) error {
 	encoder.SetEscapeHTML(false)
 
 	output := struct {
-		Checks   []CheckResult `json:"checks"`
-		Findings []Finding     `json:"findings"`
-		ExitCode int           `json:"exitCode"`
+		Directory string        `json:"directory,omitempty"`
+		Checks    []CheckResult `json:"checks"`
+		Findings  []Finding     `json:"findings"`
+		ExitCode  int           `json:"exitCode"`
 	}{
-		Checks:   report.Checks,
-		Findings: report.Findings,
-		ExitCode: report.ExitCode(),
+		Directory: report.Directory,
+		Checks:    report.Checks,
+		Findings:  report.Findings,
+		ExitCode:  report.ExitCode(),
 	}
 
 	return encoder.Encode(output)

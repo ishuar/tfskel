@@ -126,6 +126,23 @@ func TestFormatter_FormatJSON(t *testing.T) {
 		require.NoError(t, json.Unmarshal(buf.Bytes(), &result))
 		assert.Equal(t, float64(0), result["exitCode"])
 	})
+
+	t.Run("directory field is included in JSON output", func(t *testing.T) {
+		f := &Formatter{useColor: false, terminalWidth: 120}
+		report := &Report{
+			Directory: "/home/user/project",
+			Checks:    []CheckResult{{Check: CheckConfig, Status: StatusPass}},
+		}
+
+		var buf bytes.Buffer
+		require.NoError(t, f.Format(report, format.FormatJSON, &buf))
+
+		var result struct {
+			Directory string `json:"directory"`
+		}
+		require.NoError(t, json.Unmarshal(buf.Bytes(), &result))
+		assert.Equal(t, "/home/user/project", result.Directory)
+	})
 }
 
 // --- CSV output tests ---

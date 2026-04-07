@@ -115,7 +115,6 @@ terraform {
 
 		tf := findings[0]
 		assert.Equal(t, CheckConfig, tf.Check)
-		assert.Equal(t, "version constraint drift", tf.Message)
 		assert.Equal(t, "terraform", tf.Component)
 		assert.Equal(t, "version constraint drift", tf.Message)
 		assert.NotEmpty(t, tf.Expected)
@@ -282,6 +281,48 @@ resource "aws_s3_bucket" "example" {
 		assert.Contains(t, tvFindings[0].Resource, "prd")
 	})
 
+	t.Run("terraform-version prefix does not match across segment boundary", func(t *testing.T) {
+		dir := t.TempDir()
+		// Expected "1.13" must NOT match "1.130" — that would be a different major.minor.
+		envsDir := filepath.Join(dir, "envs", "dev")
+		require.NoError(t, os.MkdirAll(envsDir, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(envsDir, ".terraform-version"), []byte("1.130\n"), 0o644))
+
+		cfg := &config.Config{TerraformVersion: "~> 1.13"}
+
+		findings, result, err := RunConfigCheck(cfg, dir)
+
+		require.NoError(t, err)
+		assert.Equal(t, StatusFail, result.Status)
+
+		var tvFindings []Finding
+		for _, f := range findings {
+			if f.Component == "terraform-version-file" {
+				tvFindings = append(tvFindings, f)
+			}
+		}
+		require.Len(t, tvFindings, 1, "1.130 should not match expected 1.13")
+		assert.Equal(t, "1.130", tvFindings[0].Actual)
+	})
+
+	t.Run("terraform-version with pre-release suffix matches", func(t *testing.T) {
+		dir := t.TempDir()
+		envsDir := filepath.Join(dir, "envs", "dev")
+		require.NoError(t, os.MkdirAll(envsDir, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(envsDir, ".terraform-version"), []byte("1.13.0-rc1\n"), 0o644))
+
+		cfg := &config.Config{TerraformVersion: "1.13.0"}
+
+		findings, result, err := RunConfigCheck(cfg, dir)
+
+		require.NoError(t, err)
+		assert.Equal(t, StatusPass, result.Status)
+		for _, f := range findings {
+			assert.NotEqual(t, "terraform-version-file", f.Component,
+				"1.13.0-rc1 should match expected 1.13.0 at segment boundary")
+		}
+	})
+
 	t.Run("empty config flags missing expected version as drift", func(t *testing.T) {
 		dir := t.TempDir()
 		writeTFFile(t, dir, "versions.tf", `
@@ -300,4 +341,30 @@ terraform {
 		require.NotEmpty(t, findings)
 		assert.Equal(t, "terraform", findings[0].Component)
 	})
+}
+
+func TestVersionsMatchAtSegmentBoundary(t *testing.T) {
+	tests := []struct {
+		actual   string
+		expected string
+		want     bool
+	}{
+		{"1.13", "1.13", true},
+		{"1.13.1", "1.13", true},
+		{"1.13.0", "1.13.0", true},
+		{"1.13.0-rc1", "1.13.0", true},
+		{"1.13.0+build123", "1.13.0", true},
+		{"1.130", "1.13", false},
+		{"1.139", "1.13", false},
+		{"1.12.0", "1.13", false},
+		{"2.13.0", "1.13", false},
+		{"1.13", "1.13.0", false}, // actual shorter than expected
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.actual+"_vs_"+tt.expected, func(t *testing.T) {
+			got := versionsMatchAtSegmentBoundary(tt.actual, tt.expected)
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }

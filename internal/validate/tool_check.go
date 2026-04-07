@@ -10,6 +10,9 @@ import (
 
 // RunToolCheck detects missing or inactive required tools and compares installed
 // versions against expected versions from .mise.toml.
+//
+// Tool presence is checked globally via PATH (tools are system-wide), while
+// expected version pins come from the project's .mise.toml in dir.
 func RunToolCheck(dir string) ([]Finding, CheckResult, *toolcheck.Report, error) {
 	checker := toolcheck.NewChecker(&toolcheck.OSCommandRunner{}, toolcheck.DefaultTools())
 	report := checker.CheckAll()
