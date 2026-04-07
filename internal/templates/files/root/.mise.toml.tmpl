@@ -6,6 +6,7 @@ min_version = "2024.9.0"
 
 [settings]
 experimental = true
+legacy_version_file = true
 
 [tools]
 terraform = "{{ .TerraformVersion | stripConstraint }}"
@@ -16,5 +17,7 @@ terraform = "{{ .TerraformVersion | stripConstraint }}"
 [hooks]
 # After mise install: set up pre-commit hooks and trust mise configs
 postinstall = """
-pre-commit install --install-hooks
+if [ -f .pre-commit-config.yaml ]; then
+  pre-commit install --install-hooks
+fi
 """

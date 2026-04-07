@@ -242,7 +242,7 @@ resource "aws_s3_bucket" "example" {
 		dir := t.TempDir()
 		envsDir := filepath.Join(dir, "envs", "dev")
 		require.NoError(t, os.MkdirAll(envsDir, 0o755))
-		require.NoError(t, os.WriteFile(filepath.Join(envsDir, ".terraform-version"), []byte("1.13\n"), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(envsDir, ".terraform-version"), []byte("1.13.1\n"), 0o644))
 
 		cfg := &config.Config{TerraformVersion: "~> 1.13"}
 

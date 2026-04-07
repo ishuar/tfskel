@@ -13,7 +13,6 @@ import (
 	"github.com/ishuar/tfskel/internal/generate"
 	"github.com/ishuar/tfskel/internal/logger"
 	"github.com/ishuar/tfskel/internal/templates"
-	"github.com/ishuar/tfskel/internal/toolcheck"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.yaml.in/yaml/v4"
@@ -171,11 +170,8 @@ func runInit(_ *cobra.Command, _ []string) error {
 		log.Successf("Successfully initialized tfskel project structure in: %s", targetDir)
 	}
 
-	// Run tool detection and print status report (read-only, never blocks init)
-	checker := toolcheck.NewChecker(&toolcheck.OSCommandRunner{}, toolcheck.DefaultTools())
-	report := checker.CheckAll()
 	log.Info("")
-	log.Info(toolcheck.FormatReport(report))
+	log.Info("Next step: run 'tfskel validate' to check your setup and install tools")
 
 	return nil
 }

@@ -143,7 +143,7 @@ func checkTerraformVersionFiles(cfg *config.Config, scanDir string) ([]Finding, 
 			return nil
 		}
 
-		if actual != expectedVersion {
+		if !strings.HasPrefix(actual, expectedVersion) {
 			relPath := path
 			if rel, relErr := filepath.Rel(scanDir, path); relErr == nil {
 				relPath = rel
