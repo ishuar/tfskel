@@ -224,13 +224,13 @@ Generated file: `.github/workflows/<env>-<name>.yaml`
 <img src="assets/tfskel-scaffold.gif" alt="tfskel scaffold demo" width="600" />
 </p>
 
-#### `tfskel diff config`
+#### `tfskel validate`
 
-It scans all environments in the repository and reports Terraform and AWS provider version differences in one pass from the current directory. Results can be output as JSON, table, or CSV for use in CI/CD pipelines or automated checks.
+Checks whether your project is in sync with `.tfskel.yaml` by running two validation checks: config drift detection (Terraform/provider version constraints and `.terraform-version` files) and tool installation status (compared against `.mise.toml`).
 
 | Flag | Short | Default | Description |
 |---|---|---|---|
-| `--dir` | `-d` | `.` (current dir) | Directory to scan for Terraform files (recursive) |
+| `--skip` | | | Comma-separated checks to skip (`config`, `tools`) |
 | `--format` | `-f` | `table` | Output format: `table`, `json`, `csv` |
 | `--no-color` | | `false` | Disable colored output |
 
@@ -238,26 +238,26 @@ It scans all environments in the repository and reports Terraform and AWS provid
 
 | Code | Meaning |
 |---|---|
-| `0` | No drift — all files in sync |
-| `1` | Drift detected (minor or major version differences) |
-| `2` | Parse errors encountered while scanning `.tf` files |
+| `0` | All checks pass |
+| `1` | Findings detected (drift or tool issues) |
+| `2` | Execution errors |
 
 ```bash
-# Check for drift in current directory
-tfskel diff config
+# Run all checks
+tfskel validate
 
-# Check a specific subdirectory
-tfskel diff config --dir ./envs
+# Skip tool checks
+tfskel validate --skip tools
 
 # JSON output for CI/CD pipelines
-tfskel diff config --dir ./envs --format json
+tfskel validate --format json
 
 # Generate a CSV report without ANSI colors
-tfskel diff config --format csv --no-color > drift-report.csv
+tfskel validate --format csv --no-color > validate-report.csv
 ```
 
 <p align="left">
-<img src="assets/tfskel-diff-config.gif" alt="tfskel diff config demo" width="600" />
+<img src="assets/tfskel-validate.gif" alt="tfskel validate demo" width="600" />
 </p>
 
 #### `tfskel review plan`

@@ -1,4 +1,4 @@
-package diff
+package version
 
 import (
 	"testing"
@@ -36,8 +36,6 @@ func TestAnalyzer_Analyze(t *testing.T) {
 		wantTotalFiles int
 		wantDriftFiles int
 		wantInSync     int
-		wantMinorDrift int
-		wantMajorDrift int
 		wantErrors     int
 	}{
 		{
@@ -54,12 +52,10 @@ func TestAnalyzer_Analyze(t *testing.T) {
 			wantTotalFiles: 1,
 			wantDriftFiles: 0,
 			wantInSync:     1,
-			wantMinorDrift: 0,
-			wantMajorDrift: 0,
 			wantErrors:     0,
 		},
 		{
-			name: "with minor drift in terraform version",
+			name: "terraform version drift",
 			versionInfos: []VersionInfo{
 				{
 					FilePath:         "env1/versions.tf",
@@ -72,12 +68,10 @@ func TestAnalyzer_Analyze(t *testing.T) {
 			wantTotalFiles: 1,
 			wantDriftFiles: 1,
 			wantInSync:     0,
-			wantMinorDrift: 1,
-			wantMajorDrift: 0,
 			wantErrors:     0,
 		},
 		{
-			name: "with major drift in provider",
+			name: "provider version drift",
 			versionInfos: []VersionInfo{
 				{
 					FilePath:         "env2/versions.tf",
@@ -90,12 +84,10 @@ func TestAnalyzer_Analyze(t *testing.T) {
 			wantTotalFiles: 1,
 			wantDriftFiles: 1,
 			wantInSync:     0,
-			wantMinorDrift: 0,
-			wantMajorDrift: 1,
 			wantErrors:     0,
 		},
 		{
-			name: "mixed severity - multiple files",
+			name: "multiple files mixed drift",
 			versionInfos: []VersionInfo{
 				{
 					FilePath:         "env1/versions.tf",
@@ -122,8 +114,6 @@ func TestAnalyzer_Analyze(t *testing.T) {
 			wantTotalFiles: 3,
 			wantDriftFiles: 2,
 			wantInSync:     1,
-			wantMinorDrift: 1,
-			wantMajorDrift: 1,
 			wantErrors:     0,
 		},
 		{
@@ -144,26 +134,22 @@ func TestAnalyzer_Analyze(t *testing.T) {
 			wantTotalFiles: 2,
 			wantDriftFiles: 0,
 			wantInSync:     1,
-			wantMinorDrift: 0,
-			wantMajorDrift: 0,
 			wantErrors:     1,
 		},
 		{
-			name: "file with major drift classification (any major = major file)",
+			name: "terraform and provider drift in same file",
 			versionInfos: []VersionInfo{
 				{
 					FilePath:         "env1/versions.tf",
-					TerraformVersion: "~> 1.15", // minor drift
+					TerraformVersion: "~> 1.15",
 					Providers: map[string]ProviderVer{
-						"aws": {Version: "~> 4.0", Source: "hashicorp/aws"}, // major drift
+						"aws": {Version: "~> 4.0", Source: "hashicorp/aws"},
 					},
 				},
 			},
 			wantTotalFiles: 1,
 			wantDriftFiles: 1,
 			wantInSync:     0,
-			wantMinorDrift: 0,
-			wantMajorDrift: 1, // Should be major because ANY component has major drift
 			wantErrors:     0,
 		},
 	}
@@ -172,24 +158,16 @@ func TestAnalyzer_Analyze(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			report := analyzer.Analyze("/test/path", tt.versionInfos)
 
-			// Validate all fields are correctly calculated
 			assert.Equal(t, tt.wantTotalFiles, report.TotalFiles, "TotalFiles mismatch")
 			assert.Equal(t, tt.wantDriftFiles, report.FilesWithDrift, "FilesWithDrift mismatch")
 			assert.Equal(t, tt.wantInSync, report.Summary.FilesInSync, "FilesInSync mismatch")
-			assert.Equal(t, tt.wantMinorDrift, report.Summary.FilesWithMinorDrift, "FilesWithMinorDrift mismatch")
-			assert.Equal(t, tt.wantMajorDrift, report.Summary.FilesWithMajorDrift, "FilesWithMajorDrift mismatch")
 			assert.Equal(t, tt.wantErrors, report.Summary.FilesWithErrors, "FilesWithErrors mismatch")
+			assert.Equal(t, tt.wantDriftFiles, report.Summary.FilesWithDrift, "Summary.FilesWithDrift mismatch")
 
-			// Validate consistency: total files should equal sum of categories
-			totalCategorized := report.Summary.FilesInSync + report.Summary.FilesWithMinorDrift +
-				report.Summary.FilesWithMajorDrift + report.Summary.FilesWithErrors
+			// Consistency: total = in-sync + drift + errors
+			totalCategorized := report.Summary.FilesInSync + report.Summary.FilesWithDrift + report.Summary.FilesWithErrors
 			assert.Equal(t, report.TotalFiles, totalCategorized,
 				"Total files should equal sum of all categories")
-
-			// Validate consistency: drift files should equal minor + major
-			driftSum := report.Summary.FilesWithMinorDrift + report.Summary.FilesWithMajorDrift
-			assert.Equal(t, report.FilesWithDrift, driftSum,
-				"FilesWithDrift should equal FilesWithMinorDrift + FilesWithMajorDrift")
 		})
 	}
 }
@@ -210,68 +188,58 @@ func TestAnalyzer_CompareSemverConstraints(t *testing.T) {
 			want:     StatusInSync,
 		},
 		{
-			name:     "minor drift",
+			name:     "different minor version is drift",
 			expected: "~> 1.16",
 			actual:   "~> 1.15",
-			want:     StatusMinorDrift,
+			want:     StatusDrift,
 		},
 		{
-			name:     "major drift",
+			name:     "different major version is drift",
 			expected: "~> 2.0",
 			actual:   "~> 1.16",
-			want:     StatusMajorDrift,
+			want:     StatusDrift,
+		},
+		{
+			name:     "semver vs constraint same major.minor is in-sync",
+			expected: "1.13.1",
+			actual:   "~> 1.13",
+			want:     StatusInSync,
+		},
+		{
+			name:     "constraint vs semver same major.minor is in-sync",
+			expected: "~> 5.80",
+			actual:   "5.80.0",
+			want:     StatusInSync,
+		},
+		{
+			name:     "different constraint operators same version is in-sync",
+			expected: "= 1.13",
+			actual:   "~> 1.13",
+			want:     StatusInSync,
+		},
+		{
+			name:     "semver vs constraint different minor is drift",
+			expected: "1.14.0",
+			actual:   "~> 1.13",
+			want:     StatusDrift,
+		},
+		{
+			name:     "semver vs constraint different major is drift",
+			expected: "2.0.0",
+			actual:   "~> 1.13",
+			want:     StatusDrift,
+		},
+		{
+			name:     "unparseable expected is drift",
+			expected: "latest",
+			actual:   "~> 1.13",
+			want:     StatusDrift,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := analyzer.compareSemverConstraints(tt.expected, tt.actual)
-			assert.Equal(t, tt.want, got)
-		})
-	}
-}
-
-func TestDriftReport_HasCriticalDrift(t *testing.T) {
-	tests := []struct {
-		name   string
-		report *DriftReport
-		want   bool
-	}{
-		{
-			name: "has major drift",
-			report: &DriftReport{
-				Summary: DriftSummary{
-					FilesWithMajorDrift: 2,
-					FilesWithMinorDrift: 1,
-				},
-			},
-			want: true,
-		},
-		{
-			name: "only minor drift",
-			report: &DriftReport{
-				Summary: DriftSummary{
-					FilesWithMajorDrift: 0,
-					FilesWithMinorDrift: 3,
-				},
-			},
-			want: false,
-		},
-		{
-			name: "no drift",
-			report: &DriftReport{
-				Summary: DriftSummary{
-					FilesWithMajorDrift: 0,
-					FilesWithMinorDrift: 0,
-				},
-			},
-			want: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := tt.report.HasCriticalDrift()
 			assert.Equal(t, tt.want, got)
 		})
 	}

@@ -16,9 +16,9 @@ repos:
       - id: trailing-whitespace
   - repo: local
     hooks:
-      - id: tfskel-sync-check
-        name: Check tfskel config sync
-        entry: tfskel init --check
+      - id: tfskel-validate-check
+        name: Validate tfskel configuration and tools
+        entry: tfskel validate
         language: system
         pass_filenames: false
         files: '\.tfskel\.yaml$'

@@ -104,10 +104,21 @@ jobs:
     - name: Build with Go
       run: go build -v -ldflags="-w -s" -o tfskel .
 
-    - name: Test binary (go)
+    - name: Test binary (without mise)
       env:
         FORCE_COLOR: 1
       run: |
         ./tfskel --version
         ./tfskel init --dry-run
+    - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
+      with:
+        version: 2026.3.17
+    - name: Test binary (with mise)
+      env:
+        FORCE_COLOR: 1
+      run: |
+        mise install
         ./tfskel init
+        # validate exits 1 when issues are found (expected in CI with no real config).
+        # TODO: add a fixture project with valid config so validate can assert exit 0 in CI.
+        ./tfskel validate || true

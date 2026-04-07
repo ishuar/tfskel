@@ -4,18 +4,20 @@
 
 min_version = "2024.9.0"
 
+[settings]
+experimental = true
+legacy_version_file = true
+
 [tools]
 terraform = "{{ .TerraformVersion | stripConstraint }}"
-{{- range (miseTools .Tools) }}
+{{- range miseTools }}
 {{ .Name }} = "{{ .Version }}"
 {{- end }}
 
 [hooks]
 # After mise install: set up pre-commit hooks and trust mise configs
 postinstall = """
-pre-commit install --install-hooks
-mise trust .
-{{- range .Environments }}
-[ -f "./envs/{{ . }}/.mise.toml" ] && mise trust "./envs/{{ . }}/.mise.toml"
-{{- end }}
+if [ -f .pre-commit-config.yaml ]; then
+  pre-commit install --install-hooks
+fi
 """

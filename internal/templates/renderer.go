@@ -31,26 +31,20 @@ type MiseTool struct {
 // defaultMiseTools are the non-terraform tools that always appear in .mise.toml.
 var defaultMiseTools = []string{"awscli", "pre-commit", "tflint", "trivy"}
 
-// BuildMiseTools builds a sorted slice of MiseTool from the default tool list,
-// resolving versions from the user's tools map. Unpinned tools default to "latest".
-func BuildMiseTools(userTools map[string]string) []MiseTool {
+// BuildMiseTools builds a sorted slice of MiseTool from the default tool list.
+// All tools default to "latest"; users pin specific versions by editing .mise.toml directly.
+func BuildMiseTools() []MiseTool {
 	result := make([]MiseTool, 0, len(defaultMiseTools))
 	for _, name := range defaultMiseTools {
-		v := "latest"
-		if userTools != nil {
-			if pinned, ok := userTools[name]; ok && pinned != "" {
-				v = pinned
-			}
-		}
-		result = append(result, MiseTool{Name: name, Version: v})
+		result = append(result, MiseTool{Name: name, Version: "latest"})
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
 	return result
 }
 
-// stripConstraint removes version constraint operators (~>, >=, <=, >, <, =) and returns just the version number
+// StripConstraint removes version constraint operators (~>, >=, <=, >, <, =) and returns just the version number.
 // Example: "~> 1.14.3" -> "1.14.3"
-func stripConstraint(version string) string {
+func StripConstraint(version string) string {
 	// Remove common constraint operators
 	version = strings.ReplaceAll(version, "~>", "")
 	version = strings.ReplaceAll(version, ">=", "")
@@ -74,7 +68,7 @@ var funcMap = template.FuncMap{
 	"contains":        strings.Contains,
 	"join":            strings.Join,
 	"split":           strings.Split,
-	"stripConstraint": stripConstraint,
+	"stripConstraint": StripConstraint,
 	"miseTools":       BuildMiseTools,
 }
 
@@ -103,10 +97,9 @@ type Data struct {
 	TerraformVersion   string
 	AWSProviderVersion string
 	DefaultTags        map[string]string
-	AWSRoleArn         string            // AWS role ARN for terraform workflows
-	WorkflowFileName   string            // Generated workflow filename for self-reference in triggers
-	Tools              map[string]string // Tool version pins for .mise.toml (empty map = all "latest")
-	Environments       []string          // Environment names (e.g. "dev", "stg", "prd")
+	AWSRoleArn         string   // AWS role ARN for terraform workflows
+	WorkflowFileName   string   // Generated workflow filename for self-reference in triggers
+	Environments       []string // Environment names (e.g. "dev", "stg", "prd")
 }
 
 // Renderer handles template rendering

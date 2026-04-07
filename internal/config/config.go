@@ -72,12 +72,11 @@ type Workflows struct {
 
 // Config holds the application configuration
 type Config struct {
-	TerraformVersion string            `mapstructure:"terraform_version"`
-	Provider         *Provider         `mapstructure:"provider"`
-	Backend          *Backend          `mapstructure:"backend"`
-	Templates        *Templates        `mapstructure:"templates"`
-	Workflows        *Workflows        `mapstructure:"workflows"`
-	Tools            map[string]string `mapstructure:"tools"`
+	TerraformVersion string     `mapstructure:"terraform_version"`
+	Provider         *Provider  `mapstructure:"provider"`
+	Backend          *Backend   `mapstructure:"backend"`
+	Templates        *Templates `mapstructure:"templates"`
+	Workflows        *Workflows `mapstructure:"workflows"`
 }
 
 // Load reads configuration from viper and command line flags

@@ -109,7 +109,7 @@ func TestStripConstraint(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			result := stripConstraint(tt.input)
+			result := StripConstraint(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -188,8 +188,8 @@ func TestRenderer_GetTemplateHash(t *testing.T) {
 }
 
 func TestBuildMiseTools(t *testing.T) {
-	t.Run("nil user tools includes all defaults as latest", func(t *testing.T) {
-		result := BuildMiseTools(nil)
+	t.Run("includes all defaults as latest", func(t *testing.T) {
+		result := BuildMiseTools()
 		names := make([]string, len(result))
 		for i, mt := range result {
 			names[i] = mt.Name
@@ -200,23 +200,8 @@ func TestBuildMiseTools(t *testing.T) {
 		}
 	})
 
-	t.Run("pinned tools resolve from user map", func(t *testing.T) {
-		result := BuildMiseTools(map[string]string{
-			"tflint": "0.50.0",
-			"trivy":  "0.58.2",
-		})
-		versions := make(map[string]string)
-		for _, mt := range result {
-			versions[mt.Name] = mt.Version
-		}
-		assert.Equal(t, "0.50.0", versions["tflint"])
-		assert.Equal(t, "0.58.2", versions["trivy"])
-		assert.Equal(t, "latest", versions["awscli"])
-		assert.Equal(t, "latest", versions["pre-commit"])
-	})
-
 	t.Run("output is sorted alphabetically", func(t *testing.T) {
-		result := BuildMiseTools(nil)
+		result := BuildMiseTools()
 		for i := 1; i < len(result); i++ {
 			assert.True(t, result[i-1].Name < result[i].Name)
 		}
@@ -227,27 +212,7 @@ func TestRenderer_Render_MiseToml(t *testing.T) {
 	renderer, err := NewRenderer()
 	require.NoError(t, err)
 
-	t.Run("renders with pinned tools", func(t *testing.T) {
-		tools := map[string]string{
-			"tflint": "0.50.0",
-			"trivy":  "0.58.2",
-		}
-		data := &Data{
-			TerraformVersion: "~> 1.13",
-			Tools:            tools,
-		}
-
-		content, err := renderer.Render("root/.mise.toml.tmpl", data)
-		require.NoError(t, err)
-		assert.Contains(t, content, `terraform = "1.13"`)
-		assert.Contains(t, content, `tflint = "0.50.0"`)
-		assert.Contains(t, content, `trivy = "0.58.2"`)
-		assert.Contains(t, content, `pre-commit = "latest"`)
-		assert.Contains(t, content, `awscli = "latest"`)
-		assert.Contains(t, content, "min_version")
-	})
-
-	t.Run("renders with nil tools map defaults to latest", func(t *testing.T) {
+	t.Run("renders with all tools as latest", func(t *testing.T) {
 		data := &Data{
 			TerraformVersion: "1.13.1",
 		}

@@ -1,4 +1,4 @@
-package diff
+package version
 
 import (
 	"testing"
@@ -18,69 +18,35 @@ func TestDriftReport_GetDriftSummaryText(t *testing.T) {
 				TotalFiles:     5,
 				FilesWithDrift: 0,
 				Summary: DriftSummary{
-					FilesInSync:         5,
-					FilesWithMinorDrift: 0,
-					FilesWithMajorDrift: 0,
-					FilesWithErrors:     0,
+					FilesInSync: 5,
 				},
 			},
 			want: "All 5 files are in sync",
 		},
 		{
-			name: "minor drift only",
+			name: "some drift",
 			report: &DriftReport{
 				TotalFiles:     10,
 				FilesWithDrift: 3,
 				Summary: DriftSummary{
-					FilesInSync:         7,
-					FilesWithMinorDrift: 3,
-					FilesWithMajorDrift: 0,
-					FilesWithErrors:     0,
+					FilesInSync:    7,
+					FilesWithDrift: 3,
 				},
 			},
-			want: "3 of 10 files have drift (minor: 3, major: 0)",
+			want: "3 of 10 files have drift",
 		},
 		{
-			name: "major drift only",
-			report: &DriftReport{
-				TotalFiles:     8,
-				FilesWithDrift: 2,
-				Summary: DriftSummary{
-					FilesInSync:         6,
-					FilesWithMinorDrift: 0,
-					FilesWithMajorDrift: 2,
-					FilesWithErrors:     0,
-				},
-			},
-			want: "2 of 8 files have drift (minor: 0, major: 2)",
-		},
-		{
-			name: "mixed drift",
-			report: &DriftReport{
-				TotalFiles:     15,
-				FilesWithDrift: 7,
-				Summary: DriftSummary{
-					FilesInSync:         8,
-					FilesWithMinorDrift: 4,
-					FilesWithMajorDrift: 3,
-					FilesWithErrors:     0,
-				},
-			},
-			want: "7 of 15 files have drift (minor: 4, major: 3)",
-		},
-		{
-			name: "with errors",
+			name: "drift with errors",
 			report: &DriftReport{
 				TotalFiles:     12,
 				FilesWithDrift: 3,
 				Summary: DriftSummary{
-					FilesInSync:         7,
-					FilesWithMinorDrift: 2,
-					FilesWithMajorDrift: 1,
-					FilesWithErrors:     2,
+					FilesInSync:     7,
+					FilesWithDrift:  3,
+					FilesWithErrors: 2,
 				},
 			},
-			want: "3 of 12 files have drift (minor: 2, major: 1), 2 files with errors",
+			want: "3 of 12 files have drift, 2 files with errors",
 		},
 	}
 
@@ -177,14 +143,14 @@ func TestDriftRecord(t *testing.T) {
 			FilePath:             "envs/prod/versions.tf",
 			TerraformExpected:    "~> 1.16",
 			TerraformActual:      "~> 1.12",
-			TerraformDriftStatus: StatusMajorDrift,
+			TerraformDriftStatus: StatusDrift,
 			Providers: []ProviderDrift{
 				{
 					Name:        "aws",
 					Source:      "hashicorp/aws",
 					Expected:    "~> 6.0",
 					Actual:      "~> 4.0",
-					DriftStatus: StatusMajorDrift,
+					DriftStatus: StatusDrift,
 				},
 				{
 					Name:        "random",
@@ -201,10 +167,10 @@ func TestDriftRecord(t *testing.T) {
 		assert.Equal(t, "envs/prod/versions.tf", record.FilePath)
 		assert.Equal(t, "~> 1.16", record.TerraformExpected)
 		assert.Equal(t, "~> 1.12", record.TerraformActual)
-		assert.Equal(t, StatusMajorDrift, record.TerraformDriftStatus)
+		assert.Equal(t, StatusDrift, record.TerraformDriftStatus)
 		assert.Len(t, record.Providers, 2)
 		assert.Equal(t, "aws", record.Providers[0].Name)
-		assert.Equal(t, StatusMajorDrift, record.Providers[0].DriftStatus)
+		assert.Equal(t, StatusDrift, record.Providers[0].DriftStatus)
 		assert.Equal(t, StatusNotManaged, record.Providers[1].DriftStatus)
 	})
 }
@@ -212,8 +178,7 @@ func TestDriftRecord(t *testing.T) {
 func TestDriftStatus(t *testing.T) {
 	t.Run("drift status constants", func(t *testing.T) {
 		assert.Equal(t, DriftStatus("in-sync"), StatusInSync)
-		assert.Equal(t, DriftStatus("minor-drift"), StatusMinorDrift)
-		assert.Equal(t, DriftStatus("major-drift"), StatusMajorDrift)
+		assert.Equal(t, DriftStatus("drift"), StatusDrift)
 		assert.Equal(t, DriftStatus("missing"), StatusMissing)
 		assert.Equal(t, DriftStatus("not-managed"), StatusNotManaged)
 	})
@@ -222,11 +187,10 @@ func TestDriftStatus(t *testing.T) {
 func TestDriftSummary(t *testing.T) {
 	t.Run("creates summary with version distributions", func(t *testing.T) {
 		summary := DriftSummary{
-			TotalFiles:          10,
-			FilesInSync:         7,
-			FilesWithMinorDrift: 2,
-			FilesWithMajorDrift: 1,
-			FilesWithErrors:     0,
+			TotalFiles:      10,
+			FilesInSync:     7,
+			FilesWithDrift:  3,
+			FilesWithErrors: 0,
 			TerraformVersions: map[string]int{
 				"~> 1.16": 8,
 				"~> 1.15": 2,
@@ -241,8 +205,7 @@ func TestDriftSummary(t *testing.T) {
 
 		assert.Equal(t, 10, summary.TotalFiles)
 		assert.Equal(t, 7, summary.FilesInSync)
-		assert.Equal(t, 2, summary.FilesWithMinorDrift)
-		assert.Equal(t, 1, summary.FilesWithMajorDrift)
+		assert.Equal(t, 3, summary.FilesWithDrift)
 		assert.Equal(t, 0, summary.FilesWithErrors)
 		assert.Equal(t, 8, summary.TerraformVersions["~> 1.16"])
 		assert.Equal(t, 9, summary.ProviderVersions["aws"]["~> 6.0"])

@@ -13,7 +13,6 @@ import (
 	"github.com/ishuar/tfskel/internal/generate"
 	"github.com/ishuar/tfskel/internal/logger"
 	"github.com/ishuar/tfskel/internal/templates"
-	"github.com/ishuar/tfskel/internal/toolcheck"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.yaml.in/yaml/v4"
@@ -24,10 +23,6 @@ var (
 	ErrMissingAccountMapping = errors.New("provider.aws.account_mapping is missing or empty")
 	// ErrForceRequiresUpgrade indicates --force was used without --upgrade
 	ErrForceRequiresUpgrade = errors.New("--force can only be used together with --upgrade")
-	// ErrCheckConflictsWithUpgrade indicates --check was used with --upgrade
-	ErrCheckConflictsWithUpgrade = errors.New("--check cannot be used together with --upgrade")
-	// ErrConfigDrift indicates init-managed files are out of sync with .tfskel.yaml
-	ErrConfigDrift = errors.New("config drift detected")
 )
 
 const (
@@ -41,7 +36,6 @@ type initManagedFile struct {
 }
 
 // rootConfigFiles lists root config files managed by init (rendered with nil data).
-// Shared between createProjectStructure and checkProjectDrift.
 var rootConfigFiles = []initManagedFile{
 	{".gitignore", "root/.gitignore.tmpl"},
 	{".pre-commit-config.yaml", "root/.pre-commit-config.yaml.tmpl"},
@@ -57,10 +51,9 @@ type initRunner struct {
 	upgrade  bool
 	force    bool
 	dryRun   bool
-	tools    map[string]string // tool version pins from config (nil = all "latest")
 }
 
-func newInitRunner(filesystem fs.FileSystem, log *logger.Logger, upgrade, force, dryRun bool, tools map[string]string) (*initRunner, error) {
+func newInitRunner(filesystem fs.FileSystem, log *logger.Logger, upgrade, force, dryRun bool) (*initRunner, error) {
 	renderer, err := templates.NewRenderer()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create renderer: %w", err)
@@ -72,7 +65,6 @@ func newInitRunner(filesystem fs.FileSystem, log *logger.Logger, upgrade, force,
 		upgrade:  upgrade,
 		force:    force,
 		dryRun:   dryRun,
-		tools:    tools,
 	}, nil
 }
 
@@ -88,11 +80,8 @@ trivy, pre-commit, awscli) so they can be installed with a single command:
 
   mise install
 
-Tool versions default to "latest" but can be pinned in .tfskel.yaml:
-
-  tools:
-    tflint: "0.50.0"
-    trivy: "0.58.2"`,
+Tool versions default to "latest". After creation, .mise.toml is user-owned —
+edit it directly to pin specific versions.`,
 	Example: `  # Initialize in current directory (uses .tfskel.yaml if present)
   tfskel init
 
@@ -110,7 +99,6 @@ var (
 	initWorkflows bool
 	initUpgrade   bool
 	initForce     bool
-	initCheck     bool
 )
 
 func init() {
@@ -119,7 +107,6 @@ func init() {
 	initCmd.Flags().BoolVar(&initWorkflows, "workflows", false, "generate shared GitHub workflow files (reusable workflows and lint)")
 	initCmd.Flags().BoolVar(&initUpgrade, "upgrade", false, "overwrite init-managed files with latest versions from this binary")
 	initCmd.Flags().BoolVar(&initForce, "force", false, "with --upgrade, overwrite files even without source markers")
-	initCmd.Flags().BoolVar(&initCheck, "check", false, "check if init-managed files are in sync with .tfskel.yaml (exits 1 on drift)")
 }
 
 func runInit(_ *cobra.Command, _ []string) error {
@@ -149,15 +136,12 @@ func runInit(_ *cobra.Command, _ []string) error {
 	if initForce && !initUpgrade {
 		return ErrForceRequiresUpgrade
 	}
-	if initCheck && initUpgrade {
-		return ErrCheckConflictsWithUpgrade
-	}
 
 	log.Infof("Initializing tfskel project structure in: %s", targetDir)
 
 	// Determine environments, regions, and terraform version
 	// Priority: existing .tfskel.yaml in target dir > defaults
-	environments, terraformVersion, regions, workflowsFromConfig, tools, err := determineInitParameters(targetDir, log)
+	environments, terraformVersion, regions, workflowsFromConfig, err := determineInitParameters(targetDir, log)
 	if err != nil {
 		return err
 	}
@@ -171,25 +155,9 @@ func runInit(_ *cobra.Command, _ []string) error {
 		filesystem = fs.NewDryRunFileSystem(filesystem)
 	}
 
-	runner, err := newInitRunner(filesystem, log, initUpgrade, initForce, dryRun, tools)
+	runner, err := newInitRunner(filesystem, log, initUpgrade, initForce, dryRun)
 	if err != nil {
 		return err
-	}
-
-	// --check: read-only drift detection, exits 1 if files are out of sync
-	if initCheck {
-		drifted := runner.checkProjectDrift(targetDir, terraformVersion, environments)
-		if len(drifted) == 0 {
-			log.Successf("All init-managed files are in sync with .tfskel.yaml")
-			return nil
-		}
-		log.Warnf("Config drift detected — the following files are out of sync with .tfskel.yaml:")
-		for _, f := range drifted {
-			log.Warnf("  %s", f)
-		}
-		log.Info("")
-		log.Infof("Run 'tfskel init --upgrade' to sync")
-		return ErrConfigDrift
 	}
 
 	if err := runner.createProjectStructure(targetDir, terraformVersion, regions, environments, createWorkflows); err != nil {
@@ -202,11 +170,8 @@ func runInit(_ *cobra.Command, _ []string) error {
 		log.Successf("Successfully initialized tfskel project structure in: %s", targetDir)
 	}
 
-	// Run tool detection and print status report (read-only, never blocks init)
-	checker := toolcheck.NewChecker(&toolcheck.OSCommandRunner{}, toolcheck.DefaultTools())
-	report := checker.CheckAll()
 	log.Info("")
-	log.Info(toolcheck.FormatReport(report))
+	log.Info("Next step: run 'tfskel validate' to check your setup and install tools")
 
 	return nil
 }
@@ -232,9 +197,9 @@ func extractVersionFromConstraint(constraint string) string {
 	return version
 }
 
-// determineInitParameters determines environments, terraform version, regions, workflows flag, and tool versions.
+// determineInitParameters determines environments, terraform version, regions, and the workflows flag.
 // Priority: existing .tfskel.yaml in target dir > defaults
-func determineInitParameters(targetDir string, log *logger.Logger) ([]string, string, []string, bool, map[string]string, error) {
+func determineInitParameters(targetDir string, log *logger.Logger) ([]string, string, []string, bool, error) {
 	// Default values for bootstrapping new projects
 	defaultEnvironments := []string{"dev", "stg", "prd"}
 	defaultRegions := []string{"eu-central-1"}
@@ -244,7 +209,7 @@ func determineInitParameters(targetDir string, log *logger.Logger) ([]string, st
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		// No config file exists, use defaults
 		log.Debugf("No .tfskel.yaml found in target directory, using default environments: %v", defaultEnvironments)
-		return defaultEnvironments, defaultTerraformVersion, defaultRegions, false, nil, nil
+		return defaultEnvironments, defaultTerraformVersion, defaultRegions, false, nil
 	}
 
 	// Config file exists, read it
@@ -258,14 +223,14 @@ func determineInitParameters(targetDir string, log *logger.Logger) ([]string, st
 	if err := v.ReadInConfig(); err != nil {
 		// If we can't read the config, warn and use defaults
 		log.Warnf("Failed to read existing .tfskel.yaml: %v, using defaults", err)
-		return defaultEnvironments, defaultTerraformVersion, defaultRegions, false, nil, nil
+		return defaultEnvironments, defaultTerraformVersion, defaultRegions, false, nil
 	}
 
 	// Unmarshal into config struct
 	cfg := &config.Config{}
 	if err := v.Unmarshal(cfg); err != nil {
 		log.Warnf("Failed to parse .tfskel.yaml: %v, using defaults", err)
-		return defaultEnvironments, defaultTerraformVersion, defaultRegions, false, nil, nil
+		return defaultEnvironments, defaultTerraformVersion, defaultRegions, false, nil
 	}
 
 	// Ensure nested structures exist
@@ -288,7 +253,7 @@ func determineInitParameters(targetDir string, log *logger.Logger) ([]string, st
 		log.Infof("Using %d environment(s) from config account_mapping: %v", len(environments), environments)
 	} else {
 		// Config exists but no account_mapping - this is an error
-		return nil, "", nil, false, nil, fmt.Errorf("existing .tfskel.yaml found but %w; account mappings are required. Please add environment mappings to .tfskel.yaml", ErrMissingAccountMapping)
+		return nil, "", nil, false, fmt.Errorf("existing .tfskel.yaml found but %w; account mappings are required. Please add environment mappings to .tfskel.yaml", ErrMissingAccountMapping)
 	}
 
 	// Extract terraform version
@@ -308,7 +273,7 @@ func determineInitParameters(targetDir string, log *logger.Logger) ([]string, st
 	}
 
 	createWorkflows := cfg.Workflows != nil && cfg.Workflows.Create
-	return environments, terraformVersion, regions, createWorkflows, cfg.Tools, nil
+	return environments, terraformVersion, regions, createWorkflows, nil
 }
 
 func (r *initRunner) createProjectStructure(baseDir, terraformVersion string, regions, environments []string, createWorkflows bool) error {
@@ -324,13 +289,12 @@ func (r *initRunner) createProjectStructure(baseDir, terraformVersion string, re
 		}
 	}
 
-	// Create .mise.toml with tool versions (terraform pinned, others from config or "latest")
-	miseData := &templates.Data{
+	// Create .mise.toml with sensible defaults. This file is user-owned after creation:
+	// tfskel seeds it once but does not manage it (no source marker, skipped on --upgrade).
+	if err := r.createUnmanagedFile(filepath.Join(baseDir, ".mise.toml"), "root/.mise.toml.tmpl", &templates.Data{
 		TerraformVersion: terraformVersion,
-		Tools:            r.tools,
 		Environments:     environments,
-	}
-	if err := r.createFileFromTemplate(filepath.Join(baseDir, ".mise.toml"), "root/.mise.toml.tmpl", miseData); err != nil {
+	}); err != nil {
 		return err
 	}
 
@@ -442,6 +406,40 @@ func (r *initRunner) createFileFromTemplate(targetPath, templateName string, dat
 	return nil
 }
 
+// createUnmanagedFile renders a template and writes it only if the file does not
+// already exist. Unlike createFileFromTemplate it does not inject a source marker
+// and is always skipped during --upgrade, because the file is user-owned after
+// initial creation.
+func (r *initRunner) createUnmanagedFile(targetPath, templateName string, data *templates.Data) error {
+	logPath := targetPath
+	if cwd, err := os.Getwd(); err == nil {
+		if rel, err := filepath.Rel(cwd, targetPath); err == nil {
+			logPath = rel
+		}
+	}
+
+	if r.fs.FileExists(targetPath) {
+		r.log.Debugf("%s already exists, skipping (user-owned)", logPath)
+		return nil
+	}
+
+	content, err := r.renderTemplate(templateName, data)
+	if err != nil {
+		return err
+	}
+
+	if err := r.writeFile(targetPath, content); err != nil {
+		return err
+	}
+
+	if r.dryRun {
+		r.log.Infof("[dry-run] Would create %s", logPath)
+	} else {
+		r.log.Successf("Created %s", logPath)
+	}
+	return nil
+}
+
 // upgradeFile handles the upgrade logic for an existing init-managed file.
 func (r *initRunner) upgradeFile(targetPath, templateName string, data *templates.Data, logPath string) error {
 	// Read existing file and check source marker
@@ -538,68 +536,6 @@ func (r *initRunner) writeFile(targetPath, content string) error {
 		return fmt.Errorf("failed to write file %s: %w", targetPath, err)
 	}
 	return nil
-}
-
-// checkProjectDrift performs a read-only comparison of init-managed files against
-// what would be rendered from the current .tfskel.yaml configuration.
-// Returns a list of relative file paths that have drifted, or nil if everything is in sync.
-func (r *initRunner) checkProjectDrift(baseDir, terraformVersion string, environments []string) []string {
-	var drifted []string
-
-	// Check root config files (rendered with nil data)
-	for _, file := range rootConfigFiles {
-		if r.isDrifted(filepath.Join(baseDir, file.filename), file.templateName, nil) {
-			drifted = append(drifted, file.filename)
-		}
-	}
-
-	// Check .mise.toml (rendered with tool version data)
-	miseData := &templates.Data{
-		TerraformVersion: terraformVersion,
-		Tools:            r.tools,
-		Environments:     environments,
-	}
-	if r.isDrifted(filepath.Join(baseDir, ".mise.toml"), "root/.mise.toml.tmpl", miseData) {
-		drifted = append(drifted, ".mise.toml")
-	}
-
-	// Check .terraform-version files per environment
-	for _, env := range environments {
-		tfVersionPath := filepath.Join(baseDir, "envs", env, ".terraform-version")
-		tfVersionData := &templates.Data{TerraformVersion: terraformVersion}
-		if r.isDrifted(tfVersionPath, "root/.terraform-version.tmpl", tfVersionData) {
-			drifted = append(drifted, filepath.Join("envs", env, ".terraform-version"))
-		}
-	}
-
-	return drifted
-}
-
-// isDrifted compares a file on disk with what the template would render now.
-// Returns false if the file does not exist (nothing to drift against).
-func (r *initRunner) isDrifted(filePath, templateName string, data *templates.Data) bool {
-	if !r.fs.FileExists(filePath) {
-		return false
-	}
-
-	existing, err := r.fs.ReadFile(filePath)
-	if err != nil {
-		r.log.Warnf("drift check: cannot read %s: %v", filePath, err)
-		return true
-	}
-
-	rendered, err := r.renderTemplate(templateName, data)
-	if err != nil {
-		r.log.Warnf("drift check: cannot render %s: %v", filePath, err)
-		return true
-	}
-
-	// Inject source marker to match what createFileFromTemplate writes to disk
-	if comment := generate.SourceCommentForFile(templateName, r.renderer.GetTemplateHash(templateName), filePath); comment != "" {
-		rendered = generate.InjectSourceMarker(rendered, comment)
-	}
-
-	return string(existing) != rendered
 }
 
 func (r *initRunner) createDefaultConfig(configPath string) error {
