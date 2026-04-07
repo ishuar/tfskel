@@ -71,7 +71,7 @@ Set PlaybackSpeed 0.7
 Type "echo 'Welcome to tfskel!'" Sleep 500ms Enter
 Type "echo 'tfskel.yaml version config' && grep -E 'terraform_version:|version:' .tfskel.yaml"
 Sleep 500ms Enter
-Type "echo 'version config in repo' && grep -E -r 'required_version|version ' envs" Enter
+Type "echo 'version config in repo' && grep -E -r 'required_version|version ' envs && bat envs/*/.terraform-version" Sleep 500ms Enter
 Sleep 2s
 Type "clear" Sleep 500ms Enter
 Type "tfskel validate" Sleep 500ms Enter
