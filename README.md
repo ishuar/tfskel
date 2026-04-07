@@ -54,28 +54,30 @@ It gives you a clean, opinionated foundation that keeps your Terraform projects 
 ### Demo
 👉 Check out this https://github.com/ishuar/tfskel-demo/pull/2 to see _how to initialize a new terraform monorepo in just 4 steps and leverage the built-in GitHub Actions workflows_:
 
-
-
 ## Installation
 
 ### Quick Install
+- Install a specific version (recommended)
+```bash
+curl -fsSL https://raw.githubusercontent.com/ishuar/tfskel/main/install.sh | TFSKEL_VERSION=<RELEASED_VERSION> bash
+```
+
+- Install latest version
+```bash
+curl -fsSL https://raw.githubusercontent.com/ishuar/tfskel/main/install.sh | bash
+```
+- Custom install directory
 
 ```bash
-# Install a specific version (recommended)
-curl -fsSL https://raw.githubusercontent.com/ishuar/tfskel/main/install.sh | TFSKEL_VERSION=0.7.0 bash
-
-# Install latest version
-curl -fsSL https://raw.githubusercontent.com/ishuar/tfskel/main/install.sh | bash
-
-# Custom install directory
 curl -fsSL https://raw.githubusercontent.com/ishuar/tfskel/main/install.sh | INSTALL_DIR=~/.local/bin bash
 ```
 
 ### Install via Go
 
 ```bash
-go install github.com/ishuar/tfskel@latest
+go install github.com/ishuar/tfskel@latest ## or released version
 ```
+
 Make sure `$HOME/go/bin` is in your PATH.
 
 > [!CAUTION]
