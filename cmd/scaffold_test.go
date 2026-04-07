@@ -1,9 +1,13 @@
 package cmd
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
+	"github.com/ishuar/tfskel/internal/fs"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestValidateScaffoldParams(t *testing.T) {
@@ -284,7 +288,7 @@ func TestValidateScaffoldParams_ValidationOrder(t *testing.T) {
 func TestScaffoldCommand_CommandSetup(t *testing.T) {
 	t.Run("command is properly registered", func(t *testing.T) {
 		assert.NotNil(t, scaffoldCmd, "scaffoldCmd should be initialized")
-		assert.Equal(t, "scaffold <app-dir>", scaffoldCmd.Use, "command use pattern should be correct")
+		assert.Equal(t, "scaffold [app-dir]", scaffoldCmd.Use, "command use pattern should be correct")
 		assert.Equal(t, "main", scaffoldCmd.GroupID, "command should be in main group")
 		assert.Contains(t, scaffoldCmd.Aliases, "sc", "command should have 'sc' alias")
 	})
@@ -331,5 +335,107 @@ func TestScaffoldCommand_CommandSetup(t *testing.T) {
 		assert.Contains(t, scaffoldCmd.Short, "Scaffold", "short description should mention 'Scaffold'")
 		assert.Contains(t, scaffoldCmd.Long, "scaffold command", "long description should reference 'scaffold command'")
 		assert.Contains(t, scaffoldCmd.Example, "tfskel scaffold", "examples should use 'tfskel scaffold'")
+	})
+
+	t.Run("upgrade-all and skip flags exist", func(t *testing.T) {
+		upgradeAllFlag := scaffoldCmd.Flags().Lookup("upgrade-all")
+		assert.NotNil(t, upgradeAllFlag, "--upgrade-all flag should exist")
+		assert.Equal(t, "false", upgradeAllFlag.DefValue, "--upgrade-all should default to false")
+
+		skipFlag := scaffoldCmd.Flags().Lookup("skip")
+		assert.NotNil(t, skipFlag, "--skip flag should exist")
+		assert.Equal(t, "", skipFlag.DefValue, "--skip should default to empty")
+	})
+}
+
+func TestParseSkipList(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string
+		want map[string]bool
+	}{
+		{name: "empty string", raw: "", want: nil},
+		{name: "single value", raw: "foo", want: map[string]bool{"foo": true}},
+		{name: "multiple values", raw: "foo,bar,baz", want: map[string]bool{"foo": true, "bar": true, "baz": true}},
+		{name: "whitespace trimmed", raw: " foo , bar ", want: map[string]bool{"foo": true, "bar": true}},
+		{name: "trailing comma ignored", raw: "foo,bar,", want: map[string]bool{"foo": true, "bar": true}},
+		{name: "empty segments ignored", raw: "foo,,bar", want: map[string]bool{"foo": true, "bar": true}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parseSkipList(tt.raw)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestDiscoverAppDirs(t *testing.T) {
+	t.Run("returns sorted directory names", func(t *testing.T) {
+		memFS := fs.NewMemoryFileSystem()
+		base := filepath.Join("envs", "prd", "eu-central-1")
+		require.NoError(t, memFS.MkdirAll(base, 0755))
+		require.NoError(t, memFS.MkdirAll(filepath.Join(base, "charlie"), 0755))
+		require.NoError(t, memFS.MkdirAll(filepath.Join(base, "alpha"), 0755))
+		require.NoError(t, memFS.MkdirAll(filepath.Join(base, "bravo"), 0755))
+
+		dirs, err := discoverAppDirs(memFS, base, nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"alpha", "bravo", "charlie"}, dirs)
+	})
+
+	t.Run("skips excluded directories", func(t *testing.T) {
+		memFS := fs.NewMemoryFileSystem()
+		base := filepath.Join("envs", "prd", "eu-central-1")
+		require.NoError(t, memFS.MkdirAll(base, 0755))
+		require.NoError(t, memFS.MkdirAll(filepath.Join(base, "app1"), 0755))
+		require.NoError(t, memFS.MkdirAll(filepath.Join(base, "base-infra"), 0755))
+		require.NoError(t, memFS.MkdirAll(filepath.Join(base, "app2"), 0755))
+
+		skip := map[string]bool{"base-infra": true}
+		dirs, err := discoverAppDirs(memFS, base, skip)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"app1", "app2"}, dirs)
+	})
+
+	t.Run("skips hidden directories", func(t *testing.T) {
+		memFS := fs.NewMemoryFileSystem()
+		base := filepath.Join("envs", "dev", "us-east-1")
+		require.NoError(t, memFS.MkdirAll(base, 0755))
+		require.NoError(t, memFS.MkdirAll(filepath.Join(base, ".terraform"), 0755))
+		require.NoError(t, memFS.MkdirAll(filepath.Join(base, "myapp"), 0755))
+
+		dirs, err := discoverAppDirs(memFS, base, nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"myapp"}, dirs)
+	})
+
+	t.Run("returns empty slice when no directories", func(t *testing.T) {
+		memFS := fs.NewMemoryFileSystem()
+		base := filepath.Join("envs", "dev", "us-east-1")
+		require.NoError(t, memFS.MkdirAll(base, 0755))
+
+		dirs, err := discoverAppDirs(memFS, base, nil)
+		require.NoError(t, err)
+		assert.Empty(t, dirs)
+	})
+
+	t.Run("errors when path does not exist", func(t *testing.T) {
+		memFS := fs.NewMemoryFileSystem()
+		_, err := discoverAppDirs(memFS, "nonexistent", nil)
+		assert.Error(t, err)
+	})
+
+	t.Run("works with OSFileSystem", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		base := filepath.Join(tmpDir, "envs", "dev", "us-east-1")
+		require.NoError(t, os.MkdirAll(filepath.Join(base, "app1"), 0755))
+		require.NoError(t, os.MkdirAll(filepath.Join(base, "app2"), 0755))
+		// Create a file (should be skipped)
+		require.NoError(t, os.WriteFile(filepath.Join(base, "somefile.txt"), []byte("hi"), 0644))
+
+		osFS := fs.NewOSFileSystem()
+		dirs, err := discoverAppDirs(osFS, base, nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"app1", "app2"}, dirs)
 	})
 }

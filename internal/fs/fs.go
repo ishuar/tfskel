@@ -17,6 +17,9 @@ type FileSystem interface {
 	// ReadFile reads the contents of a file
 	ReadFile(path string) ([]byte, error)
 
+	// ReadDir reads a directory and returns its entries
+	ReadDir(path string) ([]os.DirEntry, error)
+
 	// FileExists checks if a file exists
 	FileExists(path string) bool
 
@@ -50,6 +53,11 @@ func (fs *OSFileSystem) WriteFile(path string, data []byte, perm os.FileMode) er
 // ReadFile reads a file
 func (fs *OSFileSystem) ReadFile(path string) ([]byte, error) {
 	return os.ReadFile(path)
+}
+
+// ReadDir reads a directory and returns its entries
+func (fs *OSFileSystem) ReadDir(path string) ([]os.DirEntry, error) {
+	return os.ReadDir(path)
 }
 
 // FileExists checks if a file exists

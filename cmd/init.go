@@ -21,8 +21,18 @@ import (
 var (
 	// ErrMissingAccountMapping indicates AWS account mapping configuration is missing
 	ErrMissingAccountMapping = errors.New("provider.aws.account_mapping is missing or empty")
-	// ErrForceRequiresUpgrade indicates --force was used without --upgrade
-	ErrForceRequiresUpgrade = errors.New("--force can only be used together with --upgrade")
+	// ErrForceRequiresUpgrade indicates --force was used without --upgrade or --upgrade-all
+	ErrForceRequiresUpgrade = errors.New("--force can only be used together with --upgrade or --upgrade-all")
+	// ErrUpgradeAllWithAppDir indicates --upgrade-all was used with a positional <app-dir> argument
+	ErrUpgradeAllWithAppDir = errors.New("cannot specify <app-dir> when --upgrade-all is set")
+	// ErrUpgradeAllWithUpgrade indicates --upgrade-all and --upgrade were both set
+	ErrUpgradeAllWithUpgrade = errors.New("--upgrade-all and --upgrade are mutually exclusive")
+	// ErrSkipRequiresUpgradeAll indicates --skip was used without --upgrade-all
+	ErrSkipRequiresUpgradeAll = errors.New("--skip can only be used with --upgrade-all")
+	// ErrBaseDirNotExist indicates the envs/<env>/<region>/ directory does not exist
+	ErrBaseDirNotExist = errors.New("base directory does not exist; check --env and --region values")
+	// ErrNoAppDirsFound indicates no app directories were found for --upgrade-all
+	ErrNoAppDirsFound = errors.New("no app directories found")
 )
 
 const (

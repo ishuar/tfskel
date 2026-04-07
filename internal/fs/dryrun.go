@@ -31,6 +31,11 @@ func (d *DryRunFileSystem) ReadFile(path string) ([]byte, error) {
 	return d.inner.ReadFile(path)
 }
 
+// ReadDir delegates to the inner filesystem.
+func (d *DryRunFileSystem) ReadDir(path string) ([]os.DirEntry, error) {
+	return d.inner.ReadDir(path)
+}
+
 // FileExists delegates to the inner filesystem.
 func (d *DryRunFileSystem) FileExists(path string) bool {
 	return d.inner.FileExists(path)

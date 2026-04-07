@@ -66,4 +66,17 @@ func TestDryRunFileSystem(t *testing.T) {
 		assert.True(t, dry.DirExists(dir))
 		assert.False(t, dry.DirExists(filepath.Join(dir, "nope")))
 	})
+
+	t.Run("ReadDir delegates to real FS", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, os.MkdirAll(filepath.Join(dir, "sub1"), 0755))
+		require.NoError(t, os.MkdirAll(filepath.Join(dir, "sub2"), 0755))
+
+		dry := NewDryRunFileSystem(NewOSFileSystem())
+		entries, err := dry.ReadDir(dir)
+		require.NoError(t, err)
+		assert.Len(t, entries, 2)
+		assert.Equal(t, "sub1", entries[0].Name())
+		assert.Equal(t, "sub2", entries[1].Name())
+	})
 }
