@@ -21,8 +21,10 @@ import (
 var (
 	// ErrMissingAccountMapping indicates AWS account mapping configuration is missing
 	ErrMissingAccountMapping = errors.New("provider.aws.account_mapping is missing or empty")
-	// ErrForceRequiresUpgrade indicates --force was used without --upgrade or --upgrade-all
-	ErrForceRequiresUpgrade = errors.New("--force can only be used together with --upgrade or --upgrade-all")
+	// ErrForceRequiresUpgrade indicates --force was used without --upgrade
+	ErrForceRequiresUpgrade = errors.New("--force can only be used together with --upgrade")
+	// ErrScaffoldForceRequiresUpgrade indicates --force was used without --upgrade or --upgrade-all in scaffold
+	ErrScaffoldForceRequiresUpgrade = errors.New("--force can only be used together with --upgrade or --upgrade-all")
 	// ErrUpgradeAllWithAppDir indicates --upgrade-all was used with a positional <app-dir> argument
 	ErrUpgradeAllWithAppDir = errors.New("cannot specify <app-dir> when --upgrade-all is set")
 	// ErrUpgradeAllWithUpgrade indicates --upgrade-all and --upgrade were both set

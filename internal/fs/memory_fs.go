@@ -68,8 +68,9 @@ func (fs *MemoryFileSystem) DirExists(path string) bool {
 	return ok
 }
 
-// ReadDir reads a directory and returns entries that are direct children.
-// Only directories registered via MkdirAll are returned.
+// ReadDir reads a directory and returns its direct child directories.
+// Only directories registered via MkdirAll are returned; files are not
+// tracked by MemoryFileSystem and will not appear in the results.
 func (fs *MemoryFileSystem) ReadDir(path string) ([]os.DirEntry, error) {
 	fs.mu.RLock()
 	defer fs.mu.RUnlock()

@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"github.com/ishuar/tfskel/internal/config"
@@ -130,7 +129,7 @@ func init() {
 	scaffoldCmd.Flags().StringVar(&templatesDir, "templates-dir", "", "directory containing custom template files (all .tmpl files will be processed)")
 	scaffoldCmd.Flags().StringVar(&s3BucketName, "s3-bucket-name", "", "S3 bucket name for Terraform state")
 	scaffoldCmd.Flags().BoolVar(&scaffoldUpgrade, "upgrade", false, "re-render files from updated templates (only files with source markers)")
-	scaffoldCmd.Flags().BoolVar(&scaffoldForce, "force", false, "with --upgrade or --upgrade-all, overwrite files even without source markers")
+	scaffoldCmd.Flags().BoolVar(&scaffoldForce, "force", false, "overwrite files even without source markers (requires --upgrade or --upgrade-all)")
 	scaffoldCmd.Flags().BoolVar(&scaffoldUpgradeAll, "upgrade-all", false, "re-render templates for all app directories under envs/<env>/<region>/")
 	scaffoldCmd.Flags().StringVar(&scaffoldSkip, "skip", "", "comma-separated directories to skip (requires --upgrade-all)")
 
@@ -163,7 +162,7 @@ func runScaffold(cmd *cobra.Command, args []string) error {
 		return ErrSkipRequiresUpgradeAll
 	}
 	if scaffoldForce && !scaffoldUpgrade && !scaffoldUpgradeAll {
-		return ErrForceRequiresUpgrade
+		return ErrScaffoldForceRequiresUpgrade
 	}
 
 	if scaffoldUpgradeAll {
@@ -185,15 +184,10 @@ func runScaffold(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid parameters: %w", err)
 	}
 
-	// Load configuration
-	cfg, err := config.Load(cmd, viper.GetViper(), log)
+	// Load and validate configuration
+	cfg, err := loadAndValidateConfig(cmd, log)
 	if err != nil {
-		return fmt.Errorf("failed to load configuration: %w", err)
-	}
-
-	// Validate configuration
-	if err := cfg.Validate(); err != nil {
-		return fmt.Errorf("configuration validation failed: %w", err)
+		return err
 	}
 
 	// Create filesystem abstraction
@@ -237,13 +231,10 @@ func runScaffoldUpgradeAll(cmd *cobra.Command) error {
 		return fmt.Errorf("invalid parameters: %w (use --region flag)", err)
 	}
 
-	// Load and validate config
-	cfg, err := config.Load(cmd, viper.GetViper(), log)
+	// Load and validate configuration
+	cfg, err := loadAndValidateConfig(cmd, log)
 	if err != nil {
-		return fmt.Errorf("failed to load configuration: %w", err)
-	}
-	if err := cfg.Validate(); err != nil {
-		return fmt.Errorf("configuration validation failed: %w", err)
+		return err
 	}
 
 	// Create filesystem abstraction
@@ -307,7 +298,7 @@ func parseSkipList(raw string) map[string]bool {
 }
 
 // discoverAppDirs lists subdirectories in basePath, filtering out hidden dirs
-// and entries in the skip set. Results are sorted alphabetically.
+// and entries in the skip set. Results preserve the sorted order from ReadDir.
 func discoverAppDirs(filesystem fs.FileSystem, basePath string, skip map[string]bool) ([]string, error) {
 	entries, err := filesystem.ReadDir(basePath)
 	if err != nil {
@@ -328,7 +319,6 @@ func discoverAppDirs(filesystem fs.FileSystem, basePath string, skip map[string]
 		}
 		dirs = append(dirs, name)
 	}
-	sort.Strings(dirs)
 	return dirs, nil
 }
 
@@ -337,6 +327,18 @@ func dirWord(n int) string {
 		return "directory"
 	}
 	return "directories"
+}
+
+// loadAndValidateConfig loads the configuration from the command context and validates it.
+func loadAndValidateConfig(cmd *cobra.Command, log *logger.Logger) (*config.Config, error) {
+	cfg, err := config.Load(cmd, viper.GetViper(), log)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load configuration: %w", err)
+	}
+	if err := cfg.Validate(); err != nil {
+		return nil, fmt.Errorf("configuration validation failed: %w", err)
+	}
+	return cfg, nil
 }
 
 func runScaffoldWorkflows(cmd *cobra.Command, _ []string) error {
@@ -348,13 +350,9 @@ func runScaffoldWorkflows(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("invalid parameters: %w (use --env flag)", err)
 	}
 
-	cfg, err := config.Load(cmd, viper.GetViper(), log)
+	cfg, err := loadAndValidateConfig(cmd, log)
 	if err != nil {
-		return fmt.Errorf("failed to load configuration: %w", err)
-	}
-
-	if err := cfg.Validate(); err != nil {
-		return fmt.Errorf("configuration validation failed: %w", err)
+		return err
 	}
 
 	// Validate flag combination: --force requires --upgrade
