@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ishuar/tfskel/internal/fs"
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -346,6 +347,222 @@ func TestScaffoldCommand_CommandSetup(t *testing.T) {
 		assert.NotNil(t, skipFlag, "--skip flag should exist")
 		assert.Equal(t, "", skipFlag.DefValue, "--skip should default to empty")
 	})
+}
+
+func TestDirWord(t *testing.T) {
+	tests := []struct {
+		name string
+		n    int
+		want string
+	}{
+		{name: "singular", n: 1, want: "directory"},
+		{name: "zero", n: 0, want: "directories"},
+		{name: "plural", n: 2, want: "directories"},
+		{name: "large number", n: 100, want: "directories"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, dirWord(tt.n))
+		})
+	}
+}
+
+func TestRunScaffold_FlagValidation(t *testing.T) {
+	// saveAndRestore captures current package-level flag state and returns
+	// a cleanup function that restores it. Call via t.Cleanup.
+	saveAndRestore := func(t *testing.T) {
+		t.Helper()
+		origUpgradeAll := scaffoldUpgradeAll
+		origUpgrade := scaffoldUpgrade
+		origSkip := scaffoldSkip
+		origForce := scaffoldForce
+		t.Cleanup(func() {
+			scaffoldUpgradeAll = origUpgradeAll
+			scaffoldUpgrade = origUpgrade
+			scaffoldSkip = origSkip
+			scaffoldForce = origForce
+		})
+	}
+
+	tests := []struct {
+		name       string
+		upgradeAll bool
+		upgrade    bool
+		skip       string
+		force      bool
+		wantErr    error
+	}{
+		{
+			name:       "upgrade-all and upgrade are mutually exclusive",
+			upgradeAll: true,
+			upgrade:    true,
+			wantErr:    ErrUpgradeAllWithUpgrade,
+		},
+		{
+			name:    "skip requires upgrade-all",
+			skip:    "foo,bar",
+			wantErr: ErrSkipRequiresUpgradeAll,
+		},
+		{
+			name:    "force requires upgrade or upgrade-all",
+			force:   true,
+			wantErr: ErrScaffoldForceRequiresUpgrade,
+		},
+		{
+			name:       "force with upgrade-all is allowed (passes flag validation)",
+			upgradeAll: true,
+			force:      true,
+			// This passes flag validation but will fail later at config.Load;
+			// we only assert it doesn't return a flag-validation error.
+		},
+		{
+			name:    "force with upgrade is allowed (passes flag validation)",
+			upgrade: true,
+			force:   true,
+			// Passes flag validation, fails later at parameter or config stage.
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			saveAndRestore(t)
+			scaffoldUpgradeAll = tt.upgradeAll
+			scaffoldUpgrade = tt.upgrade
+			scaffoldSkip = tt.skip
+			scaffoldForce = tt.force
+
+			// Provide a minimal cobra command (flags already live in package vars)
+			cmd := &cobra.Command{}
+			err := runScaffold(cmd, []string{"myapp"})
+
+			if tt.wantErr != nil {
+				assert.ErrorIs(t, err, tt.wantErr)
+			} else {
+				// Should pass flag validation; any subsequent error is fine
+				assert.NotErrorIs(t, err, ErrUpgradeAllWithUpgrade)
+				assert.NotErrorIs(t, err, ErrSkipRequiresUpgradeAll)
+				assert.NotErrorIs(t, err, ErrScaffoldForceRequiresUpgrade)
+			}
+		})
+	}
+}
+
+func TestScaffoldCmd_ArgsValidator(t *testing.T) {
+	tests := []struct {
+		name    string
+		flags   map[string]string
+		args    []string
+		wantErr error
+	}{
+		{
+			name:  "accepts one positional arg without upgrade-all",
+			flags: map[string]string{"upgrade-all": "false"},
+			args:  []string{"myapp"},
+		},
+		{
+			name:    "rejects zero args without upgrade-all",
+			flags:   map[string]string{"upgrade-all": "false"},
+			args:    []string{},
+			wantErr: nil, // cobra.ExactArgs returns a generic error
+		},
+		{
+			name:  "accepts zero args with upgrade-all",
+			flags: map[string]string{"upgrade-all": "true"},
+			args:  []string{},
+		},
+		{
+			name:    "rejects args with upgrade-all",
+			flags:   map[string]string{"upgrade-all": "true"},
+			args:    []string{"myapp"},
+			wantErr: ErrUpgradeAllWithAppDir,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Build a fresh command with the upgrade-all flag
+			cmd := &cobra.Command{}
+			cmd.Flags().Bool("upgrade-all", false, "")
+			for k, v := range tt.flags {
+				require.NoError(t, cmd.Flags().Set(k, v))
+			}
+
+			err := scaffoldCmd.Args(cmd, tt.args)
+
+			switch {
+			case tt.wantErr != nil:
+				assert.ErrorIs(t, err, tt.wantErr)
+			case tt.name == "rejects zero args without upgrade-all":
+				assert.Error(t, err, "should reject zero args")
+			default:
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestRunScaffoldUpgradeAll_ParameterValidation(t *testing.T) {
+	saveAndRestore := func(t *testing.T) {
+		t.Helper()
+		origEnv := env
+		origRegion := region
+		origSkip := scaffoldSkip
+		origForce := scaffoldForce
+		origUpgradeAll := scaffoldUpgradeAll
+		t.Cleanup(func() {
+			env = origEnv
+			region = origRegion
+			scaffoldSkip = origSkip
+			scaffoldForce = origForce
+			scaffoldUpgradeAll = origUpgradeAll
+		})
+	}
+
+	tests := []struct {
+		name          string
+		env           string
+		region        string
+		errorContains string
+	}{
+		{
+			name:          "empty env returns error",
+			env:           "",
+			region:        "us-east-1",
+			errorContains: "environment",
+		},
+		{
+			name:          "whitespace-only env returns error",
+			env:           "   ",
+			region:        "us-east-1",
+			errorContains: "environment",
+		},
+		{
+			name:          "empty region returns error",
+			env:           "dev",
+			region:        "",
+			errorContains: "region",
+		},
+		{
+			name:          "whitespace-only region returns error",
+			env:           "dev",
+			region:        "   ",
+			errorContains: "region",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			saveAndRestore(t)
+			env = tt.env
+			region = tt.region
+
+			cmd := &cobra.Command{}
+			err := runScaffoldUpgradeAll(cmd)
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.errorContains)
+		})
+	}
 }
 
 func TestParseSkipList(t *testing.T) {
