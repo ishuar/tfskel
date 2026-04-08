@@ -1,9 +1,14 @@
 package cmd
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
+	"github.com/ishuar/tfskel/internal/fs"
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestValidateScaffoldParams(t *testing.T) {
@@ -284,7 +289,7 @@ func TestValidateScaffoldParams_ValidationOrder(t *testing.T) {
 func TestScaffoldCommand_CommandSetup(t *testing.T) {
 	t.Run("command is properly registered", func(t *testing.T) {
 		assert.NotNil(t, scaffoldCmd, "scaffoldCmd should be initialized")
-		assert.Equal(t, "scaffold <app-dir>", scaffoldCmd.Use, "command use pattern should be correct")
+		assert.Equal(t, "scaffold [app-dir]", scaffoldCmd.Use, "command use pattern should be correct")
 		assert.Equal(t, "main", scaffoldCmd.GroupID, "command should be in main group")
 		assert.Contains(t, scaffoldCmd.Aliases, "sc", "command should have 'sc' alias")
 	})
@@ -331,5 +336,323 @@ func TestScaffoldCommand_CommandSetup(t *testing.T) {
 		assert.Contains(t, scaffoldCmd.Short, "Scaffold", "short description should mention 'Scaffold'")
 		assert.Contains(t, scaffoldCmd.Long, "scaffold command", "long description should reference 'scaffold command'")
 		assert.Contains(t, scaffoldCmd.Example, "tfskel scaffold", "examples should use 'tfskel scaffold'")
+	})
+
+	t.Run("upgrade-all and skip flags exist", func(t *testing.T) {
+		upgradeAllFlag := scaffoldCmd.Flags().Lookup("upgrade-all")
+		assert.NotNil(t, upgradeAllFlag, "--upgrade-all flag should exist")
+		assert.Equal(t, "false", upgradeAllFlag.DefValue, "--upgrade-all should default to false")
+
+		skipFlag := scaffoldCmd.Flags().Lookup("skip")
+		assert.NotNil(t, skipFlag, "--skip flag should exist")
+		assert.Equal(t, "", skipFlag.DefValue, "--skip should default to empty")
+	})
+}
+
+func TestDirWord(t *testing.T) {
+	tests := []struct {
+		name string
+		n    int
+		want string
+	}{
+		{name: "singular", n: 1, want: "directory"},
+		{name: "zero", n: 0, want: "directories"},
+		{name: "plural", n: 2, want: "directories"},
+		{name: "large number", n: 100, want: "directories"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, dirWord(tt.n))
+		})
+	}
+}
+
+func TestRunScaffold_FlagValidation(t *testing.T) {
+	// saveAndRestore captures current package-level flag state and returns
+	// a cleanup function that restores it. Call via t.Cleanup.
+	saveAndRestore := func(t *testing.T) {
+		t.Helper()
+		origUpgradeAll := scaffoldUpgradeAll
+		origUpgrade := scaffoldUpgrade
+		origSkip := scaffoldSkip
+		origForce := scaffoldForce
+		t.Cleanup(func() {
+			scaffoldUpgradeAll = origUpgradeAll
+			scaffoldUpgrade = origUpgrade
+			scaffoldSkip = origSkip
+			scaffoldForce = origForce
+		})
+	}
+
+	tests := []struct {
+		name       string
+		upgradeAll bool
+		upgrade    bool
+		skip       string
+		force      bool
+		wantErr    error
+	}{
+		{
+			name:       "upgrade-all and upgrade are mutually exclusive",
+			upgradeAll: true,
+			upgrade:    true,
+			wantErr:    ErrUpgradeAllWithUpgrade,
+		},
+		{
+			name:    "skip requires upgrade-all",
+			skip:    "foo,bar",
+			wantErr: ErrSkipRequiresUpgradeAll,
+		},
+		{
+			name:    "force requires upgrade or upgrade-all",
+			force:   true,
+			wantErr: ErrScaffoldForceRequiresUpgrade,
+		},
+		{
+			name:       "force with upgrade-all is allowed (passes flag validation)",
+			upgradeAll: true,
+			force:      true,
+			// This passes flag validation but will fail later at config.Load;
+			// we only assert it doesn't return a flag-validation error.
+		},
+		{
+			name:    "force with upgrade is allowed (passes flag validation)",
+			upgrade: true,
+			force:   true,
+			// Passes flag validation, fails later at parameter or config stage.
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			saveAndRestore(t)
+			scaffoldUpgradeAll = tt.upgradeAll
+			scaffoldUpgrade = tt.upgrade
+			scaffoldSkip = tt.skip
+			scaffoldForce = tt.force
+
+			// Provide a minimal cobra command (flags already live in package vars)
+			cmd := &cobra.Command{}
+			err := runScaffold(cmd, []string{"myapp"})
+
+			if tt.wantErr != nil {
+				assert.ErrorIs(t, err, tt.wantErr)
+			} else {
+				// Should pass flag validation; any subsequent error is fine
+				assert.NotErrorIs(t, err, ErrUpgradeAllWithUpgrade)
+				assert.NotErrorIs(t, err, ErrSkipRequiresUpgradeAll)
+				assert.NotErrorIs(t, err, ErrScaffoldForceRequiresUpgrade)
+			}
+		})
+	}
+}
+
+func TestScaffoldCmd_ArgsValidator(t *testing.T) {
+	tests := []struct {
+		name    string
+		flags   map[string]string
+		args    []string
+		wantErr error
+	}{
+		{
+			name:  "accepts one positional arg without upgrade-all",
+			flags: map[string]string{"upgrade-all": "false"},
+			args:  []string{"myapp"},
+		},
+		{
+			name:    "rejects zero args without upgrade-all",
+			flags:   map[string]string{"upgrade-all": "false"},
+			args:    []string{},
+			wantErr: nil, // cobra.ExactArgs returns a generic error
+		},
+		{
+			name:  "accepts zero args with upgrade-all",
+			flags: map[string]string{"upgrade-all": "true"},
+			args:  []string{},
+		},
+		{
+			name:    "rejects args with upgrade-all",
+			flags:   map[string]string{"upgrade-all": "true"},
+			args:    []string{"myapp"},
+			wantErr: ErrUpgradeAllWithAppDir,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Build a fresh command with the upgrade-all flag
+			cmd := &cobra.Command{}
+			cmd.Flags().Bool("upgrade-all", false, "")
+			for k, v := range tt.flags {
+				require.NoError(t, cmd.Flags().Set(k, v))
+			}
+
+			err := scaffoldCmd.Args(cmd, tt.args)
+
+			switch {
+			case tt.wantErr != nil:
+				assert.ErrorIs(t, err, tt.wantErr)
+			case tt.name == "rejects zero args without upgrade-all":
+				assert.Error(t, err, "should reject zero args")
+			default:
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestRunScaffoldUpgradeAll_ParameterValidation(t *testing.T) {
+	saveAndRestore := func(t *testing.T) {
+		t.Helper()
+		origEnv := env
+		origRegion := region
+		origSkip := scaffoldSkip
+		origForce := scaffoldForce
+		origUpgradeAll := scaffoldUpgradeAll
+		t.Cleanup(func() {
+			env = origEnv
+			region = origRegion
+			scaffoldSkip = origSkip
+			scaffoldForce = origForce
+			scaffoldUpgradeAll = origUpgradeAll
+		})
+	}
+
+	tests := []struct {
+		name          string
+		env           string
+		region        string
+		errorContains string
+	}{
+		{
+			name:          "empty env returns error",
+			env:           "",
+			region:        "us-east-1",
+			errorContains: "environment",
+		},
+		{
+			name:          "whitespace-only env returns error",
+			env:           "   ",
+			region:        "us-east-1",
+			errorContains: "environment",
+		},
+		{
+			name:          "empty region returns error",
+			env:           "dev",
+			region:        "",
+			errorContains: "region",
+		},
+		{
+			name:          "whitespace-only region returns error",
+			env:           "dev",
+			region:        "   ",
+			errorContains: "region",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			saveAndRestore(t)
+			env = tt.env
+			region = tt.region
+
+			cmd := &cobra.Command{}
+			err := runScaffoldUpgradeAll(cmd)
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.errorContains)
+		})
+	}
+}
+
+func TestParseSkipList(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string
+		want map[string]bool
+	}{
+		{name: "empty string", raw: "", want: nil},
+		{name: "single value", raw: "foo", want: map[string]bool{"foo": true}},
+		{name: "multiple values", raw: "foo,bar,baz", want: map[string]bool{"foo": true, "bar": true, "baz": true}},
+		{name: "whitespace trimmed", raw: " foo , bar ", want: map[string]bool{"foo": true, "bar": true}},
+		{name: "trailing comma ignored", raw: "foo,bar,", want: map[string]bool{"foo": true, "bar": true}},
+		{name: "empty segments ignored", raw: "foo,,bar", want: map[string]bool{"foo": true, "bar": true}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parseSkipList(tt.raw)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestDiscoverAppDirs(t *testing.T) {
+	t.Run("returns sorted directory names", func(t *testing.T) {
+		memFS := fs.NewMemoryFileSystem()
+		base := filepath.Join("envs", "prd", "eu-central-1")
+		require.NoError(t, memFS.MkdirAll(base, 0755))
+		require.NoError(t, memFS.MkdirAll(filepath.Join(base, "charlie"), 0755))
+		require.NoError(t, memFS.MkdirAll(filepath.Join(base, "alpha"), 0755))
+		require.NoError(t, memFS.MkdirAll(filepath.Join(base, "bravo"), 0755))
+
+		dirs, err := discoverAppDirs(memFS, base, nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"alpha", "bravo", "charlie"}, dirs)
+	})
+
+	t.Run("skips excluded directories", func(t *testing.T) {
+		memFS := fs.NewMemoryFileSystem()
+		base := filepath.Join("envs", "prd", "eu-central-1")
+		require.NoError(t, memFS.MkdirAll(base, 0755))
+		require.NoError(t, memFS.MkdirAll(filepath.Join(base, "app1"), 0755))
+		require.NoError(t, memFS.MkdirAll(filepath.Join(base, "base-infra"), 0755))
+		require.NoError(t, memFS.MkdirAll(filepath.Join(base, "app2"), 0755))
+
+		skip := map[string]bool{"base-infra": true}
+		dirs, err := discoverAppDirs(memFS, base, skip)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"app1", "app2"}, dirs)
+	})
+
+	t.Run("skips hidden directories", func(t *testing.T) {
+		memFS := fs.NewMemoryFileSystem()
+		base := filepath.Join("envs", "dev", "us-east-1")
+		require.NoError(t, memFS.MkdirAll(base, 0755))
+		require.NoError(t, memFS.MkdirAll(filepath.Join(base, ".terraform"), 0755))
+		require.NoError(t, memFS.MkdirAll(filepath.Join(base, "myapp"), 0755))
+
+		dirs, err := discoverAppDirs(memFS, base, nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"myapp"}, dirs)
+	})
+
+	t.Run("returns empty slice when no directories", func(t *testing.T) {
+		memFS := fs.NewMemoryFileSystem()
+		base := filepath.Join("envs", "dev", "us-east-1")
+		require.NoError(t, memFS.MkdirAll(base, 0755))
+
+		dirs, err := discoverAppDirs(memFS, base, nil)
+		require.NoError(t, err)
+		assert.Empty(t, dirs)
+	})
+
+	t.Run("errors when path does not exist", func(t *testing.T) {
+		memFS := fs.NewMemoryFileSystem()
+		_, err := discoverAppDirs(memFS, "nonexistent", nil)
+		assert.Error(t, err)
+	})
+
+	t.Run("works with OSFileSystem", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		base := filepath.Join(tmpDir, "envs", "dev", "us-east-1")
+		require.NoError(t, os.MkdirAll(filepath.Join(base, "app1"), 0755))
+		require.NoError(t, os.MkdirAll(filepath.Join(base, "app2"), 0755))
+		// Create a file (should be skipped)
+		require.NoError(t, os.WriteFile(filepath.Join(base, "somefile.txt"), []byte("hi"), 0644))
+
+		osFS := fs.NewOSFileSystem()
+		dirs, err := discoverAppDirs(osFS, base, nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"app1", "app2"}, dirs)
 	})
 }

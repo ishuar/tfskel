@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"fmt"
+	"path/filepath"
+	"strings"
 
 	"github.com/ishuar/tfskel/internal/config"
 	"github.com/ishuar/tfskel/internal/fs"
@@ -13,7 +15,7 @@ import (
 )
 
 var scaffoldCmd = &cobra.Command{
-	Use:     "scaffold <app-dir>",
+	Use:     "scaffold [app-dir]",
 	Aliases: []string{"sc"},
 	GroupID: "main",
 	Short:   "Scaffold Terraform project structure for target application",
@@ -30,7 +32,7 @@ Configuration:
   The scaffold command reads .tfskel.yaml from the current directory by default.
 
 Arguments:
-  <app-dir>: Name of the application directory as subcommand input to create (required)
+  <app-dir>: Name of the application directory to create (required unless --upgrade-all is set)
 
 Subcommands:
   workflows   Generate per-environment GitHub Actions workflow files`,
@@ -43,12 +45,30 @@ Subcommands:
   # Scaffold with custom templates
   tfskel scaffold myapp --env stg --region eu-central-1 --templates-dir ./templates
 
+  # Upgrade all app directories in a region
+  tfskel scaffold --upgrade-all --env prd --region eu-central-1
+
+  # Upgrade all, skipping specific directories
+  tfskel scaffold --upgrade-all --env prd --region eu-central-1 --skip base-infra,pre-prod
+
   # Generate GitHub workflow for a specific environment
   tfskel scaffold workflows --env dev
 
   # Using the short alias
   tfskel sc myapp --env dev --region us-east-1`,
-	Args:         cobra.ExactArgs(1),
+	Args: func(cmd *cobra.Command, args []string) error {
+		upgradeAll, err := cmd.Flags().GetBool("upgrade-all")
+		if err != nil {
+			return err
+		}
+		if upgradeAll {
+			if len(args) > 0 {
+				return ErrUpgradeAllWithAppDir
+			}
+			return nil
+		}
+		return cobra.ExactArgs(1)(cmd, args)
+	},
 	SilenceUsage: true,
 	RunE:         runScaffold,
 }
@@ -77,15 +97,17 @@ Configuration:
 }
 
 var (
-	env             string
-	region          string
-	templatesDir    string
-	s3BucketName    string
-	workflowsEnv    string
-	scaffoldUpgrade bool
-	scaffoldForce   bool
-	workflowUpgrade bool
-	workflowForce   bool
+	env                string
+	region             string
+	templatesDir       string
+	s3BucketName       string
+	workflowsEnv       string
+	scaffoldUpgrade    bool
+	scaffoldForce      bool
+	scaffoldUpgradeAll bool
+	scaffoldSkip       string
+	workflowUpgrade    bool
+	workflowForce      bool
 )
 
 func init() {
@@ -107,7 +129,9 @@ func init() {
 	scaffoldCmd.Flags().StringVar(&templatesDir, "templates-dir", "", "directory containing custom template files (all .tmpl files will be processed)")
 	scaffoldCmd.Flags().StringVar(&s3BucketName, "s3-bucket-name", "", "S3 bucket name for Terraform state")
 	scaffoldCmd.Flags().BoolVar(&scaffoldUpgrade, "upgrade", false, "re-render files from updated templates (only files with source markers)")
-	scaffoldCmd.Flags().BoolVar(&scaffoldForce, "force", false, "with --upgrade, overwrite files even without source markers")
+	scaffoldCmd.Flags().BoolVar(&scaffoldForce, "force", false, "overwrite files even without source markers (requires --upgrade or --upgrade-all)")
+	scaffoldCmd.Flags().BoolVar(&scaffoldUpgradeAll, "upgrade-all", false, "re-render templates for all app directories under envs/<env>/<region>/")
+	scaffoldCmd.Flags().StringVar(&scaffoldSkip, "skip", "", "comma-separated directories to skip (requires --upgrade-all)")
 
 	// Bind flags to viper - these should never fail unless there's a developer error
 	// (flag name mismatch, missing flag, etc.) so we fail fast with panic
@@ -130,6 +154,21 @@ func init() {
 }
 
 func runScaffold(cmd *cobra.Command, args []string) error {
+	// Validate mutually exclusive flags
+	if scaffoldUpgradeAll && scaffoldUpgrade {
+		return ErrUpgradeAllWithUpgrade
+	}
+	if scaffoldSkip != "" && !scaffoldUpgradeAll {
+		return ErrSkipRequiresUpgradeAll
+	}
+	if scaffoldForce && !scaffoldUpgrade && !scaffoldUpgradeAll {
+		return ErrScaffoldForceRequiresUpgrade
+	}
+
+	if scaffoldUpgradeAll {
+		return runScaffoldUpgradeAll(cmd)
+	}
+
 	// Initialize logger
 	log := logger.NewWithOptions(viper.GetBool("verbose"), useColor)
 
@@ -145,20 +184,10 @@ func runScaffold(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid parameters: %w", err)
 	}
 
-	// Load configuration
-	cfg, err := config.Load(cmd, viper.GetViper(), log)
+	// Load and validate configuration
+	cfg, err := loadAndValidateConfig(cmd, log)
 	if err != nil {
-		return fmt.Errorf("failed to load configuration: %w", err)
-	}
-
-	// Validate configuration
-	if err := cfg.Validate(); err != nil {
-		return fmt.Errorf("configuration validation failed: %w", err)
-	}
-
-	// Validate flag combination: --force requires --upgrade
-	if scaffoldForce && !scaffoldUpgrade {
-		return ErrForceRequiresUpgrade
+		return err
 	}
 
 	// Create filesystem abstraction
@@ -186,6 +215,132 @@ func runScaffold(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+func runScaffoldUpgradeAll(cmd *cobra.Command) error {
+	log := logger.NewWithOptions(viper.GetBool("verbose"), useColor)
+
+	log.Debug("Starting scaffold upgrade-all")
+	log.Info("Starting batch template upgrade...")
+
+	// Validate and trim env and region
+	trimmedEnv, err := strutil.TrimAndValidateInput(env, "environment")
+	if err != nil {
+		return fmt.Errorf("invalid parameters: %w (use --env flag)", err)
+	}
+	trimmedRegion, err := strutil.TrimAndValidateInput(region, "region")
+	if err != nil {
+		return fmt.Errorf("invalid parameters: %w (use --region flag)", err)
+	}
+
+	// Load and validate configuration
+	cfg, err := loadAndValidateConfig(cmd, log)
+	if err != nil {
+		return err
+	}
+
+	// Create filesystem abstraction
+	var filesystem fs.FileSystem = fs.NewOSFileSystem()
+	if dryRun {
+		filesystem = fs.NewDryRunFileSystem(filesystem)
+	}
+
+	// Discover app directories
+	basePath := filepath.Join("envs", trimmedEnv, trimmedRegion)
+	if !filesystem.DirExists(basePath) {
+		return fmt.Errorf("%w: %s", ErrBaseDirNotExist, basePath)
+	}
+
+	dirs, err := discoverAppDirs(filesystem, basePath, parseSkipList(scaffoldSkip))
+	if err != nil {
+		return fmt.Errorf("failed to read directory %s: %w", basePath, err)
+	}
+	if len(dirs) == 0 {
+		return fmt.Errorf("%w in %s", ErrNoAppDirsFound, basePath)
+	}
+
+	log.Infof("Found %d app %s to upgrade in %s", len(dirs), dirWord(len(dirs)), basePath)
+
+	// Single generator — tracker accumulates across all runs
+	generator := generate.NewGenerator(cfg, filesystem, log)
+	generator.SetUpgrade(true, scaffoldForce)
+	generator.SetDryRun(dryRun)
+
+	for _, dir := range dirs {
+		log.Infof("==> Scaffolding: %s", dir)
+		if err := generator.Run(trimmedEnv, trimmedRegion, dir); err != nil {
+			return fmt.Errorf("failed to scaffold %s: %w", dir, err)
+		}
+	}
+
+	if summary := generator.Summary(); summary != "" {
+		log.Infof("Summary: %s", summary)
+	}
+	if dryRun {
+		log.Info("Dry run complete — no files were written")
+	} else {
+		log.Success("Terraform directory scaffolding completed!")
+	}
+	return nil
+}
+
+// parseSkipList parses a comma-separated string into a set of directory names.
+func parseSkipList(raw string) map[string]bool {
+	if raw == "" {
+		return nil
+	}
+	skips := make(map[string]bool)
+	for name := range strings.SplitSeq(raw, ",") {
+		trimmed := strings.TrimSpace(name)
+		if trimmed != "" {
+			skips[trimmed] = true
+		}
+	}
+	return skips
+}
+
+// discoverAppDirs lists subdirectories in basePath, filtering out hidden dirs
+// and entries in the skip set. Results preserve the sorted order from ReadDir.
+func discoverAppDirs(filesystem fs.FileSystem, basePath string, skip map[string]bool) ([]string, error) {
+	entries, err := filesystem.ReadDir(basePath)
+	if err != nil {
+		return nil, err
+	}
+
+	var dirs []string
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if strings.HasPrefix(name, ".") {
+			continue
+		}
+		if skip[name] {
+			continue
+		}
+		dirs = append(dirs, name)
+	}
+	return dirs, nil
+}
+
+func dirWord(n int) string {
+	if n == 1 {
+		return "directory"
+	}
+	return "directories"
+}
+
+// loadAndValidateConfig loads the configuration from the command context and validates it.
+func loadAndValidateConfig(cmd *cobra.Command, log *logger.Logger) (*config.Config, error) {
+	cfg, err := config.Load(cmd, viper.GetViper(), log)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load configuration: %w", err)
+	}
+	if err := cfg.Validate(); err != nil {
+		return nil, fmt.Errorf("configuration validation failed: %w", err)
+	}
+	return cfg, nil
+}
+
 func runScaffoldWorkflows(cmd *cobra.Command, _ []string) error {
 	log := logger.NewWithOptions(viper.GetBool("verbose"), useColor)
 	log.Debug("Starting scaffold workflows command")
@@ -195,13 +350,9 @@ func runScaffoldWorkflows(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("invalid parameters: %w (use --env flag)", err)
 	}
 
-	cfg, err := config.Load(cmd, viper.GetViper(), log)
+	cfg, err := loadAndValidateConfig(cmd, log)
 	if err != nil {
-		return fmt.Errorf("failed to load configuration: %w", err)
-	}
-
-	if err := cfg.Validate(); err != nil {
-		return fmt.Errorf("configuration validation failed: %w", err)
+		return err
 	}
 
 	// Validate flag combination: --force requires --upgrade

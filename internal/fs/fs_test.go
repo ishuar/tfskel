@@ -228,6 +228,83 @@ func TestOSFileSystem_DirExists(t *testing.T) {
 	}
 }
 
+func TestOSFileSystem_ReadDir(t *testing.T) {
+	t.Run("reads directory entries", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "dir-b"), 0755))
+		require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "dir-a"), 0755))
+		require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "file.txt"), []byte("x"), 0644))
+
+		fs := NewOSFileSystem()
+		entries, err := fs.ReadDir(tmpDir)
+		require.NoError(t, err)
+		assert.Len(t, entries, 3)
+		// os.ReadDir returns sorted entries
+		assert.Equal(t, "dir-a", entries[0].Name())
+		assert.True(t, entries[0].IsDir())
+		assert.Equal(t, "dir-b", entries[1].Name())
+		assert.True(t, entries[1].IsDir())
+		assert.Equal(t, "file.txt", entries[2].Name())
+		assert.False(t, entries[2].IsDir())
+	})
+
+	t.Run("errors on non-existent path", func(t *testing.T) {
+		fs := NewOSFileSystem()
+		_, err := fs.ReadDir("/non/existent/path")
+		assert.Error(t, err)
+	})
+}
+
+func TestMemoryFileSystem_ReadDir(t *testing.T) {
+	t.Run("returns direct children only", func(t *testing.T) {
+		fs := NewMemoryFileSystem()
+		require.NoError(t, fs.MkdirAll("/base", 0755))
+		require.NoError(t, fs.MkdirAll("/base/child1", 0755))
+		require.NoError(t, fs.MkdirAll("/base/child2", 0755))
+		require.NoError(t, fs.MkdirAll("/base/child1/grandchild", 0755))
+
+		entries, err := fs.ReadDir("/base")
+		require.NoError(t, err)
+		assert.Len(t, entries, 2)
+		assert.Equal(t, "child1", entries[0].Name())
+		assert.Equal(t, "child2", entries[1].Name())
+		for _, e := range entries {
+			assert.True(t, e.IsDir())
+		}
+	})
+
+	t.Run("returns sorted entries", func(t *testing.T) {
+		fs := NewMemoryFileSystem()
+		require.NoError(t, fs.MkdirAll("/root", 0755))
+		require.NoError(t, fs.MkdirAll("/root/charlie", 0755))
+		require.NoError(t, fs.MkdirAll("/root/alpha", 0755))
+		require.NoError(t, fs.MkdirAll("/root/bravo", 0755))
+
+		entries, err := fs.ReadDir("/root")
+		require.NoError(t, err)
+		names := make([]string, len(entries))
+		for i, e := range entries {
+			names[i] = e.Name()
+		}
+		assert.Equal(t, []string{"alpha", "bravo", "charlie"}, names)
+	})
+
+	t.Run("empty directory returns empty slice", func(t *testing.T) {
+		fs := NewMemoryFileSystem()
+		require.NoError(t, fs.MkdirAll("/empty", 0755))
+
+		entries, err := fs.ReadDir("/empty")
+		require.NoError(t, err)
+		assert.Empty(t, entries)
+	})
+
+	t.Run("non-existent directory returns error", func(t *testing.T) {
+		fs := NewMemoryFileSystem()
+		_, err := fs.ReadDir("/nope")
+		assert.ErrorIs(t, err, os.ErrNotExist)
+	})
+}
+
 func TestMemoryFileSystem_Integration(t *testing.T) {
 	t.Run("complete workflow", func(t *testing.T) {
 		fs := NewMemoryFileSystem()
