@@ -1,0 +1,17 @@
+terraform_version: "~> 1.13"
+provider:
+  aws:
+    version: "~> 6.0"
+    account_mapping:
+      dev: "123456789012"
+      stg: "234567890123"
+      prd: "345678901234"
+    regions:
+      - "eu-central-1"
+backend:
+  s3:
+    bucket_name: "test-tf-state-bucket"
+workflows:
+  create: true
+  name: "terraform"
+  aws_role_name: "terraform-role"

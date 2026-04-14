@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ishuar/tfskel/internal/config"
 	"github.com/ishuar/tfskel/internal/fs"
 	"github.com/ishuar/tfskel/internal/generate"
 	"github.com/ishuar/tfskel/internal/logger"
@@ -327,18 +326,6 @@ func dirWord(n int) string {
 		return "directory"
 	}
 	return "directories"
-}
-
-// loadAndValidateConfig loads the configuration from the command context and validates it.
-func loadAndValidateConfig(cmd *cobra.Command, log *logger.Logger) (*config.Config, error) {
-	cfg, err := config.Load(cmd, viper.GetViper(), log)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load configuration: %w", err)
-	}
-	if err := cfg.Validate(); err != nil {
-		return nil, fmt.Errorf("configuration validation failed: %w", err)
-	}
-	return cfg, nil
 }
 
 func runScaffoldWorkflows(cmd *cobra.Command, _ []string) error {
