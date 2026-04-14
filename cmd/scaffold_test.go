@@ -7,9 +7,28 @@ import (
 
 	"github.com/ishuar/tfskel/internal/fs"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// scaffoldTestSetup creates a temporary directory with a valid .tfskel.yaml config,
+// changes into it, resets viper, and saves/restores all package-level flag state.
+// Returns the temporary directory path.
+func scaffoldTestSetup(t *testing.T) string {
+	t.Helper()
+	tmpDir := t.TempDir()
+	writeTestConfig(t, tmpDir, "valid_config.yaml")
+	chdirTemp(t, tmpDir)
+	saveAndRestoreScaffoldFlags(t)
+
+	viper.Reset()
+	initConfig()
+	t.Cleanup(func() { viper.Reset() })
+
+	useColor = false
+	return tmpDir
+}
 
 func TestValidateScaffoldParams(t *testing.T) {
 	tests := []struct {
@@ -654,5 +673,200 @@ func TestDiscoverAppDirs(t *testing.T) {
 		dirs, err := discoverAppDirs(osFS, base, nil)
 		require.NoError(t, err)
 		assert.Equal(t, []string{"app1", "app2"}, dirs)
+	})
+}
+
+func TestRunScaffold_HappyPath(t *testing.T) {
+	t.Run("creates directory structure and files", func(t *testing.T) {
+		tmpDir := scaffoldTestSetup(t)
+		env = "dev"
+		region = "eu-central-1"
+
+		cmd := newTestCmd(t)
+		err := runScaffold(cmd, []string{"myapp"})
+		require.NoError(t, err)
+
+		appDir := filepath.Join(tmpDir, "envs", "dev", "eu-central-1", "myapp")
+		assert.DirExists(t, appDir)
+		assert.FileExists(t, filepath.Join(appDir, "backend.tf"))
+		assert.FileExists(t, filepath.Join(appDir, "versions.tf"))
+	})
+
+	t.Run("with upgrade flag passes through to generator", func(t *testing.T) {
+		tmpDir := scaffoldTestSetup(t)
+		env = "dev"
+		region = "eu-central-1"
+
+		cmd := newTestCmd(t)
+		// First scaffold to create files
+		err := runScaffold(cmd, []string{"myapp"})
+		require.NoError(t, err)
+
+		appDir := filepath.Join(tmpDir, "envs", "dev", "eu-central-1", "myapp")
+		assert.DirExists(t, appDir)
+
+		// Now run with upgrade — should succeed (files already up to date)
+		scaffoldUpgrade = true
+		err = runScaffold(cmd, []string{"myapp"})
+		require.NoError(t, err)
+	})
+
+	t.Run("dry-run does not write files", func(t *testing.T) {
+		tmpDir := scaffoldTestSetup(t)
+		env = "dev"
+		region = "eu-central-1"
+		dryRun = true
+
+		cmd := newTestCmd(t)
+		err := runScaffold(cmd, []string{"myapp"})
+		require.NoError(t, err)
+
+		appDir := filepath.Join(tmpDir, "envs", "dev", "eu-central-1", "myapp")
+		assert.NoDirExists(t, appDir, "dry-run should not create directories")
+	})
+}
+
+func TestRunScaffoldUpgradeAll_Integration(t *testing.T) {
+	t.Run("upgrades all app dirs in a region", func(t *testing.T) {
+		tmpDir := scaffoldTestSetup(t)
+		env = "dev"
+		region = "eu-central-1"
+		scaffoldUpgradeAll = true
+
+		// Pre-create app directories with scaffold files
+		cmd := newTestCmd(t)
+		scaffoldUpgradeAll = false
+		require.NoError(t, runScaffold(cmd, []string{"app1"}))
+		require.NoError(t, runScaffold(cmd, []string{"app2"}))
+
+		// Now run upgrade-all
+		scaffoldUpgradeAll = true
+		err := runScaffoldUpgradeAll(cmd)
+		require.NoError(t, err)
+
+		// Both app dirs should still exist with files
+		for _, app := range []string{"app1", "app2"} {
+			appDir := filepath.Join(tmpDir, "envs", "dev", "eu-central-1", app)
+			assert.DirExists(t, appDir)
+			assert.FileExists(t, filepath.Join(appDir, "backend.tf"))
+		}
+	})
+
+	t.Run("skips directories in skip list", func(t *testing.T) {
+		scaffoldTestSetup(t)
+		env = "dev"
+		region = "eu-central-1"
+
+		cmd := newTestCmd(t)
+		require.NoError(t, runScaffold(cmd, []string{"app1"}))
+		require.NoError(t, runScaffold(cmd, []string{"app2"}))
+		require.NoError(t, runScaffold(cmd, []string{"app3"}))
+
+		scaffoldUpgradeAll = true
+		scaffoldSkip = "app2"
+		err := runScaffoldUpgradeAll(cmd)
+		require.NoError(t, err)
+	})
+
+	t.Run("base dir does not exist", func(t *testing.T) {
+		scaffoldTestSetup(t)
+		env = "dev"
+		region = "nonexistent-region-1"
+		scaffoldUpgradeAll = true
+
+		cmd := newTestCmd(t)
+		err := runScaffoldUpgradeAll(cmd)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, ErrBaseDirNotExist)
+	})
+
+	t.Run("no app dirs found", func(t *testing.T) {
+		tmpDir := scaffoldTestSetup(t)
+		env = "dev"
+		region = "eu-central-1"
+		scaffoldUpgradeAll = true
+
+		// Create the region dir but leave it empty
+		require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "envs", "dev", "eu-central-1"), 0755))
+
+		cmd := newTestCmd(t)
+		err := runScaffoldUpgradeAll(cmd)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, ErrNoAppDirsFound)
+	})
+
+	t.Run("dry-run mode", func(t *testing.T) {
+		scaffoldTestSetup(t)
+		env = "dev"
+		region = "eu-central-1"
+		dryRun = true
+		scaffoldUpgradeAll = true
+
+		// Pre-create app dirs (need real dirs for discovery)
+		cmd := newTestCmd(t)
+		dryRun = false
+		scaffoldUpgradeAll = false
+		require.NoError(t, runScaffold(cmd, []string{"app1"}))
+
+		dryRun = true
+		scaffoldUpgradeAll = true
+		err := runScaffoldUpgradeAll(cmd)
+		require.NoError(t, err)
+	})
+}
+
+func TestRunScaffoldWorkflows(t *testing.T) {
+	t.Run("generates workflow files", func(t *testing.T) {
+		tmpDir := scaffoldTestSetup(t)
+		workflowsEnv = "dev"
+
+		cmd := newTestCmd(t)
+		err := runScaffoldWorkflows(cmd, []string{})
+		require.NoError(t, err)
+
+		// Check that workflow files were created
+		workflowDir := filepath.Join(tmpDir, ".github", "workflows")
+		assert.DirExists(t, workflowDir)
+	})
+
+	t.Run("force without upgrade returns error", func(t *testing.T) {
+		scaffoldTestSetup(t)
+		workflowsEnv = "dev"
+		workflowForce = true
+		workflowUpgrade = false
+
+		cmd := newTestCmd(t)
+		err := runScaffoldWorkflows(cmd, []string{})
+		assert.ErrorIs(t, err, ErrForceRequiresUpgrade)
+	})
+
+	t.Run("empty env returns error", func(t *testing.T) {
+		scaffoldTestSetup(t)
+		workflowsEnv = ""
+
+		cmd := newTestCmd(t)
+		err := runScaffoldWorkflows(cmd, []string{})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "environment")
+	})
+
+	t.Run("whitespace-only env returns error", func(t *testing.T) {
+		scaffoldTestSetup(t)
+		workflowsEnv = "   "
+
+		cmd := newTestCmd(t)
+		err := runScaffoldWorkflows(cmd, []string{})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "environment")
+	})
+
+	t.Run("dry-run mode", func(t *testing.T) {
+		scaffoldTestSetup(t)
+		workflowsEnv = "dev"
+		dryRun = true
+
+		cmd := newTestCmd(t)
+		err := runScaffoldWorkflows(cmd, []string{})
+		require.NoError(t, err)
 	})
 }

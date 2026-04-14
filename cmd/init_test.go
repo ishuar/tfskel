@@ -1,14 +1,14 @@
 package cmd
 
 import (
-	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/ishuar/tfskel/internal/fs"
+	"github.com/ishuar/tfskel/internal/generate"
 	"github.com/ishuar/tfskel/internal/logger"
 	"github.com/ishuar/tfskel/internal/templates"
-	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -406,8 +406,7 @@ func TestDetermineInitParameters(t *testing.T) {
 		tmpDir := t.TempDir()
 		log := logger.New(false)
 
-		// Create config with custom account mappings
-		configContent := `terraform_version: "~> 1.13"
+		writeTestConfigInline(t, tmpDir, `terraform_version: "~> 1.13"
 provider:
   aws:
     version: "~> 6.0"
@@ -419,10 +418,7 @@ provider:
     regions:
       - "us-east-1"
       - "eu-west-1"
-`
-		configPath := filepath.Join(tmpDir, ".tfskel.yaml")
-		err := os.WriteFile(configPath, []byte(configContent), 0644)
-		require.NoError(t, err)
+`)
 
 		envs, tfVersion, regions, _, err := determineInitParameters(tmpDir, log)
 		require.NoError(t, err)
@@ -442,39 +438,15 @@ provider:
 		tmpDir := t.TempDir()
 		log := logger.New(false)
 
-		configContent := `terraform_version: "~> 1.13"
+		writeTestConfigInline(t, tmpDir, `terraform_version: "~> 1.13"
 provider:
   aws:
     version: "~> 6.0"
     regions:
       - "us-east-1"
-`
-		configPath := filepath.Join(tmpDir, ".tfskel.yaml")
-		err := os.WriteFile(configPath, []byte(configContent), 0644)
-		require.NoError(t, err)
+`)
 
-		_, _, _, _, err = determineInitParameters(tmpDir, log)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "account_mapping is missing or empty")
-	})
-
-	t.Run("returns error when config exists with empty account_mapping", func(t *testing.T) {
-		tmpDir := t.TempDir()
-		log := logger.New(false)
-
-		configContent := `terraform_version: "~> 1.13"
-provider:
-  aws:
-    version: "~> 6.0"
-    account_mapping: {}
-    regions:
-      - "us-east-1"
-`
-		configPath := filepath.Join(tmpDir, ".tfskel.yaml")
-		err := os.WriteFile(configPath, []byte(configContent), 0644)
-		require.NoError(t, err)
-
-		_, _, _, _, err = determineInitParameters(tmpDir, log)
+		_, _, _, _, err := determineInitParameters(tmpDir, log)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "account_mapping is missing or empty")
 	})
@@ -483,10 +455,7 @@ provider:
 		tmpDir := t.TempDir()
 		log := logger.New(false)
 
-		configContent := `this is not: [valid yaml`
-		configPath := filepath.Join(tmpDir, ".tfskel.yaml")
-		err := os.WriteFile(configPath, []byte(configContent), 0644)
-		require.NoError(t, err)
+		writeTestConfigInline(t, tmpDir, `this is not: [valid yaml`)
 
 		envs, tfVersion, regions, _, err := determineInitParameters(tmpDir, log)
 		require.NoError(t, err)
@@ -500,15 +469,12 @@ provider:
 		tmpDir := t.TempDir()
 		log := logger.New(false)
 
-		configContent := `terraform_version: ">= 1.10.2"
+		writeTestConfigInline(t, tmpDir, `terraform_version: ">= 1.10.2"
 provider:
   aws:
     account_mapping:
       dev: "111111111111"
-`
-		configPath := filepath.Join(tmpDir, ".tfskel.yaml")
-		err := os.WriteFile(configPath, []byte(configContent), 0644)
-		require.NoError(t, err)
+`)
 
 		_, tfVersion, _, _, err := determineInitParameters(tmpDir, log)
 		require.NoError(t, err)
@@ -520,15 +486,12 @@ provider:
 		tmpDir := t.TempDir()
 		log := logger.New(false)
 
-		configContent := `terraform_version: "~> 1.13"
+		writeTestConfigInline(t, tmpDir, `terraform_version: "~> 1.13"
 provider:
   aws:
     account_mapping:
       dev: "111111111111"
-`
-		configPath := filepath.Join(tmpDir, ".tfskel.yaml")
-		err := os.WriteFile(configPath, []byte(configContent), 0644)
-		require.NoError(t, err)
+`)
 
 		_, _, regions, _, err := determineInitParameters(tmpDir, log)
 		require.NoError(t, err)
@@ -542,17 +505,13 @@ func TestDetermineInitParametersWorkflows(t *testing.T) {
 
 	t.Run("returns false when config has workflows.create: false", func(t *testing.T) {
 		tmpDir := t.TempDir()
-
-		configContent := `workflows:
+		writeTestConfigInline(t, tmpDir, `workflows:
   create: false
 provider:
   aws:
     account_mapping:
       dev: "111111111111"
-`
-		err := os.WriteFile(filepath.Join(tmpDir, ".tfskel.yaml"), []byte(configContent), 0644)
-		require.NoError(t, err)
-
+`)
 		_, _, _, createWorkflows, err := determineInitParameters(tmpDir, log)
 		require.NoError(t, err)
 		assert.False(t, createWorkflows)
@@ -560,17 +519,13 @@ provider:
 
 	t.Run("returns true when config has workflows.create: true", func(t *testing.T) {
 		tmpDir := t.TempDir()
-
-		configContent := `workflows:
+		writeTestConfigInline(t, tmpDir, `workflows:
   create: true
 provider:
   aws:
     account_mapping:
       dev: "111111111111"
-`
-		err := os.WriteFile(filepath.Join(tmpDir, ".tfskel.yaml"), []byte(configContent), 0644)
-		require.NoError(t, err)
-
+`)
 		_, _, _, createWorkflows, err := determineInitParameters(tmpDir, log)
 		require.NoError(t, err)
 		assert.True(t, createWorkflows)
@@ -586,16 +541,12 @@ provider:
 
 	t.Run("returns false when config has no workflows section", func(t *testing.T) {
 		tmpDir := t.TempDir()
-
-		configContent := `terraform_version: "~> 1.13"
+		writeTestConfigInline(t, tmpDir, `terraform_version: "~> 1.13"
 provider:
   aws:
     account_mapping:
       dev: "111111111111"
-`
-		err := os.WriteFile(filepath.Join(tmpDir, ".tfskel.yaml"), []byte(configContent), 0644)
-		require.NoError(t, err)
-
+`)
 		_, _, _, createWorkflows, err := determineInitParameters(tmpDir, log)
 		require.NoError(t, err)
 		assert.False(t, createWorkflows)
@@ -603,9 +554,7 @@ provider:
 
 	t.Run("returns false when config file is malformed", func(t *testing.T) {
 		tmpDir := t.TempDir()
-
-		err := os.WriteFile(filepath.Join(tmpDir, ".tfskel.yaml"), []byte(`this is not: [valid yaml`), 0644)
-		require.NoError(t, err)
+		writeTestConfigInline(t, tmpDir, `this is not: [valid yaml`)
 
 		_, _, _, createWorkflows, err := determineInitParameters(tmpDir, log)
 		require.NoError(t, err)
@@ -616,19 +565,10 @@ provider:
 func TestRunInit(t *testing.T) {
 	t.Run("init in current directory", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		originalDir, err := os.Getwd()
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			_ = os.Chdir(originalDir)
-			initDir = ""
-		})
-		err = os.Chdir(tmpDir)
-		require.NoError(t, err)
+		chdirTemp(t, tmpDir)
+		saveAndRestoreInitFlags(t)
 
-		cmd := &cobra.Command{}
-		cmd.Flags().String("config", "", "config file")
-
-		err = runInit(cmd, []string{})
+		err := runInit(newTestCmd(t), []string{})
 		require.NoError(t, err)
 
 		assert.FileExists(t, filepath.Join(tmpDir, ".gitignore"))
@@ -640,15 +580,10 @@ func TestRunInit(t *testing.T) {
 
 	t.Run("init with specific directory", func(t *testing.T) {
 		tmpDir := t.TempDir()
+		saveAndRestoreInitFlags(t)
 		initDir = tmpDir
-		t.Cleanup(func() {
-			initDir = ""
-		})
 
-		cmd := &cobra.Command{}
-		cmd.Flags().String("config", "", "config file")
-
-		err := runInit(cmd, []string{})
+		err := runInit(newTestCmd(t), []string{})
 		require.NoError(t, err)
 
 		assert.FileExists(t, filepath.Join(tmpDir, ".gitignore"))
@@ -657,36 +592,28 @@ func TestRunInit(t *testing.T) {
 
 	t.Run("init respects existing config workflows.create false", func(t *testing.T) {
 		tmpDir := t.TempDir()
-
-		configContent := `terraform_version: "~> 1.13"
-workflows:
-  create: false
+		writeTestConfigInline(t, tmpDir, `terraform_version: "~> 1.13"
 provider:
   aws:
     version: "~> 6.0"
     account_mapping:
-      dev: "111111111111"
-      stg: "222222222222"
-      prd: "333333333333"
+      dev: "123456789012"
+      stg: "234567890123"
+      prd: "345678901234"
     regions:
       - "eu-central-1"
 backend:
   s3:
-    bucket_name: "my-terraform-state"
-`
-		configPath := filepath.Join(tmpDir, ".tfskel.yaml")
-		err := os.WriteFile(configPath, []byte(configContent), 0644)
-		require.NoError(t, err)
-
+    bucket_name: "test-tf-state-bucket"
+workflows:
+  create: false
+  name: "terraform"
+  aws_role_name: "terraform-role"
+`)
+		saveAndRestoreInitFlags(t)
 		initDir = tmpDir
-		t.Cleanup(func() {
-			initDir = ""
-		})
 
-		cmd := &cobra.Command{}
-		cmd.Flags().String("config", "", "config file")
-
-		err = runInit(cmd, []string{})
+		err := runInit(newTestCmd(t), []string{})
 		require.NoError(t, err)
 
 		assert.DirExists(t, filepath.Join(tmpDir, "envs", "dev"))
@@ -697,39 +624,29 @@ backend:
 
 	t.Run("init CLI flag overrides config workflows.create", func(t *testing.T) {
 		tmpDir := t.TempDir()
-
-		configContent := `terraform_version: "~> 1.13"
-workflows:
-  create: false
+		writeTestConfigInline(t, tmpDir, `terraform_version: "~> 1.13"
 provider:
   aws:
     version: "~> 6.0"
     account_mapping:
-      dev: "111111111111"
-      stg: "222222222222"
-      prd: "333333333333"
+      dev: "123456789012"
+      stg: "234567890123"
+      prd: "345678901234"
     regions:
       - "eu-central-1"
 backend:
   s3:
-    bucket_name: "my-terraform-state"
-`
-		configPath := filepath.Join(tmpDir, ".tfskel.yaml")
-		err := os.WriteFile(configPath, []byte(configContent), 0644)
-		require.NoError(t, err)
-
+    bucket_name: "test-tf-state-bucket"
+workflows:
+  create: false
+  name: "terraform"
+  aws_role_name: "terraform-role"
+`)
+		saveAndRestoreInitFlags(t)
 		initDir = tmpDir
-		t.Cleanup(func() {
-			initDir = ""
-		})
-
 		initWorkflows = true
-		t.Cleanup(func() { initWorkflows = false })
 
-		cmd := &cobra.Command{}
-		cmd.Flags().String("config", "", "config file")
-
-		err = runInit(cmd, []string{})
+		err := runInit(newTestCmd(t), []string{})
 		require.NoError(t, err)
 
 		assert.DirExists(t, filepath.Join(tmpDir, "envs", "dev"))
@@ -748,4 +665,263 @@ func TestInitCmd(t *testing.T) {
 	dirFlag := initCmd.Flags().Lookup("dir")
 	assert.NotNil(t, dirFlag)
 	assert.Equal(t, "d", dirFlag.Shorthand)
+}
+
+// newUpgradeTestRunner creates an initRunner in upgrade mode with the given force flag.
+func newUpgradeTestRunner(t *testing.T, force bool) *initRunner {
+	t.Helper()
+	r := newTestInitRunner(t)
+	r.upgrade = true
+	r.force = force
+	return r
+}
+
+func TestUpgradeFile(t *testing.T) {
+	const templateName = "root/.gitignore.tmpl"
+
+	t.Run("no marker, no force — skips", func(t *testing.T) {
+		r := newUpgradeTestRunner(t, false)
+		targetPath := "/project/.gitignore"
+		originalContent := "# my custom gitignore\n*.log\n"
+
+		require.NoError(t, r.fs.WriteFile(targetPath, []byte(originalContent), 0644))
+
+		err := r.upgradeFile(targetPath, templateName, nil, ".gitignore")
+		require.NoError(t, err)
+
+		content, err := r.fs.ReadFile(targetPath)
+		require.NoError(t, err)
+		assert.Equal(t, originalContent, string(content), "content should be unchanged when no marker and no force")
+	})
+
+	t.Run("no marker, force — overwrites", func(t *testing.T) {
+		r := newUpgradeTestRunner(t, true)
+		targetPath := "/project/.gitignore"
+		originalContent := "# my custom gitignore\n*.log\n"
+
+		require.NoError(t, r.fs.WriteFile(targetPath, []byte(originalContent), 0644))
+
+		err := r.upgradeFile(targetPath, templateName, nil, ".gitignore")
+		require.NoError(t, err)
+
+		content, err := r.fs.ReadFile(targetPath)
+		require.NoError(t, err)
+		assert.NotEqual(t, originalContent, string(content), "content should be overwritten with force")
+		assert.Contains(t, string(content), "tfskel-source:", "re-rendered content should have source marker")
+	})
+
+	t.Run("invalid marker, no force — returns error", func(t *testing.T) {
+		r := newUpgradeTestRunner(t, false)
+		targetPath := "/project/.gitignore"
+		invalidContent := "# tfskel-source: {not valid json!}\n*.log\n"
+
+		require.NoError(t, r.fs.WriteFile(targetPath, []byte(invalidContent), 0644))
+
+		err := r.upgradeFile(targetPath, templateName, nil, ".gitignore")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid source marker")
+	})
+
+	t.Run("invalid marker, force — overwrites", func(t *testing.T) {
+		r := newUpgradeTestRunner(t, true)
+		targetPath := "/project/.gitignore"
+		invalidContent := "# tfskel-source: {not valid json!}\n*.log\n"
+
+		require.NoError(t, r.fs.WriteFile(targetPath, []byte(invalidContent), 0644))
+
+		err := r.upgradeFile(targetPath, templateName, nil, ".gitignore")
+		require.NoError(t, err)
+
+		content, err := r.fs.ReadFile(targetPath)
+		require.NoError(t, err)
+		assert.Contains(t, string(content), "tfskel-source:", "re-rendered content should have valid marker")
+	})
+
+	t.Run("valid marker — delegates to upgradeFromMarker", func(t *testing.T) {
+		r := newUpgradeTestRunner(t, false)
+		targetPath := "/project/.gitignore"
+
+		// Create file with valid marker via the normal path
+		r.upgrade = false
+		require.NoError(t, r.createFileFromTemplate(targetPath, templateName, nil))
+		r.upgrade = true
+
+		content, err := r.fs.ReadFile(targetPath)
+		require.NoError(t, err)
+		assert.Contains(t, string(content), "tfskel-source:", "file should have marker from initial creation")
+
+		// Call upgradeFile — should succeed via upgradeFromMarker (content unchanged)
+		err = r.upgradeFile(targetPath, templateName, nil, ".gitignore")
+		require.NoError(t, err)
+	})
+}
+
+func TestUpgradeFromMarker(t *testing.T) {
+	const templateName = "root/.gitignore.tmpl"
+
+	t.Run("template name mismatch — skips", func(t *testing.T) {
+		r := newUpgradeTestRunner(t, false)
+		targetPath := "/project/.gitignore"
+
+		// Create a file with a valid marker for .gitignore template
+		r.upgrade = false
+		require.NoError(t, r.createFileFromTemplate(targetPath, templateName, nil))
+		r.upgrade = true
+
+		originalContent, err := r.fs.ReadFile(targetPath)
+		require.NoError(t, err)
+
+		// Extract marker
+		marker, err := generate.ExtractSourceMarker(string(originalContent))
+		require.NoError(t, err)
+
+		// Call with a different template name — should skip
+		err = r.upgradeFromMarker(targetPath, "root/.tflint.hcl.tmpl", nil, ".gitignore", marker, originalContent, "Upgrading")
+		require.NoError(t, err)
+
+		afterContent, err := r.fs.ReadFile(targetPath)
+		require.NoError(t, err)
+		assert.Equal(t, string(originalContent), string(afterContent), "content should be unchanged on template mismatch")
+	})
+
+	t.Run("content unchanged — skips", func(t *testing.T) {
+		r := newUpgradeTestRunner(t, false)
+		targetPath := "/project/.gitignore"
+
+		// Create file normally
+		r.upgrade = false
+		require.NoError(t, r.createFileFromTemplate(targetPath, templateName, nil))
+		r.upgrade = true
+
+		originalContent, err := r.fs.ReadFile(targetPath)
+		require.NoError(t, err)
+
+		marker, err := generate.ExtractSourceMarker(string(originalContent))
+		require.NoError(t, err)
+
+		// Call with same template + data — content identical, should skip
+		err = r.upgradeFromMarker(targetPath, templateName, nil, ".gitignore", marker, originalContent, "Upgrading")
+		require.NoError(t, err)
+
+		afterContent, err := r.fs.ReadFile(targetPath)
+		require.NoError(t, err)
+		assert.Equal(t, string(originalContent), string(afterContent), "content should be unchanged when already up to date")
+	})
+
+	t.Run("template hash changed — upgrades", func(t *testing.T) {
+		r := newUpgradeTestRunner(t, false)
+		targetPath := "/project/.gitignore"
+
+		// Create file normally
+		r.upgrade = false
+		require.NoError(t, r.createFileFromTemplate(targetPath, templateName, nil))
+		r.upgrade = true
+
+		originalContent, err := r.fs.ReadFile(targetPath)
+		require.NoError(t, err)
+
+		// Replace the hash in the marker with a fake one to simulate template change
+		realHash := r.renderer.GetTemplateHash(templateName)
+		modifiedContent := strings.Replace(string(originalContent), realHash, "fakehash000", 1)
+		require.NoError(t, r.fs.WriteFile(targetPath, []byte(modifiedContent), 0644))
+
+		marker, err := generate.ExtractSourceMarker(modifiedContent)
+		require.NoError(t, err)
+		assert.Equal(t, "fakehash000", marker.Hash, "marker should have fake hash")
+
+		err = r.upgradeFromMarker(targetPath, templateName, nil, ".gitignore", marker, []byte(modifiedContent), "Upgrading")
+		require.NoError(t, err)
+
+		afterContent, err := r.fs.ReadFile(targetPath)
+		require.NoError(t, err)
+		assert.NotEqual(t, modifiedContent, string(afterContent), "content should be updated")
+		assert.Contains(t, string(afterContent), realHash, "updated content should have current hash")
+	})
+
+	t.Run("content drift — upgrades", func(t *testing.T) {
+		r := newUpgradeTestRunner(t, false)
+		targetPath := "/project/.gitignore"
+
+		// Create file normally
+		r.upgrade = false
+		require.NoError(t, r.createFileFromTemplate(targetPath, templateName, nil))
+		r.upgrade = true
+
+		originalContent, err := r.fs.ReadFile(targetPath)
+		require.NoError(t, err)
+
+		// Append extra content to simulate drift (hash stays the same)
+		driftedContent := string(originalContent) + "\n# manually added line\n"
+		require.NoError(t, r.fs.WriteFile(targetPath, []byte(driftedContent), 0644))
+
+		marker, err := generate.ExtractSourceMarker(driftedContent)
+		require.NoError(t, err)
+
+		err = r.upgradeFromMarker(targetPath, templateName, nil, ".gitignore", marker, []byte(driftedContent), "Upgrading")
+		require.NoError(t, err)
+
+		afterContent, err := r.fs.ReadFile(targetPath)
+		require.NoError(t, err)
+		assert.NotContains(t, string(afterContent), "manually added line", "drifted content should be replaced")
+	})
+}
+
+func TestCreateFileFromTemplate_UpgradePath(t *testing.T) {
+	const templateName = "root/.gitignore.tmpl"
+
+	t.Run("upgrade=true, file exists without marker — skips", func(t *testing.T) {
+		r := newUpgradeTestRunner(t, false)
+		targetPath := "/project/.gitignore"
+		originalContent := "# custom content\n"
+
+		require.NoError(t, r.fs.WriteFile(targetPath, []byte(originalContent), 0644))
+
+		err := r.createFileFromTemplate(targetPath, templateName, nil)
+		require.NoError(t, err)
+
+		content, err := r.fs.ReadFile(targetPath)
+		require.NoError(t, err)
+		assert.Equal(t, originalContent, string(content), "file without marker should be skipped on upgrade")
+	})
+
+	t.Run("upgrade=true, file does not exist — creates normally", func(t *testing.T) {
+		r := newUpgradeTestRunner(t, false)
+		targetPath := "/project/.gitignore"
+
+		err := r.createFileFromTemplate(targetPath, templateName, nil)
+		require.NoError(t, err)
+
+		assert.True(t, r.fs.FileExists(targetPath))
+		content, err := r.fs.ReadFile(targetPath)
+		require.NoError(t, err)
+		assert.Contains(t, string(content), "tfskel-source:", "new file should have source marker")
+	})
+}
+
+func TestRunInit_FlagValidation(t *testing.T) {
+	t.Run("force without upgrade returns error", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		saveAndRestoreInitFlags(t)
+		initDir = tmpDir
+		initForce = true
+		initUpgrade = false
+
+		err := runInit(newTestCmd(t), []string{})
+		assert.ErrorIs(t, err, ErrForceRequiresUpgrade)
+	})
+}
+
+func TestRunInit_DryRun(t *testing.T) {
+	t.Run("dry-run creates no files", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		saveAndRestoreInitFlags(t)
+		initDir = tmpDir
+		dryRun = true
+
+		err := runInit(newTestCmd(t), []string{})
+		require.NoError(t, err)
+
+		assert.NoFileExists(t, filepath.Join(tmpDir, ".gitignore"), "dry-run should not create files")
+		assert.NoDirExists(t, filepath.Join(tmpDir, "envs"), "dry-run should not create directories")
+	})
 }

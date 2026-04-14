@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ishuar/tfskel/internal/config"
 	"github.com/ishuar/tfskel/internal/format"
 	"github.com/ishuar/tfskel/internal/logger"
 	"github.com/ishuar/tfskel/internal/validate"
@@ -72,9 +71,9 @@ func runValidate(cmd *cobra.Command, _ []string) error {
 
 	// Load config from .tfskel.yaml in the current directory (or --config path).
 	// Validate must be run from the project root where .tfskel.yaml lives.
-	cfg, err := config.Load(cmd, viper.GetViper(), log)
+	cfg, err := loadAndValidateConfig(cmd, log)
 	if err != nil {
-		return fmt.Errorf("failed to load configuration: %w", err)
+		return err
 	}
 
 	log.Info("Running validation checks...")
