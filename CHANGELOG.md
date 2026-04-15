@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.8.1](https://github.com/ishuar/tfskel/compare/v0.8.0...v0.8.1) (2026-04-15)
+
+
+### ✨ Features
+
+* **cmd:** add --upgrade-all and --skip flags to scaffold command ([#81](https://github.com/ishuar/tfskel/issues/81)) ([014f610](https://github.com/ishuar/tfskel/commit/014f6105ec947e5b2380fef1456c4a7fb325ebae))
+* **cmd:** add debug log when workflow creation is skipped in init ([#85](https://github.com/ishuar/tfskel/issues/85)) ([4557b1f](https://github.com/ishuar/tfskel/commit/4557b1fd8f481ef6b9f6b6e09f5d7756f4f78ef5))
+* **cmd:** make .gitignore user-owned and add --skip flag to init ([#84](https://github.com/ishuar/tfskel/issues/84)) ([a0cc578](https://github.com/ishuar/tfskel/commit/a0cc57828c720fcf566b03240d794c71d6aa05bc))
+
+
+### 🐞 Bug Fixes
+
+* **cmd:** validate now fails fast on invalid configs instead of proceeding with confusing downstream results ([aba3111](https://github.com/ishuar/tfskel/commit/aba3111e588bd2d6a173f93d452396733e9e1aea))
+
+
+### 📦 Other Changes
+
+* **cmd:** remove outdated breaking change note from validate help ([#86](https://github.com/ishuar/tfskel/issues/86)) ([8c56242](https://github.com/ishuar/tfskel/commit/8c56242f948bfb98a14f908d2d0b482ab00396cd))
+
 ## [0.8.0](https://github.com/ishuar/tfskel/compare/v0.7.2...v0.8.0) (2026-04-07)
 
 
