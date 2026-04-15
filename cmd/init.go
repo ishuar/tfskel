@@ -160,6 +160,9 @@ func runInit(_ *cobra.Command, _ []string) error {
 
 	// Determine whether to create workflows: --workflows flag OR config workflows.create
 	createWorkflows := initWorkflows || workflowsFromConfig
+	if !createWorkflows {
+		log.Debug("Skipping workflow creation (workflows.create: false in config and --workflows flag not set)")
+	}
 
 	// Create filesystem abstraction — DryRunFileSystem silently skips writes
 	var filesystem fs.FileSystem = fs.NewOSFileSystem()
