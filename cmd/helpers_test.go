@@ -72,6 +72,7 @@ func saveAndRestoreInitFlags(t *testing.T) {
 	origWorkflows := initWorkflows
 	origUpgrade := initUpgrade
 	origForce := initForce
+	origSkip := initSkip
 	origDryRun := dryRun
 	origUseColor := useColor
 	t.Cleanup(func() {
@@ -79,6 +80,7 @@ func saveAndRestoreInitFlags(t *testing.T) {
 		initWorkflows = origWorkflows
 		initUpgrade = origUpgrade
 		initForce = origForce
+		initSkip = origSkip
 		dryRun = origDryRun
 		useColor = origUseColor
 	})

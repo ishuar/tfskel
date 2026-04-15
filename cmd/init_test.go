@@ -83,7 +83,7 @@ func TestCreateProjectStructure(t *testing.T) {
 		err := r.createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, environments, true)
 		require.NoError(t, err)
 
-		for _, filename := range []string{".gitignore", ".pre-commit-config.yaml", ".tflint.hcl", "trivy.yaml"} {
+		for _, filename := range []string{".pre-commit-config.yaml", ".tflint.hcl", "trivy.yaml"} {
 			filePath := filepath.Join(baseDir, filename)
 			assert.True(t, r.fs.FileExists(filePath), "File %s from loop should exist", filename)
 
@@ -277,6 +277,127 @@ func TestCreateProjectStructure(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "# custom mise config", string(content), "existing .mise.toml should not be overwritten")
 	})
+
+	t.Run(".gitignore created without source marker", func(t *testing.T) {
+		r := newTestInitRunner(t)
+		baseDir := "/project"
+
+		err := r.createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, []string{"dev"}, false)
+		require.NoError(t, err)
+
+		content, err := r.fs.ReadFile(filepath.Join(baseDir, ".gitignore"))
+		require.NoError(t, err)
+		assert.NotEmpty(t, string(content), ".gitignore should have content")
+		assert.NotContains(t, string(content), "tfskel-source:", ".gitignore should not have a source marker")
+	})
+
+	t.Run(".gitignore not overwritten when exists", func(t *testing.T) {
+		r := newTestInitRunner(t)
+		baseDir := "/project"
+
+		gitignorePath := filepath.Join(baseDir, ".gitignore")
+		require.NoError(t, r.fs.WriteFile(gitignorePath, []byte("# my custom gitignore"), 0644))
+
+		err := r.createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, []string{"dev"}, false)
+		require.NoError(t, err)
+
+		content, err := r.fs.ReadFile(gitignorePath)
+		require.NoError(t, err)
+		assert.Equal(t, "# my custom gitignore", string(content), "existing .gitignore should not be overwritten")
+	})
+
+	t.Run(".gitignore skipped on upgrade", func(t *testing.T) {
+		r := newTestInitRunner(t)
+		r.upgrade = true
+		r.force = true
+		baseDir := "/project"
+
+		gitignorePath := filepath.Join(baseDir, ".gitignore")
+		require.NoError(t, r.fs.WriteFile(gitignorePath, []byte("# my custom gitignore"), 0644))
+
+		err := r.createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, []string{"dev"}, false)
+		require.NoError(t, err)
+
+		content, err := r.fs.ReadFile(gitignorePath)
+		require.NoError(t, err)
+		assert.Equal(t, "# my custom gitignore", string(content), ".gitignore should not be touched on upgrade")
+	})
+
+	t.Run("skip single file during upgrade", func(t *testing.T) {
+		r := newTestInitRunner(t)
+		r.upgrade = true
+		r.force = true
+		r.skip = map[string]bool{"trivy.yaml": true}
+		baseDir := "/project"
+
+		// First create all files
+		err := r.createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, []string{"dev"}, false)
+		require.NoError(t, err)
+
+		// Record trivy.yaml content before upgrade
+		trivyContent, err := r.fs.ReadFile(filepath.Join(baseDir, "trivy.yaml"))
+		require.NoError(t, err)
+
+		// Run upgrade — trivy.yaml should be skipped
+		err = r.createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, []string{"dev"}, false)
+		require.NoError(t, err)
+
+		// trivy.yaml should be unchanged
+		content, err := r.fs.ReadFile(filepath.Join(baseDir, "trivy.yaml"))
+		require.NoError(t, err)
+		assert.Equal(t, string(trivyContent), string(content), "trivy.yaml should be skipped during upgrade")
+	})
+
+	t.Run("skip multiple files during upgrade", func(t *testing.T) {
+		r := newTestInitRunner(t)
+		r.upgrade = true
+		r.force = true
+		r.skip = map[string]bool{"trivy.yaml": true, ".tflint.hcl": true}
+		baseDir := "/project"
+
+		// First create all files
+		err := r.createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, []string{"dev"}, false)
+		require.NoError(t, err)
+
+		// Modify skipped files to detect if they get overwritten
+		require.NoError(t, r.fs.WriteFile(filepath.Join(baseDir, "trivy.yaml"), []byte("# custom trivy"), 0644))
+		require.NoError(t, r.fs.WriteFile(filepath.Join(baseDir, ".tflint.hcl"), []byte("# custom tflint"), 0644))
+
+		// Run upgrade
+		err = r.createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, []string{"dev"}, false)
+		require.NoError(t, err)
+
+		// Both should be unchanged
+		trivyContent, _ := r.fs.ReadFile(filepath.Join(baseDir, "trivy.yaml"))
+		assert.Equal(t, "# custom trivy", string(trivyContent))
+		tflintContent, _ := r.fs.ReadFile(filepath.Join(baseDir, ".tflint.hcl"))
+		assert.Equal(t, "# custom tflint", string(tflintContent))
+
+		// .pre-commit-config.yaml should still be upgraded (not in skip list)
+		assert.True(t, r.fs.FileExists(filepath.Join(baseDir, ".pre-commit-config.yaml")))
+	})
+
+	t.Run("skip has no effect on first-time creation", func(t *testing.T) {
+		r := newTestInitRunner(t)
+		r.skip = map[string]bool{"trivy.yaml": true}
+		baseDir := "/project"
+
+		err := r.createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, []string{"dev"}, false)
+		require.NoError(t, err)
+
+		// trivy.yaml should still be created (skip only affects upgrade path)
+		assert.True(t, r.fs.FileExists(filepath.Join(baseDir, "trivy.yaml")), "skip should not prevent first-time creation")
+	})
+}
+
+func TestInitSkipRequiresUpgrade(t *testing.T) {
+	tmpDir := t.TempDir()
+	saveAndRestoreInitFlags(t)
+	initDir = tmpDir
+	initSkip = "trivy.yaml"
+
+	err := runInit(newTestCmd(t), []string{})
+	assert.ErrorIs(t, err, ErrInitSkipRequiresUpgrade)
 }
 
 func TestCreateFileFromTemplate(t *testing.T) {

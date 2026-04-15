@@ -31,6 +31,8 @@ var (
 	ErrUpgradeAllWithUpgrade = errors.New("--upgrade-all and --upgrade are mutually exclusive")
 	// ErrSkipRequiresUpgradeAll indicates --skip was used without --upgrade-all
 	ErrSkipRequiresUpgradeAll = errors.New("--skip can only be used with --upgrade-all")
+	// ErrInitSkipRequiresUpgrade indicates --skip was used without --upgrade in init
+	ErrInitSkipRequiresUpgrade = errors.New("--skip can only be used with --upgrade")
 	// ErrBaseDirNotExist indicates the envs/<env>/<region>/ directory does not exist
 	ErrBaseDirNotExist = errors.New("base directory does not exist; check --env and --region values")
 	// ErrNoAppDirsFound indicates no app directories were found for --upgrade-all
@@ -49,7 +51,6 @@ type initManagedFile struct {
 
 // rootConfigFiles lists root config files managed by init (rendered with nil data).
 var rootConfigFiles = []initManagedFile{
-	{".gitignore", "root/.gitignore.tmpl"},
 	{".pre-commit-config.yaml", "root/.pre-commit-config.yaml.tmpl"},
 	{".tflint.hcl", "root/.tflint.hcl.tmpl"},
 	{"trivy.yaml", "root/trivy.yaml.tmpl"},
@@ -63,9 +64,10 @@ type initRunner struct {
 	upgrade  bool
 	force    bool
 	dryRun   bool
+	skip     map[string]bool
 }
 
-func newInitRunner(filesystem fs.FileSystem, log *logger.Logger, upgrade, force, dryRun bool) (*initRunner, error) {
+func newInitRunner(filesystem fs.FileSystem, log *logger.Logger, upgrade, force, dryRun bool, skip map[string]bool) (*initRunner, error) {
 	renderer, err := templates.NewRenderer()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create renderer: %w", err)
@@ -77,6 +79,7 @@ func newInitRunner(filesystem fs.FileSystem, log *logger.Logger, upgrade, force,
 		upgrade:  upgrade,
 		force:    force,
 		dryRun:   dryRun,
+		skip:     skip,
 	}, nil
 }
 
@@ -111,6 +114,7 @@ var (
 	initWorkflows bool
 	initUpgrade   bool
 	initForce     bool
+	initSkip      string
 )
 
 func init() {
@@ -118,7 +122,8 @@ func init() {
 	initCmd.Flags().StringVarP(&initDir, "dir", "d", "", "directory to initialize (default: current directory)")
 	initCmd.Flags().BoolVar(&initWorkflows, "workflows", false, "generate shared GitHub workflow files (reusable workflows and lint)")
 	initCmd.Flags().BoolVar(&initUpgrade, "upgrade", false, "overwrite init-managed files with latest versions from this binary")
-	initCmd.Flags().BoolVar(&initForce, "force", false, "with --upgrade, overwrite files even without source markers")
+	initCmd.Flags().BoolVar(&initForce, "force", false, "overwrite files even without source markers (requires --upgrade)")
+	initCmd.Flags().StringVar(&initSkip, "skip", "", "comma-separated files to skip during upgrade (requires --upgrade)")
 }
 
 func runInit(_ *cobra.Command, _ []string) error {
@@ -148,6 +153,9 @@ func runInit(_ *cobra.Command, _ []string) error {
 	if initForce && !initUpgrade {
 		return ErrForceRequiresUpgrade
 	}
+	if initSkip != "" && !initUpgrade {
+		return ErrInitSkipRequiresUpgrade
+	}
 
 	log.Infof("Initializing tfskel project structure in: %s", targetDir)
 
@@ -167,7 +175,7 @@ func runInit(_ *cobra.Command, _ []string) error {
 		filesystem = fs.NewDryRunFileSystem(filesystem)
 	}
 
-	runner, err := newInitRunner(filesystem, log, initUpgrade, initForce, dryRun)
+	runner, err := newInitRunner(filesystem, log, initUpgrade, initForce, dryRun, parseSkipList(initSkip))
 	if err != nil {
 		return err
 	}
@@ -301,6 +309,13 @@ func (r *initRunner) createProjectStructure(baseDir, terraformVersion string, re
 		}
 	}
 
+	// Create .gitignore with sensible Terraform defaults. This file is user-owned
+	// after creation: tfskel seeds it once but does not manage it (no source marker,
+	// skipped on --upgrade).
+	if err := r.createUnmanagedFile(filepath.Join(baseDir, ".gitignore"), "root/.gitignore.tmpl", nil); err != nil {
+		return err
+	}
+
 	// Create .mise.toml with sensible defaults. This file is user-owned after creation:
 	// tfskel seeds it once but does not manage it (no source marker, skipped on --upgrade).
 	if err := r.createUnmanagedFile(filepath.Join(baseDir, ".mise.toml"), "root/.mise.toml.tmpl", &templates.Data{
@@ -388,6 +403,10 @@ func (r *initRunner) createFileFromTemplate(targetPath, templateName string, dat
 	// Check if file already exists
 	if r.fs.FileExists(targetPath) {
 		if r.upgrade {
+			if r.skip[filepath.Base(targetPath)] {
+				r.log.Infof("%s skipped (--skip)", logPath)
+				return nil
+			}
 			return r.upgradeFile(targetPath, templateName, data, logPath)
 		}
 		r.log.Infof("%s already exists, skipping", logPath)
