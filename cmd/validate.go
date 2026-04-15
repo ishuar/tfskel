@@ -26,10 +26,7 @@ two validation checks:
   config  — Terraform/provider version constraints and .terraform-version files match config
   tools   — required tools are installed and at expected versions (compared against .mise.toml)
 
-By default all checks run. Use --skip to exclude specific checks.
-
-BREAKING CHANGE: Existing projects using the old 'tfskel init --check' pre-commit hook
-must run 'tfskel init --upgrade' to update .pre-commit-config.yaml to the new hook entry.`,
+By default all checks run. Use --skip to exclude specific checks.`,
 	Example: `  # Run all checks
   tfskel validate
 
