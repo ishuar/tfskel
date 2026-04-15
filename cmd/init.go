@@ -413,6 +413,11 @@ func (r *initRunner) createFileFromTemplate(targetPath, templateName string, dat
 		return nil
 	}
 
+	// Skip check doesn't apply to new files — only to upgrades
+	if r.skip[filepath.Base(targetPath)] {
+		r.log.Debugf("%s in --skip list but does not exist yet, creating normally", logPath)
+	}
+
 	// Render content
 	content, err := r.renderTemplate(templateName, data)
 	if err != nil {

@@ -334,9 +334,8 @@ func TestCreateProjectStructure(t *testing.T) {
 		err := r.createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, []string{"dev"}, false)
 		require.NoError(t, err)
 
-		// Record trivy.yaml content before upgrade
-		trivyContent, err := r.fs.ReadFile(filepath.Join(baseDir, "trivy.yaml"))
-		require.NoError(t, err)
+		// Modify trivy.yaml to detect if it gets overwritten
+		require.NoError(t, r.fs.WriteFile(filepath.Join(baseDir, "trivy.yaml"), []byte("# custom trivy"), 0644))
 
 		// Run upgrade — trivy.yaml should be skipped
 		err = r.createProjectStructure(baseDir, "1.13.1", []string{"eu-central-1"}, []string{"dev"}, false)
@@ -345,7 +344,7 @@ func TestCreateProjectStructure(t *testing.T) {
 		// trivy.yaml should be unchanged
 		content, err := r.fs.ReadFile(filepath.Join(baseDir, "trivy.yaml"))
 		require.NoError(t, err)
-		assert.Equal(t, string(trivyContent), string(content), "trivy.yaml should be skipped during upgrade")
+		assert.Equal(t, "# custom trivy", string(content), "trivy.yaml should be skipped during upgrade")
 	})
 
 	t.Run("skip multiple files during upgrade", func(t *testing.T) {
