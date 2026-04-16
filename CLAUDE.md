@@ -10,18 +10,19 @@ Use [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): 
 
 **Types:** feat, fix, perf, docs, test, refactor, build, ci, chore, style
 
-**Scopes** (pick one):
+**Scopes** (pick one, or omit for cross-cutting changes):
 
-| Category | Scope      | Covers                                      |
-| -------- | ---------- | ------------------------------------------- |
-| Commands | `cmd`      | CLI commands (init, scaffold, diff, review) |
-| Internal | `config`   | Configuration system                        |
-| Internal | `template` | Template rendering                          |
-| Internal | `generate` | Template generation                         |
-| Internal | `plan`     | Plan parsing/analysis                       |
-| Internal | `diff`     | Diff computation                            |
+| Scope      | Covers                                               |
+| ---------- | ---------------------------------------------------- |
+| `init`     | `tfskel init` command and supporting code            |
+| `scaffold` | `tfskel scaffold` command and supporting code        |
+| `validate` | `tfskel validate` command and `internal/validate/`   |
+| `review`   | `tfskel review` command and `internal/plan/`         |
+| `config`   | Configuration system (`internal/config/`)            |
 
-Breaking changes: add `!` after the type, e.g. `feat(cmd)!: redesign CLI interface`
+Cross-cutting changes (format, logger, build, CI) use the type alone — no scope needed.
+
+Breaking changes: add `!` after the type, e.g. `feat(validate)!: redesign report output`
 
 ## Build & test
 
