@@ -75,11 +75,7 @@ func (f *Formatter) formatTable(report *Report, w io.Writer) error {
 	if _, err := fmt.Fprintln(buf, styles.TitleStyle.Render("━━━ Validation Report ━━━")); err != nil {
 		return err
 	}
-	dir := "."
-	if report != nil && report.Directory != "" {
-		dir = report.Directory
-	}
-	if _, err := fmt.Fprintf(buf, "%s  %s\n", styles.MutedStyle.Render("Directory:"), dir); err != nil {
+	if err := f.writeProjectHeader(buf, report, styles); err != nil {
 		return err
 	}
 
@@ -123,6 +119,62 @@ func (f *Formatter) formatTable(report *Report, w io.Writer) error {
 
 	_, err := w.Write(buf.Bytes())
 	return err
+}
+
+// writeProjectHeader renders the project-context block that opens the table output.
+// ProjectRoot, Directory, and ConfigPath are always populated by the runner (see
+// cmd/validate.go and internal/validate/runner.go) before this is called.
+func (f *Formatter) writeProjectHeader(w io.Writer, report *Report, styles format.CommonStyles) error {
+	if _, err := fmt.Fprintf(w, "%s %s\n",
+		styles.MutedStyle.Render(padLabel("Project root:")),
+		report.ProjectRoot); err != nil {
+		return err
+	}
+
+	// Working dir only differs from project root when validate is invoked from a subdir.
+	if report.Directory != report.ProjectRoot {
+		if _, err := fmt.Fprintf(w, "%s %s\n",
+			styles.MutedStyle.Render(padLabel("Working dir:")),
+			report.Directory); err != nil {
+			return err
+		}
+	}
+
+	if _, err := fmt.Fprintf(w, "%s %s\n",
+		styles.MutedStyle.Render(padLabel("Config:")),
+		report.ConfigPath); err != nil {
+		return err
+	}
+
+	// Environments and regions are genuinely optional in .tfskel.yaml.
+	if len(report.Environments) > 0 {
+		if _, err := fmt.Fprintf(w, "%s %s\n",
+			styles.MutedStyle.Render(padLabel("Environments:")),
+			strings.Join(report.Environments, ", ")); err != nil {
+			return err
+		}
+	}
+
+	if len(report.Regions) > 0 {
+		if _, err := fmt.Fprintf(w, "%s %s\n",
+			styles.MutedStyle.Render(padLabel("Regions:")),
+			strings.Join(report.Regions, ", ")); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// headerLabelWidth aligns values across all rows of the project header block.
+const headerLabelWidth = 14
+
+// padLabel right-pads label so values line up in the header block.
+func padLabel(label string) string {
+	if len(label) >= headerLabelWidth {
+		return label
+	}
+	return label + strings.Repeat(" ", headerLabelWidth-len(label))
 }
 
 func (f *Formatter) writeSummaryLine(w io.Writer, c CheckResult, styles format.CommonStyles) error {
@@ -367,15 +419,23 @@ func (f *Formatter) formatJSON(report *Report, w io.Writer) error {
 	encoder.SetEscapeHTML(false)
 
 	output := struct {
-		Directory string        `json:"directory,omitempty"`
-		Checks    []CheckResult `json:"checks"`
-		Findings  []Finding     `json:"findings"`
-		ExitCode  int           `json:"exitCode"`
+		Directory    string        `json:"directory,omitempty"`
+		ProjectRoot  string        `json:"projectRoot,omitempty"`
+		ConfigPath   string        `json:"configPath,omitempty"`
+		Environments []string      `json:"environments,omitempty"`
+		Regions      []string      `json:"regions,omitempty"`
+		Checks       []CheckResult `json:"checks"`
+		Findings     []Finding     `json:"findings"`
+		ExitCode     int           `json:"exitCode"`
 	}{
-		Directory: report.Directory,
-		Checks:    report.Checks,
-		Findings:  report.Findings,
-		ExitCode:  report.ExitCode(),
+		Directory:    report.Directory,
+		ProjectRoot:  report.ProjectRoot,
+		ConfigPath:   report.ConfigPath,
+		Environments: report.Environments,
+		Regions:      report.Regions,
+		Checks:       report.Checks,
+		Findings:     report.Findings,
+		ExitCode:     report.ExitCode(),
 	}
 
 	return encoder.Encode(output)
