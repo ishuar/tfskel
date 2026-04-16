@@ -121,6 +121,14 @@ func (f *Formatter) formatTable(report *Report, w io.Writer) error {
 	return err
 }
 
+// headerLabelWidth aligns values across all rows of the project header block.
+const headerLabelWidth = 14
+
+// padLabel right-pads label so values line up in the header block.
+func padLabel(label string) string {
+	return fmt.Sprintf("%-*s", headerLabelWidth, label)
+}
+
 // writeProjectHeader renders the project-context block that opens the table output.
 // ProjectRoot, Directory, and ConfigPath are always populated by the runner (see
 // cmd/validate.go and internal/validate/runner.go) before this is called.
@@ -164,17 +172,6 @@ func (f *Formatter) writeProjectHeader(w io.Writer, report *Report, styles forma
 	}
 
 	return nil
-}
-
-// headerLabelWidth aligns values across all rows of the project header block.
-const headerLabelWidth = 14
-
-// padLabel right-pads label so values line up in the header block.
-func padLabel(label string) string {
-	if len(label) >= headerLabelWidth {
-		return label
-	}
-	return label + strings.Repeat(" ", headerLabelWidth-len(label))
 }
 
 func (f *Formatter) writeSummaryLine(w io.Writer, c CheckResult, styles format.CommonStyles) error {

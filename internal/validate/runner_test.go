@@ -115,6 +115,18 @@ func TestRunner_Run_SkippedChecks(t *testing.T) {
 	assert.NotEqual(t, StatusSkipped, statusByCheck[CheckConfig])
 }
 
+func TestRunner_Run_PopulatesHeader(t *testing.T) {
+	// Header fields must be wired from cfg + configPath into the Report.
+	r := NewRunner(minimalCfg(), "/tmp/scan", map[CheckName]bool{}, "/tmp/.tfskel.yaml")
+
+	report := r.Run()
+
+	assert.Equal(t, "/tmp/scan", report.Directory)
+	assert.Equal(t, "/tmp", report.ProjectRoot)
+	assert.Equal(t, "/tmp/.tfskel.yaml", report.ConfigPath)
+	assert.Equal(t, []string{"dev"}, report.Environments)
+}
+
 func TestRunner_Run_AllSkipped(t *testing.T) {
 	// Empty check map — nothing runs.
 	checks := map[CheckName]bool{}
