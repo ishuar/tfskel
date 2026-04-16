@@ -63,7 +63,10 @@ type Report struct {
 	Checks   []CheckResult `json:"checks"`
 	Findings []Finding     `json:"findings"`
 
-	// Directory is the scan root displayed in table output.
+	// Directory is the scan root (the working directory at invocation time).
+	// Distinct from ProjectRoot: when validate is invoked from a subdir of the
+	// project, Directory is that subdir while ProjectRoot is filepath.Dir(configPath).
+	// The table header renders both lines when they differ.
 	Directory string `json:"directory,omitempty"`
 
 	// ProjectRoot is the absolute path to the project root, defined as the

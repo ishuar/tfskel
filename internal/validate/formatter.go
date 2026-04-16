@@ -121,52 +121,40 @@ func (f *Formatter) formatTable(report *Report, w io.Writer) error {
 	return err
 }
 
-// headerLabelWidth aligns values across all rows of the project header block.
-const headerLabelWidth = 14
-
-// padLabel right-pads label so values line up in the header block.
-func padLabel(label string) string {
-	return fmt.Sprintf("%-*s", headerLabelWidth, label)
-}
-
 // writeProjectHeader renders the project-context block that opens the table output.
 // ProjectRoot, Directory, and ConfigPath are always populated by the runner (see
 // cmd/validate.go and internal/validate/runner.go) before this is called.
+//
+// Label column width is computed over the rows actually being rendered, so adding
+// or removing a label does not silently misalign the block.
 func (f *Formatter) writeProjectHeader(w io.Writer, report *Report, styles format.CommonStyles) error {
-	if _, err := fmt.Fprintf(w, "%s %s\n",
-		styles.MutedStyle.Render(padLabel("Project root:")),
-		report.ProjectRoot); err != nil {
-		return err
-	}
+	type headerRow struct{ label, value string }
 
+	rows := []headerRow{{"Project root:", report.ProjectRoot}}
 	// Working dir only differs from project root when validate is invoked from a subdir.
 	if report.Directory != report.ProjectRoot {
-		if _, err := fmt.Fprintf(w, "%s %s\n",
-			styles.MutedStyle.Render(padLabel("Working dir:")),
-			report.Directory); err != nil {
-			return err
-		}
+		rows = append(rows, headerRow{"Working dir:", report.Directory})
 	}
-
-	if _, err := fmt.Fprintf(w, "%s %s\n",
-		styles.MutedStyle.Render(padLabel("Config:")),
-		report.ConfigPath); err != nil {
-		return err
-	}
-
+	rows = append(rows, headerRow{"Config:", report.ConfigPath})
 	// Environments and regions are genuinely optional in .tfskel.yaml.
 	if len(report.Environments) > 0 {
-		if _, err := fmt.Fprintf(w, "%s %s\n",
-			styles.MutedStyle.Render(padLabel("Environments:")),
-			strings.Join(report.Environments, ", ")); err != nil {
-			return err
+		rows = append(rows, headerRow{"Environments:", strings.Join(report.Environments, ", ")})
+	}
+	if len(report.Regions) > 0 {
+		rows = append(rows, headerRow{"Regions:", strings.Join(report.Regions, ", ")})
+	}
+
+	width := 0
+	for _, r := range rows {
+		if n := len(r.label); n > width {
+			width = n
 		}
 	}
 
-	if len(report.Regions) > 0 {
+	for _, r := range rows {
 		if _, err := fmt.Fprintf(w, "%s %s\n",
-			styles.MutedStyle.Render(padLabel("Regions:")),
-			strings.Join(report.Regions, ", ")); err != nil {
+			styles.MutedStyle.Render(fmt.Sprintf("%-*s", width, r.label)),
+			r.value); err != nil {
 			return err
 		}
 	}
