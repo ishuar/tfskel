@@ -55,13 +55,12 @@ func init() {
 func runValidate(cmd *cobra.Command, _ []string) error {
 	log := logger.NewWithOptions(viper.GetBool("verbose"), useColor)
 
-	// Parse check selection
 	checks, err := validate.ParseCheckSelection(validateSkip)
 	if err != nil {
 		return err
 	}
 
-	// Suppress logs for machine-readable formats
+	// Suppress logs for machine-readable formats.
 	outputFormat := format.OutputFormat(validateFormat)
 	if outputFormat == format.FormatJSON || outputFormat == format.FormatCSV {
 		log.SetMachineOutput()
@@ -98,7 +97,6 @@ func runValidate(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("failed to format output: %w", err)
 	}
 
-	// Exit with appropriate code
 	exitCode := report.ExitCode()
 	if exitCode != 0 {
 		return NewExitError(exitCode, "")

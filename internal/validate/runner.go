@@ -17,14 +17,17 @@ var ErrUnknownCheck = errors.New("unknown check")
 type Runner struct {
 	cfg        *config.Config
 	dir        string
-	configPath string             // path to the loaded tfskel config file (for report header)
+	configPath string             // absolute path to the loaded tfskel config file
 	checks     map[CheckName]bool // which checks to run (true = run)
 }
 
 // NewRunner creates a runner that will execute the specified checks.
-// If checks is nil, all checks are run.
-// configPath is the absolute or relative path to the loaded .tfskel.yaml (from
-// viper.ConfigFileUsed); it is used to populate the report's header.
+//
+// cfg must be non-nil when [Runner.Run] is called; it dereferences
+// Provider.AWS fields guaranteed by config.Validate.
+//
+// configPath is the absolute path to the loaded .tfskel.yaml; the caller
+// (cmd/validate.go) resolves it via filepath.Abs before passing it in.
 func NewRunner(cfg *config.Config, dir string, checks map[CheckName]bool, configPath string) *Runner {
 	if checks == nil {
 		checks = map[CheckName]bool{

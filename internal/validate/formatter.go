@@ -122,16 +122,11 @@ func (f *Formatter) formatTable(report *Report, w io.Writer) error {
 }
 
 // writeProjectHeader renders the project-context block that opens the table output.
-// ProjectRoot, Directory, and ConfigPath are always populated by the runner (see
-// cmd/validate.go and internal/validate/runner.go) before this is called.
-//
-// Label column width is computed over the rows actually being rendered, so adding
-// or removing a label does not silently misalign the block.
+// Label column width is computed dynamically over the rendered rows.
 func (f *Formatter) writeProjectHeader(w io.Writer, report *Report, styles format.CommonStyles) error {
 	type headerRow struct{ label, value string }
 
 	rows := []headerRow{{"Project root:", report.ProjectRoot}}
-	// Working dir only differs from project root when validate is invoked from a subdir.
 	if report.Directory != report.ProjectRoot {
 		rows = append(rows, headerRow{"Working dir:", report.Directory})
 	}
