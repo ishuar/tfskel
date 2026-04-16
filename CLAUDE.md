@@ -35,6 +35,16 @@ make build    # build binary
 - Follow Effective Go
 - See CONTRIBUTING.md for full guidelines
 
+### Defensive code / fail fast
+
+Trust invariants set by upstream code. Add runtime checks **only at system boundaries** (CLI flags, user input, file I/O, external APIs).
+
+- Don't re-validate arguments passed between internal functions — the caller and the type system already guarantee them.
+- Don't add silent fallbacks (`if x == "" { x = y }`) for cases that only fire when upstream is broken. They hide bugs.
+- If an "impossible" case could theoretically occur, let it surface: explicit error, panic for programming bugs, or just ugly output. Visible failure beats silent recovery.
+
+**Rule of thumb:** if deleting a check would only change behavior when something upstream is broken, delete the check.
+
 ### CLI Error Outputs
 
 #### Design Principle
