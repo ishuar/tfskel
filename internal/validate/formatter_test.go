@@ -312,6 +312,98 @@ func TestFormatter_FormatTable(t *testing.T) {
 		output := buf.String()
 		assert.Contains(t, output, "2 tools, 3 findings")
 	})
+
+	t.Run("project header renders when data is populated", func(t *testing.T) {
+		f := &Formatter{useColor: false, terminalWidth: 120}
+		report := &Report{
+			Directory:    "/home/alice/infra",
+			ProjectRoot:  "/home/alice/infra",
+			ConfigPath:   "/home/alice/infra/.tfskel.yaml",
+			Environments: []string{"dev", "prd", "stg"},
+			Regions:      []string{"eu-central-1"},
+			Checks: []CheckResult{
+				{Check: CheckConfig, Status: StatusPass},
+				{Check: CheckTools, Status: StatusPass},
+			},
+		}
+
+		var buf bytes.Buffer
+		require.NoError(t, f.Format(report, format.FormatTable, &buf))
+
+		output := buf.String()
+		assert.Contains(t, output, "Project root:")
+		assert.Contains(t, output, "/home/alice/infra")
+		assert.Contains(t, output, "Config:")
+		assert.Contains(t, output, "/home/alice/infra/.tfskel.yaml")
+		assert.Contains(t, output, "Environments:")
+		assert.Contains(t, output, "dev, prd, stg")
+		assert.Contains(t, output, "Regions:")
+		assert.Contains(t, output, "eu-central-1")
+		// Working dir matches project root → line should be omitted.
+		assert.NotContains(t, output, "Working dir:")
+	})
+
+	t.Run("working dir line shown when scan dir differs from project root", func(t *testing.T) {
+		f := &Formatter{useColor: false, terminalWidth: 120}
+		report := &Report{
+			Directory:   "/home/alice/infra/envs",
+			ProjectRoot: "/home/alice/infra",
+			ConfigPath:  "/home/alice/infra/.tfskel.yaml",
+			Checks:      []CheckResult{{Check: CheckConfig, Status: StatusPass}},
+		}
+
+		var buf bytes.Buffer
+		require.NoError(t, f.Format(report, format.FormatTable, &buf))
+
+		output := buf.String()
+		assert.Contains(t, output, "Project root:")
+		assert.Contains(t, output, "/home/alice/infra")
+		assert.Contains(t, output, "Working dir:")
+		assert.Contains(t, output, "/home/alice/infra/envs")
+	})
+
+	t.Run("project header omits empty env and region lines", func(t *testing.T) {
+		f := &Formatter{useColor: false, terminalWidth: 120}
+		report := &Report{
+			ProjectRoot: "/tmp/proj",
+			ConfigPath:  "/tmp/proj/.tfskel.yaml",
+			Checks:      []CheckResult{{Check: CheckConfig, Status: StatusPass}},
+		}
+
+		var buf bytes.Buffer
+		require.NoError(t, f.Format(report, format.FormatTable, &buf))
+
+		output := buf.String()
+		assert.Contains(t, output, "Project root:")
+		assert.NotContains(t, output, "Environments:")
+		assert.NotContains(t, output, "Regions:")
+	})
+}
+
+func TestFormatter_FormatJSON_HeaderFields(t *testing.T) {
+	f := &Formatter{useColor: false, terminalWidth: 120}
+	report := &Report{
+		ProjectRoot:  "/home/alice/infra",
+		ConfigPath:   "/home/alice/infra/.tfskel.yaml",
+		Environments: []string{"dev", "prd"},
+		Regions:      []string{"eu-central-1"},
+		Checks:       []CheckResult{{Check: CheckConfig, Status: StatusPass}},
+	}
+
+	var buf bytes.Buffer
+	require.NoError(t, f.Format(report, format.FormatJSON, &buf))
+
+	var result struct {
+		ProjectRoot  string   `json:"projectRoot"`
+		ConfigPath   string   `json:"configPath"`
+		Environments []string `json:"environments"`
+		Regions      []string `json:"regions"`
+	}
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &result))
+	assert.Equal(t, "/home/alice/infra", result.ProjectRoot)
+	assert.Equal(t, "/home/alice/infra/.tfskel.yaml", result.ConfigPath)
+	assert.Equal(t, []string{"dev", "prd"}, result.Environments)
+	assert.Equal(t, []string{"eu-central-1"}, result.Regions)
 }
 
 // --- Unsupported format ---

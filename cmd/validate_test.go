@@ -1,7 +1,10 @@
 package cmd
 
 import (
+	"encoding/json"
 	"errors"
+	"io"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -158,6 +161,74 @@ func TestValidateCmd_CommandSetup(t *testing.T) {
 		assert.NotNil(t, skipFlag)
 		assert.Equal(t, "", skipFlag.DefValue)
 	})
+}
+
+// captureStdout swaps os.Stdout for a pipe for the duration of fn and returns
+// what was written. Used to inspect JSON output from runValidate, which writes
+// directly to os.Stdout rather than an injected writer.
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+	orig := os.Stdout
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	os.Stdout = w
+
+	done := make(chan []byte)
+	go func() {
+		b, _ := io.ReadAll(r)
+		done <- b
+	}()
+
+	fn()
+
+	require.NoError(t, w.Close())
+	os.Stdout = orig
+	return string(<-done)
+}
+
+// TestRunValidate_RelativeConfigPath verifies that when --config is passed as a
+// relative path, the report's ProjectRoot/ConfigPath are still absolute. This
+// guards the filepath.Abs normalization in runValidate.
+func TestRunValidate_RelativeConfigPath(t *testing.T) {
+	tmpDir := validateTestSetup(t)
+	validateFormat = "json"
+	validateSkip = "tools"
+
+	// Re-initialize viper using a relative --config path. ConfigFileUsed() will
+	// then be relative, exercising the abs-resolution branch in runValidate.
+	viper.Reset()
+	origCfgFile := cfgFile
+	cfgFile = "./.tfskel.yaml"
+	t.Cleanup(func() {
+		cfgFile = origCfgFile
+		viper.Reset()
+	})
+	initConfig()
+	require.False(t, filepath.IsAbs(viper.ConfigFileUsed()),
+		"precondition: viper should retain the relative --config path")
+
+	out := captureStdout(t, func() {
+		err := runValidate(newTestCmd(t), []string{})
+		require.NoError(t, err)
+	})
+
+	var report struct {
+		ProjectRoot string `json:"projectRoot"`
+		ConfigPath  string `json:"configPath"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(out), &report))
+	assert.True(t, filepath.IsAbs(report.ProjectRoot),
+		"projectRoot should be absolute, got %q", report.ProjectRoot)
+	assert.True(t, filepath.IsAbs(report.ConfigPath),
+		"configPath should be absolute, got %q", report.ConfigPath)
+
+	// On macOS, t.TempDir() returns /var/... but os.Getwd() (used to resolve
+	// the relative config path) canonicalizes through the /private symlink.
+	// Compare against the resolved path to stay portable.
+	canonical, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
+	assert.Equal(t, canonical, report.ProjectRoot)
+	assert.Equal(t, filepath.Join(canonical, ".tfskel.yaml"), report.ConfigPath)
 }
 
 func TestRunValidate_SkipToolsConfigPass(t *testing.T) {

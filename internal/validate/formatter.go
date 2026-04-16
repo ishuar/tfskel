@@ -75,11 +75,7 @@ func (f *Formatter) formatTable(report *Report, w io.Writer) error {
 	if _, err := fmt.Fprintln(buf, styles.TitleStyle.Render("━━━ Validation Report ━━━")); err != nil {
 		return err
 	}
-	dir := "."
-	if report != nil && report.Directory != "" {
-		dir = report.Directory
-	}
-	if _, err := fmt.Fprintf(buf, "%s  %s\n", styles.MutedStyle.Render("Directory:"), dir); err != nil {
+	if err := f.writeProjectHeader(buf, report, styles); err != nil {
 		return err
 	}
 
@@ -123,6 +119,42 @@ func (f *Formatter) formatTable(report *Report, w io.Writer) error {
 
 	_, err := w.Write(buf.Bytes())
 	return err
+}
+
+// writeProjectHeader renders the project-context block that opens the table output.
+// Label column width is computed dynamically over the rendered rows.
+func (f *Formatter) writeProjectHeader(w io.Writer, report *Report, styles format.CommonStyles) error {
+	type headerRow struct{ label, value string }
+
+	rows := []headerRow{{"Project root:", report.ProjectRoot}}
+	if report.Directory != report.ProjectRoot {
+		rows = append(rows, headerRow{"Working dir:", report.Directory})
+	}
+	rows = append(rows, headerRow{"Config:", report.ConfigPath})
+	// Environments and regions are genuinely optional in .tfskel.yaml.
+	if len(report.Environments) > 0 {
+		rows = append(rows, headerRow{"Environments:", strings.Join(report.Environments, ", ")})
+	}
+	if len(report.Regions) > 0 {
+		rows = append(rows, headerRow{"Regions:", strings.Join(report.Regions, ", ")})
+	}
+
+	width := 0
+	for _, r := range rows {
+		if n := len(r.label); n > width {
+			width = n
+		}
+	}
+
+	for _, r := range rows {
+		if _, err := fmt.Fprintf(w, "%s %s\n",
+			styles.MutedStyle.Render(fmt.Sprintf("%-*s", width, r.label)),
+			r.value); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (f *Formatter) writeSummaryLine(w io.Writer, c CheckResult, styles format.CommonStyles) error {
@@ -367,15 +399,23 @@ func (f *Formatter) formatJSON(report *Report, w io.Writer) error {
 	encoder.SetEscapeHTML(false)
 
 	output := struct {
-		Directory string        `json:"directory,omitempty"`
-		Checks    []CheckResult `json:"checks"`
-		Findings  []Finding     `json:"findings"`
-		ExitCode  int           `json:"exitCode"`
+		Directory    string        `json:"directory,omitempty"`
+		ProjectRoot  string        `json:"projectRoot,omitempty"`
+		ConfigPath   string        `json:"configPath,omitempty"`
+		Environments []string      `json:"environments,omitempty"`
+		Regions      []string      `json:"regions,omitempty"`
+		Checks       []CheckResult `json:"checks"`
+		Findings     []Finding     `json:"findings"`
+		ExitCode     int           `json:"exitCode"`
 	}{
-		Directory: report.Directory,
-		Checks:    report.Checks,
-		Findings:  report.Findings,
-		ExitCode:  report.ExitCode(),
+		Directory:    report.Directory,
+		ProjectRoot:  report.ProjectRoot,
+		ConfigPath:   report.ConfigPath,
+		Environments: report.Environments,
+		Regions:      report.Regions,
+		Checks:       report.Checks,
+		Findings:     report.Findings,
+		ExitCode:     report.ExitCode(),
 	}
 
 	return encoder.Encode(output)

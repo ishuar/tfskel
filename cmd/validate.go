@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/ishuar/tfskel/internal/format"
 	"github.com/ishuar/tfskel/internal/logger"
@@ -54,13 +55,12 @@ func init() {
 func runValidate(cmd *cobra.Command, _ []string) error {
 	log := logger.NewWithOptions(viper.GetBool("verbose"), useColor)
 
-	// Parse check selection
 	checks, err := validate.ParseCheckSelection(validateSkip)
 	if err != nil {
 		return err
 	}
 
-	// Suppress logs for machine-readable formats
+	// Suppress logs for machine-readable formats.
 	outputFormat := format.OutputFormat(validateFormat)
 	if outputFormat == format.FormatJSON || outputFormat == format.FormatCSV {
 		log.SetMachineOutput()
@@ -80,7 +80,15 @@ func runValidate(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("failed to resolve working directory: %w", err)
 	}
 
-	runner := validate.NewRunner(cfg, scanDir, checks)
+	// viper.ConfigFileUsed() is guaranteed non-empty by loadAndValidateConfig above.
+	// It may be relative (when --config is passed as a relative path); normalize to
+	// absolute so the report header is unambiguous regardless of invocation.
+	configPath, err := filepath.Abs(viper.ConfigFileUsed())
+	if err != nil {
+		return fmt.Errorf("failed to resolve config path: %w", err)
+	}
+
+	runner := validate.NewRunner(cfg, scanDir, checks, configPath)
 	report := runner.Run()
 
 	// Format output
@@ -89,7 +97,6 @@ func runValidate(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("failed to format output: %w", err)
 	}
 
-	// Exit with appropriate code
 	exitCode := report.ExitCode()
 	if exitCode != 0 {
 		return NewExitError(exitCode, "")

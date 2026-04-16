@@ -3,6 +3,8 @@ package validate
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/ishuar/tfskel/internal/config"
@@ -13,14 +15,20 @@ var ErrUnknownCheck = errors.New("unknown check")
 
 // Runner orchestrates validation checks.
 type Runner struct {
-	cfg    *config.Config
-	dir    string
-	checks map[CheckName]bool // which checks to run (true = run)
+	cfg        *config.Config
+	dir        string
+	configPath string             // absolute path to the loaded tfskel config file
+	checks     map[CheckName]bool // which checks to run (true = run)
 }
 
 // NewRunner creates a runner that will execute the specified checks.
-// If checks is nil, all checks are run.
-func NewRunner(cfg *config.Config, dir string, checks map[CheckName]bool) *Runner {
+//
+// cfg must be non-nil when [Runner.Run] is called; it dereferences
+// Provider.AWS fields guaranteed by config.Validate.
+//
+// configPath is the absolute path to the loaded .tfskel.yaml; the caller
+// (cmd/validate.go) resolves it via filepath.Abs before passing it in.
+func NewRunner(cfg *config.Config, dir string, checks map[CheckName]bool, configPath string) *Runner {
 	if checks == nil {
 		checks = map[CheckName]bool{
 			CheckConfig: true,
@@ -29,15 +37,24 @@ func NewRunner(cfg *config.Config, dir string, checks map[CheckName]bool) *Runne
 	}
 
 	return &Runner{
-		cfg:    cfg,
-		dir:    dir,
-		checks: checks,
+		cfg:        cfg,
+		dir:        dir,
+		configPath: configPath,
+		checks:     checks,
 	}
 }
 
 // Run executes all selected checks and returns a unified report.
 func (r *Runner) Run() *Report {
-	report := &Report{Directory: r.dir}
+	// cfg and configPath are populated by cmd/validate.go after loadAndValidateConfig,
+	// which guarantees Provider.AWS and AccountMapping are set (see config.Validate).
+	report := &Report{
+		Directory:    r.dir,
+		ProjectRoot:  filepath.Dir(r.configPath),
+		ConfigPath:   r.configPath,
+		Environments: environmentsFromConfig(r.cfg),
+		Regions:      r.cfg.Provider.AWS.Regions,
+	}
 
 	for _, check := range AllChecks() {
 		if !r.checks[check] {
@@ -105,4 +122,16 @@ func ParseCheckSelection(skip string) (map[CheckName]bool, error) {
 		delete(checks, CheckName(name))
 	}
 	return checks, nil
+}
+
+// environmentsFromConfig returns the sorted environment names defined in the
+// AWS account mapping. AccountMapping is guaranteed non-empty by config.Validate.
+func environmentsFromConfig(cfg *config.Config) []string {
+	mapping := cfg.Provider.AWS.AccountMapping
+	envs := make([]string, 0, len(mapping))
+	for env := range mapping {
+		envs = append(envs, env)
+	}
+	sort.Strings(envs)
+	return envs
 }

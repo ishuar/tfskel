@@ -63,8 +63,24 @@ type Report struct {
 	Checks   []CheckResult `json:"checks"`
 	Findings []Finding     `json:"findings"`
 
-	// Directory is the scan root displayed in table output.
+	// Directory is the scan root (the working directory at invocation time).
+	// Distinct from ProjectRoot: when validate is invoked from a subdir of the
+	// project, Directory is that subdir while ProjectRoot is filepath.Dir(configPath).
+	// The table header renders both lines when they differ.
 	Directory string `json:"directory,omitempty"`
+
+	// ProjectRoot is the absolute path to the project root, defined as the
+	// directory that contains the loaded .tfskel.yaml.
+	ProjectRoot string `json:"projectRoot,omitempty"`
+
+	// ConfigPath is the absolute path to the loaded tfskel config file.
+	ConfigPath string `json:"configPath,omitempty"`
+
+	// Environments are the environment names defined in config (sorted).
+	Environments []string `json:"environments,omitempty"`
+
+	// Regions are the AWS regions defined in config.
+	Regions []string `json:"regions,omitempty"`
 
 	// ToolReport holds the raw toolcheck report for detailed table rendering.
 	// Excluded from JSON/CSV output — only used by the table formatter.
