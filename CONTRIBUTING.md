@@ -130,32 +130,33 @@ make help           # Show all available commands
    - `chore:` - Maintenance tasks
    - `style:` - Code style changes
 
-   **Scopes** (use ONE per commit/PR title):
+   **Scopes** (use ONE per commit/PR title, or omit for cross-cutting changes):
 
-   | Category | Scope      | Covers                                      |
-   | -------- | ---------- | ------------------------------------------- |
-   | Commands | `cmd`      | CLI commands (init, scaffold, diff, review) |
-   | Internal | `config`   | Configuration system                        |
-   | Internal | `template` | Template rendering                          |
-   | Internal | `generate` | Template generation                         |
-   | Internal | `plan`     | Plan parsing/analysis                       |
-   | Internal | `diff`     | Diff computation                            |
+   | Scope      | Covers                                               |
+   | ---------- | ---------------------------------------------------- |
+   | `init`     | `tfskel init` command and supporting code            |
+   | `scaffold` | `tfskel scaffold` command and supporting code        |
+   | `validate` | `tfskel validate` command and `internal/validate/`   |
+   | `review`   | `tfskel review` command and `internal/plan/`         |
+   | `config`   | Configuration system (`internal/config/`)            |
+
+   Cross-cutting changes (format, logger, build, CI) use the type alone — no scope needed.
 
    **Format:** `type(scope): description`
 
    Examples:
 
    ```
-   feat(cmd): add --dry-run flag to scaffold
-   fix(plan): handle null values in JSON parsing
-   build(deps): bump cobra to v1.8.0
+   feat(scaffold): add --dry-run flag
+   fix(review): handle null values in JSON plan parsing
+   build: bump cobra to v1.8.0
    docs: update installation guide
    ```
 
    For breaking changes, add `!` after the type or include `BREAKING CHANGE:` in the footer:
 
    ```bash
-   git commit -m "feat(cmd)!: redesign CLI interface
+   git commit -m "feat(validate)!: redesign report output
 
    BREAKING CHANGE: The --output flag has been renamed to --format"
    ```
@@ -236,14 +237,19 @@ func TestMyFunction(t *testing.T) {
 Place files in the appropriate directory:
 
 ```
-cmd/        - CLI commands
+cmd/           - CLI commands (init, scaffold, validate, review)
 internal/
-  app/      - High-level orchestration
-  config/   - Configuration handling
-  fs/       - Filesystem abstractions
-  logger/   - Logging utilities
-  templates/- Template rendering
-  util/     - Utility functions
+  config/      - Configuration handling
+  validate/    - Validation orchestration and reporting
+  version/     - Version detection and drift analysis
+  generate/    - Terraform file generation
+  templates/   - Template rendering
+  plan/        - Terraform plan parsing and analysis
+  toolcheck/   - Tool detection and version checking
+  format/      - Shared output formatting and styling
+  logger/      - Logging utilities
+  fs/          - Filesystem abstractions
+  strutil/     - String utility functions
 ```
 
 ## Project-Specific Guidelines
