@@ -31,7 +31,7 @@ builds:
       - -s -w
       - -X github.com/ishuar/tfskel/cmd.Commit={{.Commit}}
       - -X github.com/ishuar/tfskel/cmd.Date={{.Date}}
-      - -X github.com/ishuar/tfskel/cmd.BuildTime={{.CommitTimestamp}}
+      - -X github.com/ishuar/tfskel/cmd.BuiltBy=goreleaser
     mod_timestamp: "{{.CommitTimestamp}}"
     flags:
       - -trimpath

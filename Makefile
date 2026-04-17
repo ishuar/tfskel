@@ -5,7 +5,7 @@ BINARY_NAME=tfskel
 VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 COMMIT=$(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 BUILD_TIME=$(shell date -u '+%Y-%m-%d_%H:%M:%S')
-LDFLAGS=-ldflags "-s -w -X main.Version=$(VERSION) -X main.Commit=$(COMMIT) -X main.BuildTime=$(BUILD_TIME)"
+LDFLAGS=-ldflags "-s -w -X github.com/ishuar/tfskel/cmd.Commit=$(COMMIT) -X github.com/ishuar/tfskel/cmd.Date=$(BUILD_TIME)"
 BUILD_DIR=dist
 GO_FILES=$(shell find . -name '*.go' -not -path "./vendor/*" -not -path "./.history/*" -not -path "./dist/*")
 
