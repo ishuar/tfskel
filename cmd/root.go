@@ -20,8 +20,6 @@ var (
 	Commit = "unknown"
 	// Date is the build date
 	Date = "unknown"
-	// BuildTime is the build timestamp
-	BuildTime = "unknown"
 
 	// useColor stores the color decision made in PersistentPreRunE
 	// It's reused by subcommands to avoid redundant env var lookups
@@ -36,7 +34,6 @@ var rootCmd = &cobra.Command{
 not managing folder structures, drift, or plan reviews. It provides clean, consistent,
 and scalable Terraform layouts with built-in best practices.`,
 
-	Version: Version,
 	PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
 		// Initialize lipgloss color profile once for all commands
 		// Respects NO_COLOR, FORCE_COLOR env vars and --no-color flag
@@ -62,6 +59,12 @@ func Execute() error {
 
 func init() {
 	cobra.OnInitialize(initConfig)
+
+	// Wire --version to the same rich output as `tfskel version`.
+	// rootCmd.Version must be non-empty for Cobra to register the --version flag;
+	// SetVersionTemplate makes Cobra print it verbatim instead of its default wrapper.
+	rootCmd.Version = buildVersionInfo()
+	rootCmd.SetVersionTemplate("{{.Version}}")
 
 	// Suppress usage text on flag validation errors (e.g. mutually exclusive flags,
 	// unknown flags). Users who triggered a flag error clearly know the interface;
