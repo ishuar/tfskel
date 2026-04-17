@@ -95,23 +95,14 @@ These flags are available on every `tfskel` command:
 | `--verbose` | `-v` | `false` | Enable verbose/debug output |
 | `--dry-run` | | `false` | Show what would happen without writing files |
 | `--no-color` | | `false` | Disable colored output (also respects `NO_COLOR`, `FORCE_COLOR`, and `CI` env vars) |
-| `--version` | | | Print the current tfskel version and exit |
+| `--version` | | | Print tfskel version, commit, and build info (same output as `tfskel version`) |
+
+### `tfskel version`
+
+Prints the installed tfskel version along with the build commit, OS/arch, and — for official release builds — a link to the GitHub release page.
 
 ```bash
-# Print the installed tfskel version
-tfskel --version
-
-# Show all available commands and flags
-tfskel --help
-
-# Use a custom config file for any command
-tfskel --config /path/to/my-config.yaml <command>
-
-# Enable verbose logging
-tfskel --verbose <command>
-
-# Preview what a command would do (no files written)
-tfskel --dry-run <command>
+tfskel version
 ```
 
 ### `tfskel init`
