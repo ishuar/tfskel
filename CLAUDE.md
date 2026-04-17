@@ -46,6 +46,23 @@ Trust invariants set by upstream code. Add runtime checks **only at system bound
 
 **Rule of thumb:** if deleting a check would only change behavior when something upstream is broken, delete the check.
 
+### Don't extract helpers just to reduce repetition
+
+A helper earns its keep by doing one of two things:
+
+1. **Hiding real complexity** — the inline version is hard to read or easy to get wrong.
+2. **Centralizing a decision likely to change** — so updating it is one edit instead of many.
+
+If a helper does neither — if it only shortens call sites by forwarding the same arguments to another function — inline the code. Repetition of short, obvious code is cheaper than the cognitive cost of jumping to a helper to find out it does nothing.
+
+Red flags that a helper is pulling its weight:
+
+- Its body is a single call with the same args rearranged.
+- Its name paraphrases what the underlying function already says (`newCmdLogger` wrapping `logger.NewWithOptions(...)`).
+- Callers lose useful information by not seeing the inline code (e.g. a dry-run wrap is load-bearing behavior and benefits from being visible at the call site).
+
+"Four sites → one helper" is not an automatic win. Four readable inline calls beat one helper that forces every reader to jump elsewhere to understand a single-purpose call site.
+
 ### CLI Error Outputs
 
 #### Design Principle

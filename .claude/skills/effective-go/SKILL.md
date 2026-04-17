@@ -165,6 +165,35 @@ func (s *UserStore) Save(ctx context.Context, u *User) error { ... }
 
 ---
 
+## Don't extract helpers just to reduce repetition
+
+A helper earns its place only when it does one of these:
+
+1. **Hides real complexity** — the inline version is hard to read or easy to get wrong.
+2. **Centralizes a decision likely to change** — updating it becomes one edit instead of many.
+
+If neither is true, inline the code. Short obvious repetition costs less than the cognitive hop of chasing a helper that forwards the same arguments elsewhere.
+
+**Signals the helper is dead weight:**
+
+- Its body is one call with the same args rearranged.
+- Its name just paraphrases the function it wraps (`newCmdLogger()` wrapping `logger.NewWithOptions(verbose, useColor)`).
+- Call-site readers lose load-bearing behavior (e.g. a dry-run wrap or context-specific option) by not seeing it inline.
+
+```go
+// Bad — wrapper that hides nothing; reader must jump to see what it does
+func newCmdLogger() *logger.Logger {
+	return logger.NewWithOptions(viper.GetBool("verbose"), useColor)
+}
+
+// Good — inline at each call site; what you read is what happens
+log := logger.NewWithOptions(viper.GetBool("verbose"), useColor)
+```
+
+"Four call sites → one helper" is not an automatic win. Four plain inline calls beat one opaque helper every time.
+
+---
+
 ## Common Anti-patterns to Flag
 
 When reviewing code, always call out:
@@ -177,6 +206,7 @@ When reviewing code, always call out:
 6. Unexported interface defined in producer package
 7. Goroutines without documented lifetime / exit
 8. Missing `defer` for `Close()` / `Unlock()` calls
+9. Wrapper helpers that forward arguments without hiding complexity or centralizing a decision
 
 ---
 
