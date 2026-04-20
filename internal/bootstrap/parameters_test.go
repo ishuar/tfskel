@@ -108,6 +108,23 @@ provider:
 		assert.Equal(t, "1.10.2", params.TerraformVersion)
 	})
 
+	t.Run("extracts terraform version from constraint without whitespace", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		log := logger.New(false)
+
+		writeConfigInline(t, tmpDir, `terraform_version: ">=1.13"
+provider:
+  aws:
+    account_mapping:
+      dev: "111111111111"
+`)
+
+		params, err := DetermineParameters(tmpDir, log)
+		require.NoError(t, err)
+
+		assert.Equal(t, "1.13.0", params.TerraformVersion)
+	})
+
 	t.Run("uses default regions when not specified in config", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		log := logger.New(false)

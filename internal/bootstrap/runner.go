@@ -17,6 +17,7 @@ import (
 	"github.com/ishuar/tfskel/internal/generate"
 	"github.com/ishuar/tfskel/internal/logger"
 	"github.com/ishuar/tfskel/internal/templates"
+	"go.yaml.in/yaml/v4"
 )
 
 // defaultTerraformVersion is the Terraform version used when no .tfskel.yaml is present.
@@ -335,4 +336,63 @@ func (r *Runner) relLogPath(targetPath string) string {
 		}
 	}
 	return targetPath
+}
+
+// CreateDefaultConfig writes a seed .tfskel.yaml at configPath with placeholders
+// the user is expected to replace. It is a no-op when the file already exists.
+func (r *Runner) CreateDefaultConfig(configPath string) error {
+	if r.fs.FileExists(configPath) {
+		r.log.Infof(".tfskel.yaml already exists, skipping")
+		return nil
+	}
+
+	defaultConfig := map[string]any{
+		"terraform_version": "~> 1.13",
+		"provider": map[string]any{
+			"aws": map[string]any{
+				"version": "~> 6.0",
+				"account_mapping": map[string]string{
+					"dev": "REPLACE_WITH_YOUR_DEV_ACCOUNT_ID",
+					"stg": "REPLACE_WITH_YOUR_STG_ACCOUNT_ID",
+					"prd": "REPLACE_WITH_YOUR_PRD_ACCOUNT_ID",
+				},
+				"default_tags": map[string]string{
+					"managed_by": "terraform",
+				},
+				"regions": []string{"eu-central-1"},
+			},
+		},
+		"backend": map[string]any{
+			"s3": map[string]any{
+				"bucket_name": "CHANGE_ME_WITH_YOUR_GLOBALLY_UNIQUE_S3_BUCKET_NAME",
+			},
+		},
+		"critical_resources": []string{},
+	}
+
+	data, err := yaml.Marshal(defaultConfig)
+	if err != nil {
+		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	header := `# tfskel configuration file
+# This file contains default settings for your Terraform operations with tfskel
+#
+# For full configuration reference with all available options and examples:
+# https://github.com/ishuar/tfskel/blob/main/.tfskel.example.yaml
+#
+
+`
+	fullContent := []byte(header + string(data))
+
+	if err := r.fs.WriteFile(configPath, fullContent, 0644); err != nil {
+		return fmt.Errorf("failed to write config file: %w", err)
+	}
+
+	if r.dryRun {
+		r.log.Infof("[dry-run] Would create .tfskel.yaml")
+	} else {
+		r.log.Successf("Created .tfskel.yaml")
+	}
+	return nil
 }
