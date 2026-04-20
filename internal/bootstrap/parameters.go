@@ -65,7 +65,7 @@ func DetermineParameters(targetDir string, log *logger.Logger) (*Parameters, err
 	}
 
 	if cfg.Provider == nil || cfg.Provider.AWS == nil || len(cfg.Provider.AWS.AccountMapping) == 0 {
-		return nil, fmt.Errorf("existing .tfskel.yaml found but %w; add environment mappings to enable auto-discovery", ErrMissingAccountMapping)
+		return nil, fmt.Errorf(".tfskel.yaml: %w; add entries mapping environments to AWS account IDs", ErrMissingAccountMapping)
 	}
 
 	params := &Parameters{
