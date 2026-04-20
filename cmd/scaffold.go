@@ -168,28 +168,23 @@ func runScaffold(cmd *cobra.Command, args []string) error {
 		return runScaffoldUpgradeAll(cmd)
 	}
 
-	// Initialize logger
 	log := logger.NewWithOptions(viper.GetBool("verbose"), useColor)
-
 	log.Debug("Starting scaffold command")
 	log.Info("Starting Terraform directory scaffolding...")
 
 	// Get app directory from positional argument
 	appDir := args[0]
 
-	// Validate and trim scaffolding parameters
 	trimmedEnv, trimmedRegion, trimmedAppDir, err := validateScaffoldParams(env, region, appDir)
 	if err != nil {
 		return fmt.Errorf("invalid parameters: %w", err)
 	}
 
-	// Load and validate configuration
 	cfg, err := loadAndValidateConfig(cmd, log)
 	if err != nil {
 		return err
 	}
 
-	// Create filesystem abstraction
 	var filesystem fs.FileSystem = fs.NewOSFileSystem()
 	if dryRun {
 		filesystem = fs.NewDryRunFileSystem(filesystem)
@@ -216,11 +211,9 @@ func runScaffold(cmd *cobra.Command, args []string) error {
 
 func runScaffoldUpgradeAll(cmd *cobra.Command) error {
 	log := logger.NewWithOptions(viper.GetBool("verbose"), useColor)
-
 	log.Debug("Starting scaffold upgrade-all")
 	log.Info("Starting batch template upgrade...")
 
-	// Validate and trim env and region
 	trimmedEnv, err := strutil.TrimAndValidateInput(env, "environment")
 	if err != nil {
 		return fmt.Errorf("invalid parameters: %w (use --env flag)", err)
@@ -230,13 +223,11 @@ func runScaffoldUpgradeAll(cmd *cobra.Command) error {
 		return fmt.Errorf("invalid parameters: %w (use --region flag)", err)
 	}
 
-	// Load and validate configuration
 	cfg, err := loadAndValidateConfig(cmd, log)
 	if err != nil {
 		return err
 	}
 
-	// Create filesystem abstraction
 	var filesystem fs.FileSystem = fs.NewOSFileSystem()
 	if dryRun {
 		filesystem = fs.NewDryRunFileSystem(filesystem)
@@ -342,7 +333,6 @@ func runScaffoldWorkflows(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	// Validate flag combination: --force requires --upgrade
 	if workflowForce && !workflowUpgrade {
 		return ErrForceRequiresUpgrade
 	}
