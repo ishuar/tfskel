@@ -20,21 +20,24 @@ const repoURL = "https://github.com/ishuar/tfskel"
 // all other builds (make, go build, go install) leave it as "source".
 // Used to decide whether to render a release URL — we only link to a release
 // page when we're certain the binary came from that release pipeline.
+//
+//nolint:gochecknoglobals // set by ldflags at build time
 var BuiltBy = "source"
 
-var versionCmd = &cobra.Command{
-	Use:   "version",
-	Short: "Show version information",
-	Long:  "Show tfskel version, build commit, and source/release URL.",
-	RunE: func(cmd *cobra.Command, _ []string) error {
-		_, err := fmt.Fprint(cmd.OutOrStdout(), buildVersionInfo())
-		return err
-	},
+func newVersionCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "version",
+		Short: "Show version information",
+		Long:  "Show tfskel version, build commit, and source/release URL.",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			_, err := fmt.Fprint(cmd.OutOrStdout(), buildVersionInfo())
+			return err
+		},
+	}
 }
 
 // buildVersionInfo returns the version string shared by `tfskel version` and
-// the `--version` flag. Output differs by build origin:
-
+// the `--version` flag. Output differs by build origin.
 func buildVersionInfo() string {
 	if BuiltBy == "goreleaser" {
 		// GoReleaser injects RFC3339 (e.g. "2026-04-17T00:03:27Z"); keep just the date.
@@ -48,8 +51,4 @@ func buildVersionInfo() string {
 		"tfskel %s (local build)\ncommit:  %s\nos/arch: %s/%s\n",
 		Version, Commit, runtime.GOOS, runtime.GOARCH,
 	)
-}
-
-func init() {
-	rootCmd.AddCommand(versionCmd)
 }

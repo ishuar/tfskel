@@ -11,104 +11,106 @@ import (
 	"github.com/spf13/viper"
 )
 
+// Commit and Date are injected via -ldflags at build time. They stay as
+// package-level vars because the build toolchain targets them by name.
+//
+//nolint:gochecknoglobals // set by ldflags at build time
 var (
-	cfgFile string
-	verbose bool
-	noColor bool
-	dryRun  bool
-	// Commit is the git commit hash of the build
 	Commit = "unknown"
-	// Date is the build date
-	Date = "unknown"
-
-	// useColor stores the color decision made in PersistentPreRunE
-	// It's reused by subcommands to avoid redundant env var lookups
-	useColor bool
+	Date   = "unknown"
 )
 
-// rootCmd represents the base command when called without any subcommands
-var rootCmd = &cobra.Command{
-	Use:   "tfskel <command> <subcommand>",
-	Short: "Simplify Terraform operations and project structure",
-	Long: `tfskel simplifies Terraform operations so teams can focus on building infrastructure
+// rootOpts holds persistent flag state for the root command, shared with
+// every subcommand via *rootOpts pointer. Keeping state in a struct (rather
+// than package-level vars) makes the command tree safe to construct per-test.
+type rootOpts struct {
+	cfgFile  string
+	verbose  bool
+	noColor  bool
+	dryRun   bool
+	useColor bool
+}
+
+// NewRootCmd builds a fresh root command tree with all subcommands attached.
+// Every call returns an independent tree — nothing is shared between instances,
+// which lets tests construct their own command trees without global leakage.
+func NewRootCmd() *cobra.Command {
+	opts := &rootOpts{}
+
+	cmd := &cobra.Command{
+		Use:   "tfskel <command> <subcommand>",
+		Short: "Simplify Terraform operations and project structure",
+		Long: `tfskel simplifies Terraform operations so teams can focus on building infrastructure
 not managing folder structures, drift, or plan reviews. It provides clean, consistent,
 and scalable Terraform layouts with built-in best practices.`,
+		PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
+			opts.useColor = format.ShouldUseColor(opts.noColor)
+			if opts.useColor {
+				lipgloss.SetColorProfile(termenv.TrueColor)
+			} else {
+				lipgloss.SetColorProfile(termenv.Ascii)
+			}
+			opts.initConfig()
+			return nil
+		},
+		RunE: func(c *cobra.Command, _ []string) error {
+			return c.Help()
+		},
+	}
 
-	PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
-		// Initialize lipgloss color profile once for all commands
-		// Respects NO_COLOR, FORCE_COLOR env vars and --no-color flag
-		// Store the decision to avoid redundant env var lookups in subcommands
-		useColor = format.ShouldUseColor(noColor)
-		if useColor {
-			lipgloss.SetColorProfile(termenv.TrueColor)
-		} else {
-			lipgloss.SetColorProfile(termenv.Ascii)
-		}
-		return nil
-	},
-	RunE: func(cmd *cobra.Command, _ []string) error {
-		return cmd.Help()
-	},
-}
+	// --version should print the same rich output as `tfskel version`. Cobra
+	// only registers the --version flag when Version is non-empty, and the
+	// custom template prints it verbatim instead of cobra's default wrapper.
+	cmd.Version = buildVersionInfo()
+	cmd.SetVersionTemplate("{{.Version}}")
 
-// Execute adds all child commands to the root command and sets flags appropriately.
-// This is called by main.main(). It only needs to happen once to the rootCmd.
-func Execute() error {
-	return rootCmd.Execute()
-}
-
-func init() {
-	cobra.OnInitialize(initConfig)
-
-	// Wire --version to the same rich output as `tfskel version`.
-	// rootCmd.Version must be non-empty for Cobra to register the --version flag;
-	// SetVersionTemplate makes Cobra print it verbatim instead of its default wrapper.
-	rootCmd.Version = buildVersionInfo()
-	rootCmd.SetVersionTemplate("{{.Version}}")
-
-	// Suppress usage text on flag validation errors (e.g. mutually exclusive flags,
-	// unknown flags). Users who triggered a flag error clearly know the interface;
-	// dumping the full usage block just buries the actual error message.
-	rootCmd.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
-		cmd.SilenceUsage = true
+	// Users who trigger a flag error clearly know the interface; dumping the
+	// full usage block buries the actual error message.
+	cmd.SetFlagErrorFunc(func(c *cobra.Command, err error) error {
+		c.SilenceUsage = true
 		return err
 	})
 
-	// Define command groups
-	rootCmd.AddGroup(&cobra.Group{
-		ID:    "main",
-		Title: "Main Commands:",
-	})
+	cmd.AddGroup(&cobra.Group{ID: "main", Title: "Main Commands:"})
 
-	// Global flags
-	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file (default is .tfskel.yaml in current directory)")
-	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "enable verbose output")
-	rootCmd.PersistentFlags().BoolVar(&noColor, "no-color", false, "disable colored output (respects NO_COLOR and FORCE_COLOR env vars)")
-	rootCmd.PersistentFlags().BoolVar(&dryRun, "dry-run", false, "show what would happen without writing files")
+	cmd.PersistentFlags().StringVarP(&opts.cfgFile, "config", "c", "", "config file (default is .tfskel.yaml in current directory)")
+	cmd.PersistentFlags().BoolVarP(&opts.verbose, "verbose", "v", false, "enable verbose output")
+	cmd.PersistentFlags().BoolVar(&opts.noColor, "no-color", false, "disable colored output (respects NO_COLOR and FORCE_COLOR env vars)")
+	cmd.PersistentFlags().BoolVar(&opts.dryRun, "dry-run", false, "show what would happen without writing files")
 
-	// Bind flags to viper
-	if err := viper.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose")); err != nil {
-		// This should never fail, but handle it anyway
+	if err := viper.BindPFlag("verbose", cmd.PersistentFlags().Lookup("verbose")); err != nil {
+		// Flag name is a literal — binding only fails on programmer error.
 		panic(fmt.Sprintf("failed to bind verbose flag: %v", err))
 	}
+
+	cmd.AddCommand(
+		newScaffoldCmd(opts),
+		newInitCmd(opts),
+		newValidateCmd(opts),
+		newReviewCmd(opts),
+		newVersionCmd(),
+	)
+
+	return cmd
 }
 
-// initConfig reads in config file if set.
-// Similar to Trivy's approach: checks current directory by default,
-// --config | -c flag takes precedence if specified.
-func initConfig() {
-	if cfgFile != "" {
-		// Use config file from the flag (takes precedence).
-		viper.SetConfigFile(cfgFile)
+// Execute builds the root command tree and runs it. Called by main.main().
+func Execute() error {
+	return NewRootCmd().Execute()
+}
+
+// initConfig loads the .tfskel.yaml config via viper. Follows the Trivy pattern:
+// --config/-c takes precedence if given, otherwise search the current directory.
+func (o *rootOpts) initConfig() {
+	if o.cfgFile != "" {
+		viper.SetConfigFile(o.cfgFile)
 	} else {
-		// Search config in current directory first (Trivy-like behavior)
 		viper.AddConfigPath(".")
 		viper.SetConfigType("yaml")
 		viper.SetConfigName(".tfskel")
 	}
 
-	// If a config file is found, read it in.
-	if err := viper.ReadInConfig(); err == nil && verbose {
+	if err := viper.ReadInConfig(); err == nil && o.verbose {
 		fmt.Fprintln(os.Stderr, "Using config file:", viper.ConfigFileUsed())
 	}
 }

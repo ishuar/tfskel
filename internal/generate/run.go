@@ -113,13 +113,13 @@ func (g *Generator) RunWorkflows(env string) error {
 		}
 
 		if g.fs.FileExists(outputPath) {
-			if g.upgrade {
-				if err := g.upgradeFileIfEligible(tmplPath, outputPath, &templateData); err != nil {
-					return err
-				}
-			} else {
+			if !g.upgrade {
 				g.log.Infof("%s already exists, skipping", outputPath)
 				g.tracker.Record(OpSkipped, outputPath)
+				continue
+			}
+			if err := g.upgradeFileIfEligible(tmplPath, outputPath, &templateData); err != nil {
+				return err
 			}
 			continue
 		}

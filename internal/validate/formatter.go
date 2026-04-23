@@ -102,22 +102,25 @@ func (f *Formatter) formatTable(report *Report, w io.Writer) error {
 	if _, err := fmt.Fprintln(buf); err != nil {
 		return err
 	}
-	issues := report.IssueCount()
-	if issues == 0 {
-		if _, err := fmt.Fprintf(buf, "%s All checks passed\n", f.colorize(symbolPass, lipgloss.Color("2"))); err != nil {
-			return err
-		}
-	} else {
-		noun := "findings"
-		if issues == 1 {
-			noun = "finding"
-		}
-		if _, err := fmt.Fprintf(buf, "%s Validation failed (%d %s)\n", f.colorize(symbolFail, lipgloss.Color("1")), issues, noun); err != nil {
-			return err
-		}
+	if err := f.writeVerdict(buf, report.IssueCount()); err != nil {
+		return err
 	}
 
 	_, err := w.Write(buf.Bytes())
+	return err
+}
+
+// writeVerdict renders the final pass/fail line based on total issue count.
+func (f *Formatter) writeVerdict(w io.Writer, issues int) error {
+	if issues == 0 {
+		_, err := fmt.Fprintf(w, "%s All checks passed\n", f.colorize(symbolPass, lipgloss.Color("2")))
+		return err
+	}
+	noun := "findings"
+	if issues == 1 {
+		noun = "finding"
+	}
+	_, err := fmt.Fprintf(w, "%s Validation failed (%d %s)\n", f.colorize(symbolFail, lipgloss.Color("1")), issues, noun)
 	return err
 }
 
@@ -281,32 +284,30 @@ func (f *Formatter) buildConfigRows(findings []Finding, styles format.CommonStyl
 // breakdown as init (via toolcheck.FormatReport). Otherwise, falls back to
 // listing findings.
 func (f *Formatter) writeToolDetails(w io.Writer, report *Report, styles format.CommonStyles) error {
-	// Use the full toolcheck report when available.
-	if tr := report.ToolReport; tr != nil {
-		if _, err := fmt.Fprintln(w); err != nil {
-			return err
-		}
-		if _, err := fmt.Fprintln(w, styles.HeaderStyle.Render("Required Tools")); err != nil {
-			return err
-		}
-		// FormatReport includes its own heading followed by a blank line.
-		// Strip everything up to and including the first blank line so we can
-		// render our own styled heading above, without depending on the exact
-		// header text used by toolcheck.FormatReport.
-		full := toolcheck.FormatReport(tr)
-		if parts := strings.SplitN(full, "\n\n", 2); len(parts) == 2 {
-			full = parts[1]
-		}
-		if _, err := fmt.Fprint(w, full); err != nil {
-			return err
-		}
-
-		// Also show findings so users see the specific issues behind the count.
-		return f.writeToolFindingsList(w, report, styles)
+	tr := report.ToolReport
+	if tr == nil {
+		// Fallback: show findings (no toolcheck report stored).
+		return f.writeToolFindings(w, report, styles)
 	}
 
-	// Fallback: show findings (no toolcheck report stored).
-	return f.writeToolFindings(w, report, styles)
+	if _, err := fmt.Fprintln(w); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(w, styles.HeaderStyle.Render("Required Tools")); err != nil {
+		return err
+	}
+	// FormatReport includes its own heading followed by a blank line. Strip
+	// everything up to and including the first blank line so we render our own
+	// styled heading above, without depending on toolcheck's header text.
+	full := toolcheck.FormatReport(tr)
+	if parts := strings.SplitN(full, "\n\n", 2); len(parts) == 2 {
+		full = parts[1]
+	}
+	if _, err := fmt.Fprint(w, full); err != nil {
+		return err
+	}
+	// Also show findings so users see the specific issues behind the count.
+	return f.writeToolFindingsList(w, report, styles)
 }
 
 // writeToolFindingsList renders tool findings as a bullet list.

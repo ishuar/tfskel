@@ -10,11 +10,13 @@ import (
 
 func TestInitSkipRequiresUpgrade(t *testing.T) {
 	tmpDir := t.TempDir()
-	saveAndRestoreInitFlags(t)
-	initDir = tmpDir
-	initSkip = "trivy.yaml"
+	opts := &initOpts{
+		root: &rootOpts{},
+		dir:  tmpDir,
+		skip: "trivy.yaml",
+	}
 
-	err := runInit(newTestCmd(t), []string{})
+	err := opts.run(newTestCmd(t), []string{})
 	assert.ErrorIs(t, err, ErrInitSkipRequiresUpgrade)
 }
 
@@ -22,9 +24,9 @@ func TestRunInit(t *testing.T) {
 	t.Run("init in current directory", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		chdirTemp(t, tmpDir)
-		saveAndRestoreInitFlags(t)
 
-		err := runInit(newTestCmd(t), []string{})
+		opts := &initOpts{root: &rootOpts{}}
+		err := opts.run(newTestCmd(t), []string{})
 		require.NoError(t, err)
 
 		assert.FileExists(t, filepath.Join(tmpDir, ".gitignore"))
@@ -36,10 +38,9 @@ func TestRunInit(t *testing.T) {
 
 	t.Run("init with specific directory", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		saveAndRestoreInitFlags(t)
-		initDir = tmpDir
+		opts := &initOpts{root: &rootOpts{}, dir: tmpDir}
 
-		err := runInit(newTestCmd(t), []string{})
+		err := opts.run(newTestCmd(t), []string{})
 		require.NoError(t, err)
 
 		assert.FileExists(t, filepath.Join(tmpDir, ".gitignore"))
@@ -66,10 +67,9 @@ workflows:
   name: "terraform"
   aws_role_name: "terraform-role"
 `)
-		saveAndRestoreInitFlags(t)
-		initDir = tmpDir
+		opts := &initOpts{root: &rootOpts{}, dir: tmpDir}
 
-		err := runInit(newTestCmd(t), []string{})
+		err := opts.run(newTestCmd(t), []string{})
 		require.NoError(t, err)
 
 		assert.DirExists(t, filepath.Join(tmpDir, "envs", "dev"))
@@ -98,11 +98,9 @@ workflows:
   name: "terraform"
   aws_role_name: "terraform-role"
 `)
-		saveAndRestoreInitFlags(t)
-		initDir = tmpDir
-		initWorkflows = true
+		opts := &initOpts{root: &rootOpts{}, dir: tmpDir, workflows: true}
 
-		err := runInit(newTestCmd(t), []string{})
+		err := opts.run(newTestCmd(t), []string{})
 		require.NoError(t, err)
 
 		assert.DirExists(t, filepath.Join(tmpDir, "envs", "dev"))
@@ -114,24 +112,27 @@ workflows:
 }
 
 func TestInitCmd(t *testing.T) {
-	assert.NotNil(t, initCmd)
+	root := NewRootCmd()
+	initCmd, _, err := root.Find([]string{"init"})
+	require.NoError(t, err)
+
 	assert.Equal(t, "init", initCmd.Use)
 	assert.NotEmpty(t, initCmd.Short)
 
 	dirFlag := initCmd.Flags().Lookup("dir")
-	assert.NotNil(t, dirFlag)
+	require.NotNil(t, dirFlag)
 	assert.Equal(t, "d", dirFlag.Shorthand)
 }
 
 func TestRunInit_FlagValidation(t *testing.T) {
 	t.Run("force without upgrade returns error", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		saveAndRestoreInitFlags(t)
-		initDir = tmpDir
-		initForce = true
-		initUpgrade = false
-
-		err := runInit(newTestCmd(t), []string{})
+		opts := &initOpts{
+			root:  &rootOpts{},
+			dir:   tmpDir,
+			force: true,
+		}
+		err := opts.run(newTestCmd(t), []string{})
 		assert.ErrorIs(t, err, ErrForceRequiresUpgrade)
 	})
 }
@@ -139,11 +140,12 @@ func TestRunInit_FlagValidation(t *testing.T) {
 func TestRunInit_DryRun(t *testing.T) {
 	t.Run("dry-run creates no files", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		saveAndRestoreInitFlags(t)
-		initDir = tmpDir
-		dryRun = true
+		opts := &initOpts{
+			root: &rootOpts{dryRun: true},
+			dir:  tmpDir,
+		}
 
-		err := runInit(newTestCmd(t), []string{})
+		err := opts.run(newTestCmd(t), []string{})
 		require.NoError(t, err)
 
 		assert.NoFileExists(t, filepath.Join(tmpDir, ".gitignore"), "dry-run should not create files")

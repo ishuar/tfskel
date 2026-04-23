@@ -16,7 +16,7 @@ func TestLoadAndValidateConfig(t *testing.T) {
 		chdirTemp(t, tmpDir)
 
 		viper.Reset()
-		initConfig()
+		(&rootOpts{}).initConfig()
 		t.Cleanup(func() { viper.Reset() })
 
 		cmd := newTestCmd(t)
@@ -37,7 +37,7 @@ func TestLoadAndValidateConfig(t *testing.T) {
 		chdirTemp(t, tmpDir)
 
 		viper.Reset()
-		initConfig()
+		(&rootOpts{}).initConfig()
 		t.Cleanup(func() { viper.Reset() })
 
 		cmd := newTestCmd(t)
@@ -60,7 +60,7 @@ provider:
 		chdirTemp(t, tmpDir)
 
 		viper.Reset()
-		initConfig()
+		(&rootOpts{}).initConfig()
 		t.Cleanup(func() { viper.Reset() })
 
 		cmd := newTestCmd(t)

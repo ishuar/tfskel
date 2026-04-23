@@ -75,15 +75,17 @@ var funcMap = template.FuncMap{
 //go:embed files/**/*.tmpl files/**/*.yaml
 var embeddedTemplates embed.FS
 
-// templateFS is the sub-filesystem without the "files/" prefix
-var defaultTemplateFS fs.FS
+// defaultTemplateFS is the embedded template tree without the "files/" prefix.
+// Initialized at package load via mustSubFS so the program fails loudly at
+// startup if the embed target is mis-specified.
+var defaultTemplateFS = mustSubFS(embeddedTemplates, "files")
 
-func init() {
-	var err error
-	defaultTemplateFS, err = fs.Sub(embeddedTemplates, "files")
+func mustSubFS(root embed.FS, dir string) fs.FS {
+	sub, err := fs.Sub(root, dir)
 	if err != nil {
 		panic(fmt.Sprintf("failed to create template sub-filesystem: %v", err))
 	}
+	return sub
 }
 
 // Data holds all the data needed for template rendering
