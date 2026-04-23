@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.8.2](https://github.com/ishuar/tfskel/compare/v0.8.1...v0.8.2) (2026-04-23)
+
+
+### ✨ Features
+
+* add rich version command with build-origin detection ([#92](https://github.com/ishuar/tfskel/issues/92)) ([fe24345](https://github.com/ishuar/tfskel/commit/fe24345176b839b8235ab0df5a29bfe15fd4dcef))
+* **validate:** add project context header to validate report ([#88](https://github.com/ishuar/tfskel/issues/88)) ([1475409](https://github.com/ishuar/tfskel/commit/1475409a9f1d0a096668576ab48f66deec3b8316))
+
+
+### 🐞 Bug Fixes
+
+* **init:** only install pre-commit hooks at git repo root ([#96](https://github.com/ishuar/tfskel/issues/96)) ([e560660](https://github.com/ishuar/tfskel/commit/e560660980e8c850375fe3193bb495cb46a72c9e))
+
+
+### 📦 Other Changes
+
+* add guidance against extracting trivial helpers ([#94](https://github.com/ishuar/tfskel/issues/94)) ([c106e1f](https://github.com/ishuar/tfskel/commit/c106e1fecdc500321fc4e91ae7b3b96da64299f4))
+* align commit scopes with user-facing commands ([#91](https://github.com/ishuar/tfskel/issues/91)) ([29bc7ba](https://github.com/ishuar/tfskel/commit/29bc7bad96aadcb1d72142416adce957e8c40544))
+* **init:** extract bootstrap logic into internal/bootstrap package ([#93](https://github.com/ishuar/tfskel/issues/93)) ([ea33468](https://github.com/ishuar/tfskel/commit/ea33468c99905310de4946c99f4f5ae3a86305bc))
+* migrate cmd/ to factory-function pattern and tighten lint config ([#95](https://github.com/ishuar/tfskel/issues/95)) ([2651143](https://github.com/ishuar/tfskel/commit/26511432007891d636c978a0ef6614584ff2f094))
+
 ## [0.8.1](https://github.com/ishuar/tfskel/compare/v0.8.0...v0.8.1) (2026-04-15)
 
 
