@@ -17,7 +17,7 @@ terraform = "{{ .TerraformVersion | stripConstraint }}"
 [hooks]
 # After mise install: set up pre-commit hooks and trust mise configs
 postinstall = """
-if [ -f .pre-commit-config.yaml ]; then
+if [ -f .pre-commit-config.yaml ] && [ "$(git rev-parse --show-toplevel 2>/dev/null)" = "$PWD" ]; then
   pre-commit install --install-hooks
 fi
 """
