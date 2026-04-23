@@ -111,7 +111,7 @@ Severity Levels:
 }
 
 func (o *reviewPlanOpts) run(cmd *cobra.Command, _ []string) error {
-	log := logger.NewWithOptions(viper.GetBool("verbose"), o.root.useColor)
+	log := logger.NewWithOptions(o.root.verbose, o.root.useColor)
 
 	filter, err := o.validateInputs(log)
 	if err != nil {

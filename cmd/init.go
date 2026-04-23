@@ -9,7 +9,6 @@ import (
 	"github.com/ishuar/tfskel/internal/fs"
 	"github.com/ishuar/tfskel/internal/logger"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 // initOpts holds flag state for `tfskel init`.
@@ -61,7 +60,7 @@ edit it directly to pin specific versions.`,
 }
 
 func (o *initOpts) run(_ *cobra.Command, _ []string) error {
-	log := logger.NewWithOptions(viper.GetBool("verbose"), o.root.useColor)
+	log := logger.NewWithOptions(o.root.verbose, o.root.useColor)
 	log.Debug("Starting init command")
 
 	targetDir := o.dir

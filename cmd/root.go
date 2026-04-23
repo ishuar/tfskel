@@ -78,11 +78,6 @@ and scalable Terraform layouts with built-in best practices.`,
 	cmd.PersistentFlags().BoolVar(&opts.noColor, "no-color", false, "disable colored output (respects NO_COLOR and FORCE_COLOR env vars)")
 	cmd.PersistentFlags().BoolVar(&opts.dryRun, "dry-run", false, "show what would happen without writing files")
 
-	if err := viper.BindPFlag("verbose", cmd.PersistentFlags().Lookup("verbose")); err != nil {
-		// Flag name is a literal — binding only fails on programmer error.
-		panic(fmt.Sprintf("failed to bind verbose flag: %v", err))
-	}
-
 	cmd.AddCommand(
 		newScaffoldCmd(opts),
 		newInitCmd(opts),

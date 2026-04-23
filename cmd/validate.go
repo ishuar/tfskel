@@ -57,7 +57,7 @@ By default all checks run. Use --skip to exclude specific checks.`,
 }
 
 func (o *validateOpts) run(cmd *cobra.Command, _ []string) error {
-	log := logger.NewWithOptions(viper.GetBool("verbose"), o.root.useColor)
+	log := logger.NewWithOptions(o.root.verbose, o.root.useColor)
 
 	checks, err := validate.ParseCheckSelection(o.skip)
 	if err != nil {

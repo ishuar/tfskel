@@ -179,7 +179,7 @@ func (o *scaffoldOpts) run(cmd *cobra.Command, args []string) error {
 		return o.runUpgradeAll(cmd)
 	}
 
-	log := logger.NewWithOptions(viper.GetBool("verbose"), o.root.useColor)
+	log := logger.NewWithOptions(o.root.verbose, o.root.useColor)
 	log.Debug("Starting scaffold command")
 	log.Info("Starting Terraform directory scaffolding...")
 
@@ -219,7 +219,7 @@ func (o *scaffoldOpts) run(cmd *cobra.Command, args []string) error {
 }
 
 func (o *scaffoldOpts) runUpgradeAll(cmd *cobra.Command) error {
-	log := logger.NewWithOptions(viper.GetBool("verbose"), o.root.useColor)
+	log := logger.NewWithOptions(o.root.verbose, o.root.useColor)
 	log.Debug("Starting scaffold upgrade-all")
 	log.Info("Starting batch template upgrade...")
 
@@ -281,7 +281,7 @@ func (o *scaffoldOpts) runUpgradeAll(cmd *cobra.Command) error {
 }
 
 func (o *scaffoldWorkflowsOpts) run(cmd *cobra.Command, _ []string) error {
-	log := logger.NewWithOptions(viper.GetBool("verbose"), o.root.useColor)
+	log := logger.NewWithOptions(o.root.verbose, o.root.useColor)
 	log.Debug("Starting scaffold workflows command")
 
 	trimmedEnv, err := strutil.TrimAndValidateInput(o.env, "environment")
