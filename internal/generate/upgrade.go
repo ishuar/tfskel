@@ -25,7 +25,10 @@ func (g *Generator) upgradeFileIfEligible(tmplPath, outputPath string, data *tem
 		return fmt.Errorf("failed to read %s for upgrade check: %w", outputPath, err)
 	}
 
-	upgradeVerb, forceVerb := g.upgradeVerbs()
+	upgradeVerb, forceVerb := "Upgrading", "Force upgrading"
+	if g.dryRun {
+		upgradeVerb, forceVerb = "[dry-run] Would upgrade", "[dry-run] Would force upgrade"
+	}
 
 	marker, handled, err := g.resolveMarker(tmplPath, outputPath, data, content, forceVerb)
 	if err != nil || handled {
@@ -60,14 +63,6 @@ func (g *Generator) upgradeFileIfEligible(tmplPath, outputPath string, data *tem
 	}
 	g.tracker.Record(OpUpgraded, outputPath)
 	return nil
-}
-
-// upgradeVerbs returns the (upgrade, force) log verbs with dry-run prefixes applied.
-func (g *Generator) upgradeVerbs() (string, string) {
-	if g.dryRun {
-		return "[dry-run] Would upgrade", "[dry-run] Would force upgrade"
-	}
-	return "Upgrading", "Force upgrading"
 }
 
 // resolveMarker extracts the source marker from existing file content. When the
