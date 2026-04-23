@@ -93,14 +93,32 @@ func (r *Runner) CreateProjectStructure(baseDir, terraformVersion string, region
 		return fmt.Errorf("failed to create base directory: %w", err)
 	}
 
+	if err := r.createRootFiles(baseDir, terraformVersion, environments); err != nil {
+		return err
+	}
+
+	if err := r.createEnvTree(baseDir, terraformVersion, regions, environments); err != nil {
+		return err
+	}
+
+	if createWorkflows {
+		if err := r.createStaticWorkflows(baseDir); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// createRootFiles seeds the top-level files: managed root configs, user-owned
+// .gitignore and .mise.toml (never touched on upgrade), and the default .tfskel.yaml.
+func (r *Runner) createRootFiles(baseDir, terraformVersion string, environments []string) error {
 	for _, file := range rootConfigFiles {
 		if err := r.createFileFromTemplate(filepath.Join(baseDir, file.filename), file.templateName, nil); err != nil {
 			return err
 		}
 	}
 
-	// .gitignore and .mise.toml are user-owned after initial creation:
-	// tfskel seeds them once, without a source marker, and never touches them on --upgrade.
 	if err := r.createUnmanagedFile(filepath.Join(baseDir, ".gitignore"), "root/.gitignore.tmpl", nil); err != nil {
 		return err
 	}
@@ -111,53 +129,63 @@ func (r *Runner) CreateProjectStructure(baseDir, terraformVersion string, region
 		return err
 	}
 
-	if err := r.CreateDefaultConfig(filepath.Join(baseDir, ".tfskel.yaml")); err != nil {
-		return err
-	}
+	return r.CreateDefaultConfig(filepath.Join(baseDir, ".tfskel.yaml"))
+}
 
+// createEnvTree creates envs/<env>/.terraform-version files and envs/<env>/<region>/
+// directories for each (env, region) pair.
+func (r *Runner) createEnvTree(baseDir, terraformVersion string, regions, environments []string) error {
 	r.log.Debugf("Creating directory structure for %d environment(s): %v", len(environments), environments)
 	for _, env := range environments {
 		envPath := filepath.Join(baseDir, "envs", env)
 
-		tfVersionPath := filepath.Join(envPath, ".terraform-version")
 		tfVersionData := &templates.Data{TerraformVersion: terraformVersion}
-		if err := r.createFileFromTemplate(tfVersionPath, "root/.terraform-version.tmpl", tfVersionData); err != nil {
+		if err := r.createFileFromTemplate(filepath.Join(envPath, ".terraform-version"), "root/.terraform-version.tmpl", tfVersionData); err != nil {
 			return err
 		}
 
 		for _, region := range regions {
-			regionPath := filepath.Join(envPath, region)
-			relPath, relErr := filepath.Rel(baseDir, regionPath)
-			if relErr != nil {
-				relPath = regionPath
-			}
-
-			if r.fs.DirExists(regionPath) {
-				r.log.Infof("Directory %s/ already exists", relPath)
-				continue
-			}
-
-			if err := r.fs.MkdirAll(regionPath, 0755); err != nil {
-				return fmt.Errorf("failed to create region directory %s: %w", regionPath, err)
-			}
-
-			if r.dryRun {
-				r.log.Infof("[dry-run] Would create directory: %s/", relPath)
-			} else {
-				r.log.Successf("Created directory: %s/", relPath)
-			}
-		}
-	}
-
-	if createWorkflows {
-		for _, file := range staticWorkflowFiles {
-			targetPath := filepath.Join(baseDir, ".github", "workflows", file.filename)
-			if err := r.createFileFromTemplate(targetPath, file.templateName, nil); err != nil {
+			if err := r.createRegionDir(baseDir, envPath, region); err != nil {
 				return err
 			}
 		}
 	}
+	return nil
+}
 
+// createRegionDir creates a single envs/<env>/<region>/ directory, handling the
+// already-exists and dry-run cases with the appropriate log message.
+func (r *Runner) createRegionDir(baseDir, envPath, region string) error {
+	regionPath := filepath.Join(envPath, region)
+	relPath, relErr := filepath.Rel(baseDir, regionPath)
+	if relErr != nil {
+		relPath = regionPath
+	}
+
+	if r.fs.DirExists(regionPath) {
+		r.log.Infof("Directory %s/ already exists", relPath)
+		return nil
+	}
+	if err := r.fs.MkdirAll(regionPath, 0755); err != nil {
+		return fmt.Errorf("failed to create region directory %s: %w", regionPath, err)
+	}
+	if r.dryRun {
+		r.log.Infof("[dry-run] Would create directory: %s/", relPath)
+	} else {
+		r.log.Successf("Created directory: %s/", relPath)
+	}
+	return nil
+}
+
+// createStaticWorkflows writes the shared reusable GitHub Actions workflow files
+// under .github/workflows/.
+func (r *Runner) createStaticWorkflows(baseDir string) error {
+	for _, file := range staticWorkflowFiles {
+		targetPath := filepath.Join(baseDir, ".github", "workflows", file.filename)
+		if err := r.createFileFromTemplate(targetPath, file.templateName, nil); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

@@ -24,9 +24,8 @@ linters:
     - wrapcheck       # Too strict for error wrapping
     - wsl             # Whitespace style too opinionated
     - exhaustruct     # Too strict for struct initialization
-    - godox           # Allow TODO/FIXME comments
-    - forbidigo       # Don't restrict standard functions
-    - gochecknoglobals # Some globals are acceptable
+    - forbidigo       # Overridden below — narrow rule enabled via settings.forbidigo
+    - gochecknoglobals # Overridden below — enabled, with internal/ exempted
     - noctx           # Not all HTTP requests need context
     - protogetter     # No protobuf in this project
     - goheader        # No custom header enforcement
@@ -36,43 +35,54 @@ linters:
     - godot           # Sentence ending periods not enforced
     - testifylint     # Testify usage is acceptable
     - usetesting      # Not applicable to this codebase
-    - gochecknoinits  # Some init functions are acceptable
-    - funcorder       # Function ordering is stylistic
-    - gocognit        # Cognitive complexity (redundant with gocyclo)
     - noinlineerr     # Inline error handling is idiomatic Go
+    - funcorder       # Enforces "exported methods before unexported" on each receiver.
+                      # This project prefers locality (helpers placed next to the method
+                      # that uses them) over positional uniformity, so the rule is off.
+                      # The constructor-after-struct half of the rule is already followed
+                      # by convention (NewXxxCmd lives directly below xxxOpts).
+    - gocyclo         # Redundant with cyclop (both measure cyclomatic complexity per function);
+                      # cyclop is the modern successor and also checks package-level complexity.
+
   settings:
-    # Cyclomatic complexity
+    # Complexity — two complementary metrics:
+    #   cyclop   → cyclomatic complexity (branch count). Classic control-flow metric.
+    #   gocognit → cognitive complexity (nesting-weighted). Captures "how hard is
+    #              this to read" in a way cyclomatic doesn't.
+    # gocyclo is intentionally disabled above — it duplicates cyclop.
     cyclop:
-      max-complexity: 18
+      max-complexity: 15
 
     gocognit:
       min-complexity: 25
 
-    gocyclo:
-      min-complexity: 18
-
-    # Function length
+    # Function length — 80 lines / 40 statements. CONTRIBUTING.md targets 50
+    # lines, but 80 is the enforced floor that catches genuine bloat without
+    # churning on well-structured functions that happen to be slightly long.
     funlen:
-      lines: 120
-      statements: 60
+      lines: 80
+      statements: 40
       ignore-comments: true
 
-    # Code duplication
+    # Code duplication — flag copy-pasted blocks of >= 100 tokens.
     dupl:
-      threshold: 120
+      threshold: 100
 
-    # Nesting depth
+    # Nesting depth — flag `if` chains nested 4 levels or deeper.
     nestif:
-      min-complexity: 5
+      min-complexity: 4
 
-    # Constants
+    # Constants — extract when a literal >= 3 chars appears >= 3 times.
     goconst:
       min-len: 3
       min-occurrences: 3
 
-    # Magic numbers
+    # Magic numbers — explicitly allow 0/1/2 (loop/index idioms) and the
+    # standard unix permission octals. Anything else should be a named const.
     mnd:
       ignored-numbers:
+        - "0"
+        - "1"
         - "2"
         - "0600"
         - "0644"
@@ -106,6 +116,15 @@ linters:
         - G302  # File permissions check
         - G304  # File path variable (needed for CLI)
         - G306  # File permissions 0644 (standard)
+
+    # Forbid bare fmt.Print* in favor of internal/logger or cmd.OutOrStdout().
+    # fmt.Fprint* remains allowed — formatters legitimately use it with buffers.
+    # analyze-types is off: the pattern is a literal package.function match, so
+    # the extra type-flow analysis would only slow the run without catching more.
+    forbidigo:
+      forbid:
+        - pattern: '^fmt\.Print(ln|f)?$'
+          msg: "use internal/logger or cmd.OutOrStdout() — bare fmt.Print* bypasses the output pipeline"
 
     # Revive configuration
     revive:
@@ -141,9 +160,10 @@ linters:
     misspell:
       locale: US
 
-    # Maintainability index
+    # Maintainability index — warn when a function's index falls BELOW this
+    # threshold. Higher number = stricter (we raised 20 → 25 to tighten).
     maintidx:
-      under: 20
+      under: 25
 
     # No linting
     nolintlint:
@@ -156,11 +176,12 @@ linters:
     warn-unused: true
 
     rules:
-      # Exclude complexity and duplication checks from test files
+      # Test files: exclude complexity, duplication, and ergonomic checks.
+      # Tests legitimately have table-driven setup (funlen/cyclop/gocognit),
+      # debug prints (forbidigo), and shared fixtures (gochecknoglobals).
       - path: _test\.go
         linters:
           - cyclop
-          - gocyclo
           - gocognit
           - funlen
           - dupl
@@ -170,19 +191,18 @@ linters:
           - mnd
           - errcheck
           - gosec
-          - goerr113
           - wrapcheck
+          - forbidigo
+          - gochecknoglobals
+          - gochecknoinits
 
-      # Exclude staticcheck SA9003 (empty branch)
-      - linters:
-          - staticcheck
-        text: "SA9003:"
-
-      # Exclude testify/require assertions from errcheck
-      - path: _test\.go
-        text: "(require|assert)\\."
+      # internal/ has legitimately-global config data (embed targets, sentinel
+      # errors, compiled regex singletons, template funcMap). The migration
+      # goal was to eliminate global state in cmd/ — internal/ is fine.
+      # Anchored with ^ so it only matches the top-level internal/ tree.
+      - path: ^internal/
         linters:
-          - errcheck
+          - gochecknoglobals
 
 issues:
   max-issues-per-linter: 0

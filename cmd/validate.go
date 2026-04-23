@@ -12,23 +12,28 @@ import (
 	"github.com/spf13/viper"
 )
 
-var (
-	validateFormat string
-	validateSkip   string
-)
+// validateOpts holds flag state for `tfskel validate`.
+type validateOpts struct {
+	root   *rootOpts
+	format string
+	skip   string
+}
 
-var validateCmd = &cobra.Command{
-	Use:     "validate",
-	GroupID: "main",
-	Short:   "Validate project health: version drift and tool installation",
-	Long: `Checks whether your project is in sync with .tfskel.yaml by running
+func newValidateCmd(root *rootOpts) *cobra.Command {
+	opts := &validateOpts{root: root}
+
+	cmd := &cobra.Command{
+		Use:     "validate",
+		GroupID: "main",
+		Short:   "Validate project health: version drift and tool installation",
+		Long: `Checks whether your project is in sync with .tfskel.yaml by running
 two validation checks:
 
   config  — Terraform/provider version constraints and .terraform-version files match config
   tools   — required tools are installed and at expected versions (compared against .mise.toml)
 
 By default all checks run. Use --skip to exclude specific checks.`,
-	Example: `  # Run all checks
+		Example: `  # Run all checks
   tfskel validate
 
   # Skip tool checks
@@ -39,35 +44,31 @@ By default all checks run. Use --skip to exclude specific checks.`,
 
   # Machine-readable JSON output for CI
   tfskel validate --format json`,
-	SilenceUsage: true,
-	RunE:         runValidate,
-}
+		SilenceUsage: true,
+		RunE:         opts.run,
+	}
 
-func init() {
-	rootCmd.AddCommand(validateCmd)
-
-	validateCmd.Flags().StringVarP(&validateFormat, "format", "f", "table",
+	cmd.Flags().StringVarP(&opts.format, "format", "f", "table",
 		"Output format: table, json, csv")
-	validateCmd.Flags().StringVar(&validateSkip, "skip", "",
+	cmd.Flags().StringVar(&opts.skip, "skip", "",
 		"Comma-separated checks to skip (config, tools)")
+
+	return cmd
 }
 
-func runValidate(cmd *cobra.Command, _ []string) error {
-	log := logger.NewWithOptions(viper.GetBool("verbose"), useColor)
+func (o *validateOpts) run(cmd *cobra.Command, _ []string) error {
+	log := logger.NewWithOptions(o.root.verbose, o.root.useColor)
 
-	checks, err := validate.ParseCheckSelection(validateSkip)
+	checks, err := validate.ParseCheckSelection(o.skip)
 	if err != nil {
 		return err
 	}
 
-	// Suppress logs for machine-readable formats.
-	outputFormat := format.OutputFormat(validateFormat)
+	outputFormat := format.OutputFormat(o.format)
 	if outputFormat == format.FormatJSON || outputFormat == format.FormatCSV {
 		log.SetMachineOutput()
 	}
 
-	// Load config from .tfskel.yaml in the current directory (or --config path).
-	// Validate must be run from the project root where .tfskel.yaml lives.
 	cfg, err := loadAndValidateConfig(cmd, log)
 	if err != nil {
 		return err
@@ -91,8 +92,7 @@ func runValidate(cmd *cobra.Command, _ []string) error {
 	runner := validate.NewRunner(cfg, scanDir, checks, configPath)
 	report := runner.Run()
 
-	// Format output
-	formatter := validate.NewFormatter(useColor)
+	formatter := validate.NewFormatter(o.root.useColor)
 	if err := formatter.Format(report, outputFormat, os.Stdout); err != nil {
 		return fmt.Errorf("failed to format output: %w", err)
 	}

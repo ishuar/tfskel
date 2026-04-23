@@ -14,53 +14,32 @@ import (
 )
 
 // validateTestSetup creates a project directory with a valid config and
-// initialized structure (envs/, .terraform-version files, etc.) so that
-// runValidate can run its checks. Returns the project directory path.
+// initialized structure so runValidate can run its checks. Returns the project
+// directory path. Viper is reset per-call and cleaned up on test completion.
 func validateTestSetup(t *testing.T) string {
 	t.Helper()
 	tmpDir := t.TempDir()
 	writeTestConfig(t, tmpDir, "valid_config.yaml")
 	chdirTemp(t, tmpDir)
-	saveAndRestoreInitFlags(t)
-	saveAndRestoreValidateFlags(t)
 
 	// Run init to create the project structure that validate expects.
-	initDir = tmpDir
-	err := runInit(newTestCmd(t), []string{})
-	require.NoError(t, err)
+	initOpts := &initOpts{root: &rootOpts{}, dir: tmpDir}
+	require.NoError(t, initOpts.run(newTestCmd(t), []string{}))
 
-	// Now set up viper for the validate command (re-read config).
+	// Set up viper for the validate command (re-read config).
 	viper.Reset()
-	initConfig()
+	(&rootOpts{}).initConfig()
 	t.Cleanup(func() { viper.Reset() })
 
-	useColor = false
 	return tmpDir
-}
-
-// saveAndRestoreValidateFlags saves/restores validate package-level flags.
-func saveAndRestoreValidateFlags(t *testing.T) {
-	t.Helper()
-	origFormat := validateFormat
-	origSkip := validateSkip
-	origDryRun := dryRun
-	origUseColor := useColor
-	t.Cleanup(func() {
-		validateFormat = origFormat
-		validateSkip = origSkip
-		dryRun = origDryRun
-		useColor = origUseColor
-	})
 }
 
 func TestRunValidate(t *testing.T) {
 	t.Run("runs all checks on valid project", func(t *testing.T) {
 		validateTestSetup(t)
-		validateFormat = "table"
-		validateSkip = ""
+		opts := &validateOpts{root: &rootOpts{}, format: "table"}
 
-		cmd := newTestCmd(t)
-		err := runValidate(cmd, []string{})
+		err := opts.run(newTestCmd(t), []string{})
 		// Validate may return ExitError if tools check fails (tools not installed in CI),
 		// but config check should pass. Accept both nil and ExitError.
 		if err != nil {
@@ -71,23 +50,17 @@ func TestRunValidate(t *testing.T) {
 
 	t.Run("skip tools check", func(t *testing.T) {
 		validateTestSetup(t)
-		validateFormat = "table"
-		validateSkip = "tools"
+		opts := &validateOpts{root: &rootOpts{}, format: "table", skip: "tools"}
 
-		cmd := newTestCmd(t)
-		err := runValidate(cmd, []string{})
-		// With tools skipped and a freshly init'd project, config check should pass
+		err := opts.run(newTestCmd(t), []string{})
 		assert.NoError(t, err)
 	})
 
 	t.Run("skip config check", func(t *testing.T) {
 		validateTestSetup(t)
-		validateFormat = "table"
-		validateSkip = "config"
+		opts := &validateOpts{root: &rootOpts{}, format: "table", skip: "config"}
 
-		cmd := newTestCmd(t)
-		err := runValidate(cmd, []string{})
-		// Tools check may fail if tools aren't installed, that's OK
+		err := opts.run(newTestCmd(t), []string{})
 		if err != nil {
 			var exitErr *ExitError
 			require.True(t, errors.As(err, &exitErr), "error should be ExitError, got: %v", err)
@@ -96,30 +69,25 @@ func TestRunValidate(t *testing.T) {
 
 	t.Run("JSON output format", func(t *testing.T) {
 		validateTestSetup(t)
-		validateFormat = "json"
-		validateSkip = "tools"
+		opts := &validateOpts{root: &rootOpts{}, format: "json", skip: "tools"}
 
-		cmd := newTestCmd(t)
-		err := runValidate(cmd, []string{})
+		err := opts.run(newTestCmd(t), []string{})
 		assert.NoError(t, err)
 	})
 
 	t.Run("CSV output format", func(t *testing.T) {
 		validateTestSetup(t)
-		validateFormat = "csv"
-		validateSkip = "tools"
+		opts := &validateOpts{root: &rootOpts{}, format: "csv", skip: "tools"}
 
-		cmd := newTestCmd(t)
-		err := runValidate(cmd, []string{})
+		err := opts.run(newTestCmd(t), []string{})
 		assert.NoError(t, err)
 	})
 
 	t.Run("invalid skip value returns error", func(t *testing.T) {
 		validateTestSetup(t)
-		validateSkip = "bogus"
+		opts := &validateOpts{root: &rootOpts{}, skip: "bogus"}
 
-		cmd := newTestCmd(t)
-		err := runValidate(cmd, []string{})
+		err := opts.run(newTestCmd(t), []string{})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "bogus")
 	})
@@ -127,25 +95,24 @@ func TestRunValidate(t *testing.T) {
 	t.Run("fails without valid config", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		chdirTemp(t, tmpDir)
-		saveAndRestoreValidateFlags(t)
 
 		viper.Reset()
-		initConfig()
+		(&rootOpts{}).initConfig()
 		t.Cleanup(func() { viper.Reset() })
 
-		validateFormat = "table"
-		validateSkip = ""
-
-		cmd := newTestCmd(t)
-		err := runValidate(cmd, []string{})
+		opts := &validateOpts{root: &rootOpts{}, format: "table"}
+		err := opts.run(newTestCmd(t), []string{})
 		require.Error(t, err)
 		require.ErrorIs(t, err, ErrConfigNotFound)
 	})
 }
 
 func TestValidateCmd_CommandSetup(t *testing.T) {
+	root := NewRootCmd()
+	validateCmd, _, err := root.Find([]string{"validate"})
+	require.NoError(t, err)
+
 	t.Run("command is properly registered", func(t *testing.T) {
-		assert.NotNil(t, validateCmd)
 		assert.Equal(t, "validate", validateCmd.Use)
 		assert.Equal(t, "main", validateCmd.GroupID)
 		assert.NotEmpty(t, validateCmd.Short)
@@ -153,12 +120,12 @@ func TestValidateCmd_CommandSetup(t *testing.T) {
 
 	t.Run("has required flags", func(t *testing.T) {
 		formatFlag := validateCmd.Flags().Lookup("format")
-		assert.NotNil(t, formatFlag)
+		require.NotNil(t, formatFlag)
 		assert.Equal(t, "f", formatFlag.Shorthand)
 		assert.Equal(t, "table", formatFlag.DefValue)
 
 		skipFlag := validateCmd.Flags().Lookup("skip")
-		assert.NotNil(t, skipFlag)
+		require.NotNil(t, skipFlag)
 		assert.Equal(t, "", skipFlag.DefValue)
 	})
 }
@@ -191,24 +158,18 @@ func captureStdout(t *testing.T, fn func()) string {
 // guards the filepath.Abs normalization in runValidate.
 func TestRunValidate_RelativeConfigPath(t *testing.T) {
 	tmpDir := validateTestSetup(t)
-	validateFormat = "json"
-	validateSkip = "tools"
 
 	// Re-initialize viper using a relative --config path. ConfigFileUsed() will
 	// then be relative, exercising the abs-resolution branch in runValidate.
 	viper.Reset()
-	origCfgFile := cfgFile
-	cfgFile = "./.tfskel.yaml"
-	t.Cleanup(func() {
-		cfgFile = origCfgFile
-		viper.Reset()
-	})
-	initConfig()
+	(&rootOpts{cfgFile: "./.tfskel.yaml"}).initConfig()
+	t.Cleanup(func() { viper.Reset() })
 	require.False(t, filepath.IsAbs(viper.ConfigFileUsed()),
 		"precondition: viper should retain the relative --config path")
 
+	opts := &validateOpts{root: &rootOpts{}, format: "json", skip: "tools"}
 	out := captureStdout(t, func() {
-		err := runValidate(newTestCmd(t), []string{})
+		err := opts.run(newTestCmd(t), []string{})
 		require.NoError(t, err)
 	})
 
@@ -222,9 +183,8 @@ func TestRunValidate_RelativeConfigPath(t *testing.T) {
 	assert.True(t, filepath.IsAbs(report.ConfigPath),
 		"configPath should be absolute, got %q", report.ConfigPath)
 
-	// On macOS, t.TempDir() returns /var/... but os.Getwd() (used to resolve
-	// the relative config path) canonicalizes through the /private symlink.
-	// Compare against the resolved path to stay portable.
+	// On macOS, t.TempDir() returns /var/... but os.Getwd() canonicalizes
+	// through the /private symlink. Compare against the resolved path.
 	canonical, err := filepath.EvalSymlinks(tmpDir)
 	require.NoError(t, err)
 	assert.Equal(t, canonical, report.ProjectRoot)
@@ -235,15 +195,12 @@ func TestRunValidate_SkipToolsConfigPass(t *testing.T) {
 	// Integration test: a freshly init'd project with matching .terraform-version
 	// files should produce a passing config check.
 	tmpDir := validateTestSetup(t)
-	validateFormat = "table"
-	validateSkip = "tools"
 
-	// Verify the structure that validate will scan
 	assert.FileExists(t, filepath.Join(tmpDir, "envs", "dev", ".terraform-version"))
 	assert.FileExists(t, filepath.Join(tmpDir, "envs", "stg", ".terraform-version"))
 	assert.FileExists(t, filepath.Join(tmpDir, "envs", "prd", ".terraform-version"))
 
-	cmd := newTestCmd(t)
-	err := runValidate(cmd, []string{})
+	opts := &validateOpts{root: &rootOpts{}, format: "table", skip: "tools"}
+	err := opts.run(newTestCmd(t), []string{})
 	assert.NoError(t, err, "config check should pass on freshly init'd project")
 }

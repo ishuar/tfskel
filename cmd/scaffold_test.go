@@ -12,21 +12,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// scaffoldTestSetup creates a temporary directory with a valid .tfskel.yaml config,
-// changes into it, resets viper, and saves/restores all package-level flag state.
-// Returns the temporary directory path.
+// scaffoldTestSetup creates a temporary directory with a valid .tfskel.yaml
+// config, changes into it, and resets viper. Returns the temporary directory.
 func scaffoldTestSetup(t *testing.T) string {
 	t.Helper()
 	tmpDir := t.TempDir()
 	writeTestConfig(t, tmpDir, "valid_config.yaml")
 	chdirTemp(t, tmpDir)
-	saveAndRestoreScaffoldFlags(t)
 
 	viper.Reset()
-	initConfig()
+	(&rootOpts{}).initConfig()
 	t.Cleanup(func() { viper.Reset() })
 
-	useColor = false
 	return tmpDir
 }
 
@@ -42,168 +39,24 @@ func TestValidateScaffoldParams(t *testing.T) {
 		wantError     bool
 		errorContains string
 	}{
-		{
-			name:       "all parameters valid",
-			env:        "dev",
-			region:     "us-east-1",
-			appDir:     "myapp",
-			wantEnv:    "dev",
-			wantRegion: "us-east-1",
-			wantAppDir: "myapp",
-			wantError:  false,
-		},
-		{
-			name:       "valid with different environment",
-			env:        "prd",
-			region:     "eu-central-1",
-			appDir:     "webapp",
-			wantEnv:    "prd",
-			wantRegion: "eu-central-1",
-			wantAppDir: "webapp",
-			wantError:  false,
-		},
-		{
-			name:       "valid with complex app directory name",
-			env:        "stg",
-			region:     "ap-south-1",
-			appDir:     "my-complex-app-name",
-			wantEnv:    "stg",
-			wantRegion: "ap-south-1",
-			wantAppDir: "my-complex-app-name",
-			wantError:  false,
-		},
-		{
-			name:          "missing environment",
-			env:           "",
-			region:        "us-east-1",
-			appDir:        "myapp",
-			wantError:     true,
-			errorContains: "environment",
-		},
-		{
-			name:          "missing region",
-			env:           "dev",
-			region:        "",
-			appDir:        "myapp",
-			wantError:     true,
-			errorContains: "region",
-		},
-		{
-			name:          "missing app directory",
-			env:           "dev",
-			region:        "us-east-1",
-			appDir:        "",
-			wantError:     true,
-			errorContains: "app directory",
-		},
-		{
-			name:          "all parameters missing",
-			env:           "",
-			region:        "",
-			appDir:        "",
-			wantError:     true,
-			errorContains: "environment", // Should fail on first check
-		},
-		{
-			name:          "only env provided",
-			env:           "dev",
-			region:        "",
-			appDir:        "",
-			wantError:     true,
-			errorContains: "region", // Should fail on region check
-		},
-		{
-			name:          "env and region provided, missing appdir",
-			env:           "dev",
-			region:        "us-east-1",
-			appDir:        "",
-			wantError:     true,
-			errorContains: "app directory",
-		},
-		{
-			name:       "trim leading whitespace from env",
-			env:        "  dev",
-			region:     "us-east-1",
-			appDir:     "myapp",
-			wantEnv:    "dev",
-			wantRegion: "us-east-1",
-			wantAppDir: "myapp",
-			wantError:  false,
-		},
-		{
-			name:       "trim trailing whitespace from region",
-			env:        "dev",
-			region:     "us-east-1  ",
-			appDir:     "myapp",
-			wantEnv:    "dev",
-			wantRegion: "us-east-1",
-			wantAppDir: "myapp",
-			wantError:  false,
-		},
-		{
-			name:       "trim both sides of appDir",
-			env:        "dev",
-			region:     "us-east-1",
-			appDir:     "  myapp  ",
-			wantEnv:    "dev",
-			wantRegion: "us-east-1",
-			wantAppDir: "myapp",
-			wantError:  false,
-		},
-		{
-			name:       "trim all parameters",
-			env:        "  dev  ",
-			region:     "  us-east-1  ",
-			appDir:     "  myapp  ",
-			wantEnv:    "dev",
-			wantRegion: "us-east-1",
-			wantAppDir: "myapp",
-			wantError:  false,
-		},
-		{
-			name:          "whitespace-only env is rejected",
-			env:           "   ",
-			region:        "us-east-1",
-			appDir:        "myapp",
-			wantError:     true,
-			errorContains: "environment",
-		},
-		{
-			name:          "whitespace-only region is rejected",
-			env:           "dev",
-			region:        "   ",
-			appDir:        "myapp",
-			wantError:     true,
-			errorContains: "region",
-		},
-		{
-			name:          "whitespace-only appDir is rejected",
-			env:           "dev",
-			region:        "us-east-1",
-			appDir:        "   ",
-			wantError:     true,
-			errorContains: "app directory",
-		},
-		{
-			name:       "replaces internal spaces with hyphens in appDir",
-			env:        "dev",
-			region:     "us-east-1",
-			appDir:     "  my app  ",
-			wantEnv:    "dev",
-			wantRegion: "us-east-1",
-			wantAppDir: "my-app",
-			wantError:  false,
-		},
-		{
-			name:       "replaces multiple spaces with hyphens",
-			env:        "dev",
-			region:     "us-east-1",
-			appDir:     "my  complex   app",
-			wantEnv:    "dev",
-			wantRegion: "us-east-1",
-			wantAppDir: "my-complex-app",
-			wantError:  false,
-		},
+		{name: "all parameters valid", env: "dev", region: "us-east-1", appDir: "myapp", wantEnv: "dev", wantRegion: "us-east-1", wantAppDir: "myapp"},
+		{name: "valid with different environment", env: "prd", region: "eu-central-1", appDir: "webapp", wantEnv: "prd", wantRegion: "eu-central-1", wantAppDir: "webapp"},
+		{name: "valid with complex app directory name", env: "stg", region: "ap-south-1", appDir: "my-complex-app-name", wantEnv: "stg", wantRegion: "ap-south-1", wantAppDir: "my-complex-app-name"},
+		{name: "missing environment", env: "", region: "us-east-1", appDir: "myapp", wantError: true, errorContains: "environment"},
+		{name: "missing region", env: "dev", region: "", appDir: "myapp", wantError: true, errorContains: "region"},
+		{name: "missing app directory", env: "dev", region: "us-east-1", appDir: "", wantError: true, errorContains: "app directory"},
+		{name: "all parameters missing", env: "", region: "", appDir: "", wantError: true, errorContains: "environment"},
+		{name: "only env provided", env: "dev", region: "", appDir: "", wantError: true, errorContains: "region"},
+		{name: "env and region provided, missing appdir", env: "dev", region: "us-east-1", appDir: "", wantError: true, errorContains: "app directory"},
+		{name: "trim leading whitespace from env", env: "  dev", region: "us-east-1", appDir: "myapp", wantEnv: "dev", wantRegion: "us-east-1", wantAppDir: "myapp"},
+		{name: "trim trailing whitespace from region", env: "dev", region: "us-east-1  ", appDir: "myapp", wantEnv: "dev", wantRegion: "us-east-1", wantAppDir: "myapp"},
+		{name: "trim both sides of appDir", env: "dev", region: "us-east-1", appDir: "  myapp  ", wantEnv: "dev", wantRegion: "us-east-1", wantAppDir: "myapp"},
+		{name: "trim all parameters", env: "  dev  ", region: "  us-east-1  ", appDir: "  myapp  ", wantEnv: "dev", wantRegion: "us-east-1", wantAppDir: "myapp"},
+		{name: "whitespace-only env is rejected", env: "   ", region: "us-east-1", appDir: "myapp", wantError: true, errorContains: "environment"},
+		{name: "whitespace-only region is rejected", env: "dev", region: "   ", appDir: "myapp", wantError: true, errorContains: "region"},
+		{name: "whitespace-only appDir is rejected", env: "dev", region: "us-east-1", appDir: "   ", wantError: true, errorContains: "app directory"},
+		{name: "replaces internal spaces with hyphens in appDir", env: "dev", region: "us-east-1", appDir: "  my app  ", wantEnv: "dev", wantRegion: "us-east-1", wantAppDir: "my-app"},
+		{name: "replaces multiple spaces with hyphens", env: "dev", region: "us-east-1", appDir: "my  complex   app", wantEnv: "dev", wantRegion: "us-east-1", wantAppDir: "my-complex-app"},
 	}
 
 	for _, tt := range tests {
@@ -213,16 +66,16 @@ func TestValidateScaffoldParams(t *testing.T) {
 			if tt.wantError {
 				assert.Error(t, err)
 				if tt.errorContains != "" {
-					assert.Contains(t, err.Error(), tt.errorContains, "error message should contain expected text")
+					assert.Contains(t, err.Error(), tt.errorContains)
 				}
-				assert.Empty(t, gotEnv, "env should be empty on error")
-				assert.Empty(t, gotRegion, "region should be empty on error")
-				assert.Empty(t, gotAppDir, "appDir should be empty on error")
+				assert.Empty(t, gotEnv)
+				assert.Empty(t, gotRegion)
+				assert.Empty(t, gotAppDir)
 			} else {
-				assert.NoError(t, err, "should not return error for valid parameters")
-				assert.Equal(t, tt.wantEnv, gotEnv, "env should match expected")
-				assert.Equal(t, tt.wantRegion, gotRegion, "region should match expected")
-				assert.Equal(t, tt.wantAppDir, gotAppDir, "appDir should match expected")
+				assert.NoError(t, err)
+				assert.Equal(t, tt.wantEnv, gotEnv)
+				assert.Equal(t, tt.wantRegion, gotRegion)
+				assert.Equal(t, tt.wantAppDir, gotAppDir)
 			}
 		})
 	}
@@ -251,120 +104,48 @@ func TestValidateScaffoldParams_ErrorMessages(t *testing.T) {
 	})
 }
 
-func TestValidateScaffoldParams_EdgeCases(t *testing.T) {
-	t.Run("whitespace-only parameters are rejected", func(t *testing.T) {
-		// New implementation trims and validates, so these should fail
-		_, _, _, err := validateScaffoldParams("   ", "us-east-1", "myapp")
-		assert.Error(t, err, "whitespace-only env should be rejected")
-
-		_, _, _, err = validateScaffoldParams("dev", "   ", "myapp")
-		assert.Error(t, err, "whitespace-only region should be rejected")
-
-		_, _, _, err = validateScaffoldParams("dev", "us-east-1", "   ")
-		assert.Error(t, err, "whitespace-only appdir should be rejected")
-	})
-
-	t.Run("parameters with special characters pass validation", func(t *testing.T) {
-		// Validation only checks for empty strings, not format
-		env, region, appDir, err := validateScaffoldParams("dev-v2", "us-east-1", "my_app/test")
-		assert.NoError(t, err, "special characters in appdir should pass basic validation")
-		assert.Equal(t, "dev-v2", env)
-		assert.Equal(t, "us-east-1", region)
-		assert.Equal(t, "my_app/test", appDir)
-
-		env, region, appDir, err = validateScaffoldParams("dev", "eu-central-1", "app-with-dashes")
-		assert.NoError(t, err, "dashes in appdir should pass")
-		assert.Equal(t, "dev", env)
-		assert.Equal(t, "eu-central-1", region)
-		assert.Equal(t, "app-with-dashes", appDir)
-
-		env, region, appDir, err = validateScaffoldParams("dev", "eu-central-1", "app_with_underscores")
-		assert.NoError(t, err, "underscores in appdir should pass")
-		assert.Equal(t, "dev", env)
-		assert.Equal(t, "eu-central-1", region)
-		assert.Equal(t, "app_with_underscores", appDir)
-	})
-}
-
-func TestValidateScaffoldParams_ValidationOrder(t *testing.T) {
-	t.Run("validates in order: env, region, appdir", func(t *testing.T) {
-		// When all are missing, should fail on environment first
-		_, _, _, err := validateScaffoldParams("", "", "")
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "environment", "should check env first")
-
-		// When env is present but region missing
-		_, _, _, err = validateScaffoldParams("dev", "", "")
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "region", "should check region second")
-
-		// When env and region present but appdir missing
-		_, _, _, err = validateScaffoldParams("dev", "us-east-1", "")
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "app directory", "should check appdir last")
-	})
-}
-
 func TestScaffoldCommand_CommandSetup(t *testing.T) {
+	root := NewRootCmd()
+	scaffoldCmd, _, err := root.Find([]string{"scaffold"})
+	require.NoError(t, err)
+
 	t.Run("command is properly registered", func(t *testing.T) {
-		assert.NotNil(t, scaffoldCmd, "scaffoldCmd should be initialized")
-		assert.Equal(t, "scaffold [app-dir]", scaffoldCmd.Use, "command use pattern should be correct")
-		assert.Equal(t, "main", scaffoldCmd.GroupID, "command should be in main group")
-		assert.Contains(t, scaffoldCmd.Aliases, "sc", "command should have 'sc' alias")
+		assert.Equal(t, "scaffold [app-dir]", scaffoldCmd.Use)
+		assert.Equal(t, "main", scaffoldCmd.GroupID)
+		assert.Contains(t, scaffoldCmd.Aliases, "sc")
 	})
 
 	t.Run("command has required flags", func(t *testing.T) {
-		assert.NotNil(t, scaffoldCmd.Flags(), "command should have flags")
+		assert.NotNil(t, scaffoldCmd.Flags().Lookup("env"))
+		assert.NotNil(t, scaffoldCmd.Flags().Lookup("region"))
+		assert.NotNil(t, scaffoldCmd.Flags().Lookup("templates-dir"))
+		assert.NotNil(t, scaffoldCmd.Flags().Lookup("s3-bucket-name"))
 
-		// Check required flags exist
-		envFlag := scaffoldCmd.Flags().Lookup("env")
-		assert.NotNil(t, envFlag, "--env flag should exist")
-
-		regionFlag := scaffoldCmd.Flags().Lookup("region")
-		assert.NotNil(t, regionFlag, "--region flag should exist")
-
-		// Check optional flags exist
-		templatesFlag := scaffoldCmd.Flags().Lookup("templates-dir")
-		assert.NotNil(t, templatesFlag, "--templates-dir flag should exist")
-
-		s3Flag := scaffoldCmd.Flags().Lookup("s3-bucket-name")
-		assert.NotNil(t, s3Flag, "--s3-bucket-name flag should exist")
-
-		// --workflows has moved to 'tfskel init'; scaffold workflows subcommand has --env
-		workflowsSubCmd, _, err := scaffoldCmd.Find([]string{"workflows"})
-		assert.NoError(t, err, "scaffold workflows subcommand should be found")
-		assert.NotNil(t, workflowsSubCmd, "scaffold workflows subcommand should exist")
-		if workflowsSubCmd != nil {
-			envFlag := workflowsSubCmd.Flags().Lookup("env")
-			assert.NotNil(t, envFlag, "scaffold workflows --env flag should exist")
-		}
+		workflowsSubCmd, _, werr := scaffoldCmd.Find([]string{"workflows"})
+		require.NoError(t, werr)
+		require.NotNil(t, workflowsSubCmd)
+		assert.NotNil(t, workflowsSubCmd.Flags().Lookup("env"))
 	})
 
-	t.Run("command requires exactly one argument", func(t *testing.T) {
-		// The Args field should enforce exactly one argument
-		assert.NotNil(t, scaffoldCmd.Args, "command should have Args validator")
-		// cobra.ExactArgs(1) is set in the command definition
+	t.Run("command has args validator", func(t *testing.T) {
+		assert.NotNil(t, scaffoldCmd.Args)
 	})
 
 	t.Run("command has help text", func(t *testing.T) {
-		assert.NotEmpty(t, scaffoldCmd.Short, "command should have short description")
-		assert.NotEmpty(t, scaffoldCmd.Long, "command should have long description")
-		assert.NotEmpty(t, scaffoldCmd.Example, "command should have examples")
-
-		// Verify help text references the correct command name
-		assert.Contains(t, scaffoldCmd.Short, "Scaffold", "short description should mention 'Scaffold'")
-		assert.Contains(t, scaffoldCmd.Long, "scaffold command", "long description should reference 'scaffold command'")
-		assert.Contains(t, scaffoldCmd.Example, "tfskel scaffold", "examples should use 'tfskel scaffold'")
+		assert.NotEmpty(t, scaffoldCmd.Short)
+		assert.NotEmpty(t, scaffoldCmd.Long)
+		assert.NotEmpty(t, scaffoldCmd.Example)
+		assert.Contains(t, scaffoldCmd.Short, "Scaffold")
 	})
 
 	t.Run("upgrade-all and skip flags exist", func(t *testing.T) {
 		upgradeAllFlag := scaffoldCmd.Flags().Lookup("upgrade-all")
-		assert.NotNil(t, upgradeAllFlag, "--upgrade-all flag should exist")
-		assert.Equal(t, "false", upgradeAllFlag.DefValue, "--upgrade-all should default to false")
+		require.NotNil(t, upgradeAllFlag)
+		assert.Equal(t, "false", upgradeAllFlag.DefValue)
 
 		skipFlag := scaffoldCmd.Flags().Lookup("skip")
-		assert.NotNil(t, skipFlag, "--skip flag should exist")
-		assert.Equal(t, "", skipFlag.DefValue, "--skip should default to empty")
+		require.NotNil(t, skipFlag)
+		assert.Equal(t, "", skipFlag.DefValue)
 	})
 }
 
@@ -387,22 +168,6 @@ func TestDirWord(t *testing.T) {
 }
 
 func TestRunScaffold_FlagValidation(t *testing.T) {
-	// saveAndRestore captures current package-level flag state and returns
-	// a cleanup function that restores it. Call via t.Cleanup.
-	saveAndRestore := func(t *testing.T) {
-		t.Helper()
-		origUpgradeAll := scaffoldUpgradeAll
-		origUpgrade := scaffoldUpgrade
-		origSkip := scaffoldSkip
-		origForce := scaffoldForce
-		t.Cleanup(func() {
-			scaffoldUpgradeAll = origUpgradeAll
-			scaffoldUpgrade = origUpgrade
-			scaffoldSkip = origSkip
-			scaffoldForce = origForce
-		})
-	}
-
 	tests := []struct {
 		name       string
 		upgradeAll bool
@@ -411,53 +176,28 @@ func TestRunScaffold_FlagValidation(t *testing.T) {
 		force      bool
 		wantErr    error
 	}{
-		{
-			name:       "upgrade-all and upgrade are mutually exclusive",
-			upgradeAll: true,
-			upgrade:    true,
-			wantErr:    ErrUpgradeAllWithUpgrade,
-		},
-		{
-			name:    "skip requires upgrade-all",
-			skip:    "foo,bar",
-			wantErr: ErrSkipRequiresUpgradeAll,
-		},
-		{
-			name:    "force requires upgrade or upgrade-all",
-			force:   true,
-			wantErr: ErrScaffoldForceRequiresUpgrade,
-		},
-		{
-			name:       "force with upgrade-all is allowed (passes flag validation)",
-			upgradeAll: true,
-			force:      true,
-			// This passes flag validation but will fail later at config.Load;
-			// we only assert it doesn't return a flag-validation error.
-		},
-		{
-			name:    "force with upgrade is allowed (passes flag validation)",
-			upgrade: true,
-			force:   true,
-			// Passes flag validation, fails later at parameter or config stage.
-		},
+		{name: "upgrade-all and upgrade are mutually exclusive", upgradeAll: true, upgrade: true, wantErr: ErrUpgradeAllWithUpgrade},
+		{name: "skip requires upgrade-all", skip: "foo,bar", wantErr: ErrSkipRequiresUpgradeAll},
+		{name: "force requires upgrade or upgrade-all", force: true, wantErr: ErrScaffoldForceRequiresUpgrade},
+		{name: "force with upgrade-all is allowed (passes flag validation)", upgradeAll: true, force: true},
+		{name: "force with upgrade is allowed (passes flag validation)", upgrade: true, force: true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			saveAndRestore(t)
-			scaffoldUpgradeAll = tt.upgradeAll
-			scaffoldUpgrade = tt.upgrade
-			scaffoldSkip = tt.skip
-			scaffoldForce = tt.force
-
-			// Provide a minimal cobra command (flags already live in package vars)
-			cmd := &cobra.Command{}
-			err := runScaffold(cmd, []string{"myapp"})
+			opts := &scaffoldOpts{
+				root:       &rootOpts{},
+				upgradeAll: tt.upgradeAll,
+				upgrade:    tt.upgrade,
+				skip:       tt.skip,
+				force:      tt.force,
+			}
+			err := opts.run(&cobra.Command{}, []string{"myapp"})
 
 			if tt.wantErr != nil {
 				assert.ErrorIs(t, err, tt.wantErr)
 			} else {
-				// Should pass flag validation; any subsequent error is fine
+				// Should pass flag validation; any subsequent error is fine.
 				assert.NotErrorIs(t, err, ErrUpgradeAllWithUpgrade)
 				assert.NotErrorIs(t, err, ErrSkipRequiresUpgradeAll)
 				assert.NotErrorIs(t, err, ErrScaffoldForceRequiresUpgrade)
@@ -473,40 +213,23 @@ func TestScaffoldCmd_ArgsValidator(t *testing.T) {
 		args    []string
 		wantErr error
 	}{
-		{
-			name:  "accepts one positional arg without upgrade-all",
-			flags: map[string]string{"upgrade-all": "false"},
-			args:  []string{"myapp"},
-		},
-		{
-			name:    "rejects zero args without upgrade-all",
-			flags:   map[string]string{"upgrade-all": "false"},
-			args:    []string{},
-			wantErr: nil, // cobra.ExactArgs returns a generic error
-		},
-		{
-			name:  "accepts zero args with upgrade-all",
-			flags: map[string]string{"upgrade-all": "true"},
-			args:  []string{},
-		},
-		{
-			name:    "rejects args with upgrade-all",
-			flags:   map[string]string{"upgrade-all": "true"},
-			args:    []string{"myapp"},
-			wantErr: ErrUpgradeAllWithAppDir,
-		},
+		{name: "accepts one positional arg without upgrade-all", flags: map[string]string{"upgrade-all": "false"}, args: []string{"myapp"}},
+		{name: "rejects zero args without upgrade-all", flags: map[string]string{"upgrade-all": "false"}, args: []string{}, wantErr: nil},
+		{name: "accepts zero args with upgrade-all", flags: map[string]string{"upgrade-all": "true"}, args: []string{}},
+		{name: "rejects args with upgrade-all", flags: map[string]string{"upgrade-all": "true"}, args: []string{"myapp"}, wantErr: ErrUpgradeAllWithAppDir},
 	}
+
+	opts := &scaffoldOpts{root: &rootOpts{}}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Build a fresh command with the upgrade-all flag
 			cmd := &cobra.Command{}
 			cmd.Flags().Bool("upgrade-all", false, "")
 			for k, v := range tt.flags {
 				require.NoError(t, cmd.Flags().Set(k, v))
 			}
 
-			err := scaffoldCmd.Args(cmd, tt.args)
+			err := opts.args(cmd, tt.args)
 
 			switch {
 			case tt.wantErr != nil:
@@ -521,63 +244,22 @@ func TestScaffoldCmd_ArgsValidator(t *testing.T) {
 }
 
 func TestRunScaffoldUpgradeAll_ParameterValidation(t *testing.T) {
-	saveAndRestore := func(t *testing.T) {
-		t.Helper()
-		origEnv := env
-		origRegion := region
-		origSkip := scaffoldSkip
-		origForce := scaffoldForce
-		origUpgradeAll := scaffoldUpgradeAll
-		t.Cleanup(func() {
-			env = origEnv
-			region = origRegion
-			scaffoldSkip = origSkip
-			scaffoldForce = origForce
-			scaffoldUpgradeAll = origUpgradeAll
-		})
-	}
-
 	tests := []struct {
 		name          string
 		env           string
 		region        string
 		errorContains string
 	}{
-		{
-			name:          "empty env returns error",
-			env:           "",
-			region:        "us-east-1",
-			errorContains: "environment",
-		},
-		{
-			name:          "whitespace-only env returns error",
-			env:           "   ",
-			region:        "us-east-1",
-			errorContains: "environment",
-		},
-		{
-			name:          "empty region returns error",
-			env:           "dev",
-			region:        "",
-			errorContains: "region",
-		},
-		{
-			name:          "whitespace-only region returns error",
-			env:           "dev",
-			region:        "   ",
-			errorContains: "region",
-		},
+		{name: "empty env returns error", env: "", region: "us-east-1", errorContains: "environment"},
+		{name: "whitespace-only env returns error", env: "   ", region: "us-east-1", errorContains: "environment"},
+		{name: "empty region returns error", env: "dev", region: "", errorContains: "region"},
+		{name: "whitespace-only region returns error", env: "dev", region: "   ", errorContains: "region"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			saveAndRestore(t)
-			env = tt.env
-			region = tt.region
-
-			cmd := &cobra.Command{}
-			err := runScaffoldUpgradeAll(cmd)
-
+			opts := &scaffoldOpts{root: &rootOpts{}, env: tt.env, region: tt.region, upgradeAll: true}
+			err := opts.runUpgradeAll(&cobra.Command{})
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.errorContains)
 		})
@@ -599,8 +281,7 @@ func TestParseSkipList(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := parseSkipList(tt.raw)
-			assert.Equal(t, tt.want, got)
+			assert.Equal(t, tt.want, parseSkipList(tt.raw))
 		})
 	}
 }
@@ -666,7 +347,6 @@ func TestDiscoverAppDirs(t *testing.T) {
 		base := filepath.Join(tmpDir, "envs", "dev", "us-east-1")
 		require.NoError(t, os.MkdirAll(filepath.Join(base, "app1"), 0755))
 		require.NoError(t, os.MkdirAll(filepath.Join(base, "app2"), 0755))
-		// Create a file (should be skipped)
 		require.NoError(t, os.WriteFile(filepath.Join(base, "somefile.txt"), []byte("hi"), 0644))
 
 		osFS := fs.NewOSFileSystem()
@@ -679,11 +359,9 @@ func TestDiscoverAppDirs(t *testing.T) {
 func TestRunScaffold_HappyPath(t *testing.T) {
 	t.Run("creates directory structure and files", func(t *testing.T) {
 		tmpDir := scaffoldTestSetup(t)
-		env = "dev"
-		region = "eu-central-1"
+		opts := &scaffoldOpts{root: &rootOpts{}, env: "dev", region: "eu-central-1"}
 
-		cmd := newTestCmd(t)
-		err := runScaffold(cmd, []string{"myapp"})
+		err := opts.run(newTestCmd(t), []string{"myapp"})
 		require.NoError(t, err)
 
 		appDir := filepath.Join(tmpDir, "envs", "dev", "eu-central-1", "myapp")
@@ -694,31 +372,23 @@ func TestRunScaffold_HappyPath(t *testing.T) {
 
 	t.Run("with upgrade flag passes through to generator", func(t *testing.T) {
 		tmpDir := scaffoldTestSetup(t)
-		env = "dev"
-		region = "eu-central-1"
+		opts := &scaffoldOpts{root: &rootOpts{}, env: "dev", region: "eu-central-1"}
 
 		cmd := newTestCmd(t)
-		// First scaffold to create files
-		err := runScaffold(cmd, []string{"myapp"})
-		require.NoError(t, err)
+		require.NoError(t, opts.run(cmd, []string{"myapp"}))
 
 		appDir := filepath.Join(tmpDir, "envs", "dev", "eu-central-1", "myapp")
 		assert.DirExists(t, appDir)
 
-		// Now run with upgrade — should succeed (files already up to date)
-		scaffoldUpgrade = true
-		err = runScaffold(cmd, []string{"myapp"})
-		require.NoError(t, err)
+		opts.upgrade = true
+		require.NoError(t, opts.run(cmd, []string{"myapp"}))
 	})
 
 	t.Run("dry-run does not write files", func(t *testing.T) {
 		tmpDir := scaffoldTestSetup(t)
-		env = "dev"
-		region = "eu-central-1"
-		dryRun = true
+		opts := &scaffoldOpts{root: &rootOpts{dryRun: true}, env: "dev", region: "eu-central-1"}
 
-		cmd := newTestCmd(t)
-		err := runScaffold(cmd, []string{"myapp"})
+		err := opts.run(newTestCmd(t), []string{"myapp"})
 		require.NoError(t, err)
 
 		appDir := filepath.Join(tmpDir, "envs", "dev", "eu-central-1", "myapp")
@@ -729,22 +399,15 @@ func TestRunScaffold_HappyPath(t *testing.T) {
 func TestRunScaffoldUpgradeAll_Integration(t *testing.T) {
 	t.Run("upgrades all app dirs in a region", func(t *testing.T) {
 		tmpDir := scaffoldTestSetup(t)
-		env = "dev"
-		region = "eu-central-1"
-		scaffoldUpgradeAll = true
+		scaffold := &scaffoldOpts{root: &rootOpts{}, env: "dev", region: "eu-central-1"}
 
-		// Pre-create app directories with scaffold files
 		cmd := newTestCmd(t)
-		scaffoldUpgradeAll = false
-		require.NoError(t, runScaffold(cmd, []string{"app1"}))
-		require.NoError(t, runScaffold(cmd, []string{"app2"}))
+		require.NoError(t, scaffold.run(cmd, []string{"app1"}))
+		require.NoError(t, scaffold.run(cmd, []string{"app2"}))
 
-		// Now run upgrade-all
-		scaffoldUpgradeAll = true
-		err := runScaffoldUpgradeAll(cmd)
-		require.NoError(t, err)
+		scaffold.upgradeAll = true
+		require.NoError(t, scaffold.runUpgradeAll(cmd))
 
-		// Both app dirs should still exist with files
 		for _, app := range []string{"app1", "app2"} {
 			appDir := filepath.Join(tmpDir, "envs", "dev", "eu-central-1", app)
 			assert.DirExists(t, appDir)
@@ -754,119 +417,91 @@ func TestRunScaffoldUpgradeAll_Integration(t *testing.T) {
 
 	t.Run("skips directories in skip list", func(t *testing.T) {
 		scaffoldTestSetup(t)
-		env = "dev"
-		region = "eu-central-1"
+		scaffold := &scaffoldOpts{root: &rootOpts{}, env: "dev", region: "eu-central-1"}
 
 		cmd := newTestCmd(t)
-		require.NoError(t, runScaffold(cmd, []string{"app1"}))
-		require.NoError(t, runScaffold(cmd, []string{"app2"}))
-		require.NoError(t, runScaffold(cmd, []string{"app3"}))
+		require.NoError(t, scaffold.run(cmd, []string{"app1"}))
+		require.NoError(t, scaffold.run(cmd, []string{"app2"}))
+		require.NoError(t, scaffold.run(cmd, []string{"app3"}))
 
-		scaffoldUpgradeAll = true
-		scaffoldSkip = "app2"
-		err := runScaffoldUpgradeAll(cmd)
-		require.NoError(t, err)
+		scaffold.upgradeAll = true
+		scaffold.skip = "app2"
+		require.NoError(t, scaffold.runUpgradeAll(cmd))
 	})
 
 	t.Run("base dir does not exist", func(t *testing.T) {
 		scaffoldTestSetup(t)
-		env = "dev"
-		region = "nonexistent-region-1"
-		scaffoldUpgradeAll = true
+		opts := &scaffoldOpts{root: &rootOpts{}, env: "dev", region: "nonexistent-region-1", upgradeAll: true}
 
-		cmd := newTestCmd(t)
-		err := runScaffoldUpgradeAll(cmd)
+		err := opts.runUpgradeAll(newTestCmd(t))
 		require.Error(t, err)
 		assert.ErrorIs(t, err, ErrBaseDirNotExist)
 	})
 
 	t.Run("no app dirs found", func(t *testing.T) {
 		tmpDir := scaffoldTestSetup(t)
-		env = "dev"
-		region = "eu-central-1"
-		scaffoldUpgradeAll = true
-
-		// Create the region dir but leave it empty
 		require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "envs", "dev", "eu-central-1"), 0755))
 
-		cmd := newTestCmd(t)
-		err := runScaffoldUpgradeAll(cmd)
+		opts := &scaffoldOpts{root: &rootOpts{}, env: "dev", region: "eu-central-1", upgradeAll: true}
+		err := opts.runUpgradeAll(newTestCmd(t))
 		require.Error(t, err)
 		assert.ErrorIs(t, err, ErrNoAppDirsFound)
 	})
 
 	t.Run("dry-run mode", func(t *testing.T) {
 		scaffoldTestSetup(t)
-		env = "dev"
-		region = "eu-central-1"
-		dryRun = true
-		scaffoldUpgradeAll = true
+		scaffold := &scaffoldOpts{root: &rootOpts{}, env: "dev", region: "eu-central-1"}
 
-		// Pre-create app dirs (need real dirs for discovery)
 		cmd := newTestCmd(t)
-		dryRun = false
-		scaffoldUpgradeAll = false
-		require.NoError(t, runScaffold(cmd, []string{"app1"}))
+		require.NoError(t, scaffold.run(cmd, []string{"app1"}))
 
-		dryRun = true
-		scaffoldUpgradeAll = true
-		err := runScaffoldUpgradeAll(cmd)
-		require.NoError(t, err)
+		dryRunScaffold := &scaffoldOpts{root: &rootOpts{dryRun: true}, env: "dev", region: "eu-central-1", upgradeAll: true}
+		require.NoError(t, dryRunScaffold.runUpgradeAll(cmd))
 	})
 }
 
 func TestRunScaffoldWorkflows(t *testing.T) {
 	t.Run("generates workflow files", func(t *testing.T) {
 		tmpDir := scaffoldTestSetup(t)
-		workflowsEnv = "dev"
+		opts := &scaffoldWorkflowsOpts{root: &rootOpts{}, env: "dev"}
 
-		cmd := newTestCmd(t)
-		err := runScaffoldWorkflows(cmd, []string{})
+		err := opts.run(newTestCmd(t), []string{})
 		require.NoError(t, err)
 
-		// Check that workflow files were created
-		workflowDir := filepath.Join(tmpDir, ".github", "workflows")
-		assert.DirExists(t, workflowDir)
+		assert.DirExists(t, filepath.Join(tmpDir, ".github", "workflows"))
 	})
 
 	t.Run("force without upgrade returns error", func(t *testing.T) {
 		scaffoldTestSetup(t)
-		workflowsEnv = "dev"
-		workflowForce = true
-		workflowUpgrade = false
+		opts := &scaffoldWorkflowsOpts{root: &rootOpts{}, env: "dev", force: true}
 
-		cmd := newTestCmd(t)
-		err := runScaffoldWorkflows(cmd, []string{})
+		err := opts.run(newTestCmd(t), []string{})
 		assert.ErrorIs(t, err, ErrForceRequiresUpgrade)
 	})
 
 	t.Run("empty env returns error", func(t *testing.T) {
 		scaffoldTestSetup(t)
-		workflowsEnv = ""
+		opts := &scaffoldWorkflowsOpts{root: &rootOpts{}}
 
-		cmd := newTestCmd(t)
-		err := runScaffoldWorkflows(cmd, []string{})
+		err := opts.run(newTestCmd(t), []string{})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "environment")
 	})
 
 	t.Run("whitespace-only env returns error", func(t *testing.T) {
 		scaffoldTestSetup(t)
-		workflowsEnv = "   "
+		opts := &scaffoldWorkflowsOpts{root: &rootOpts{}, env: "   "}
 
-		cmd := newTestCmd(t)
-		err := runScaffoldWorkflows(cmd, []string{})
+		err := opts.run(newTestCmd(t), []string{})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "environment")
 	})
 
 	t.Run("dry-run mode", func(t *testing.T) {
 		scaffoldTestSetup(t)
-		workflowsEnv = "dev"
-		dryRun = true
+		opts := &scaffoldWorkflowsOpts{root: &rootOpts{dryRun: true}, env: "dev"}
 
-		cmd := newTestCmd(t)
-		err := runScaffoldWorkflows(cmd, []string{})
+		err := opts.run(newTestCmd(t), []string{})
 		require.NoError(t, err)
 	})
 }

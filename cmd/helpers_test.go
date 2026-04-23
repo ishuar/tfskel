@@ -34,60 +34,9 @@ func chdirTemp(t *testing.T, dir string) {
 	t.Cleanup(func() { _ = os.Chdir(origDir) })
 }
 
-// saveAndRestoreScaffoldFlags saves all scaffold package-level flag vars
-// and restores them on test cleanup.
-func saveAndRestoreScaffoldFlags(t *testing.T) {
-	t.Helper()
-	origEnv := env
-	origRegion := region
-	origUpgrade := scaffoldUpgrade
-	origForce := scaffoldForce
-	origUpgradeAll := scaffoldUpgradeAll
-	origSkip := scaffoldSkip
-	origDryRun := dryRun
-	origUseColor := useColor
-	origWorkflowsEnv := workflowsEnv
-	origWorkflowUpgrade := workflowUpgrade
-	origWorkflowForce := workflowForce
-	t.Cleanup(func() {
-		env = origEnv
-		region = origRegion
-		scaffoldUpgrade = origUpgrade
-		scaffoldForce = origForce
-		scaffoldUpgradeAll = origUpgradeAll
-		scaffoldSkip = origSkip
-		dryRun = origDryRun
-		useColor = origUseColor
-		workflowsEnv = origWorkflowsEnv
-		workflowUpgrade = origWorkflowUpgrade
-		workflowForce = origWorkflowForce
-	})
-}
-
-// saveAndRestoreInitFlags saves all init package-level flag vars
-// and restores them on test cleanup.
-func saveAndRestoreInitFlags(t *testing.T) {
-	t.Helper()
-	origDir := initDir
-	origWorkflows := initWorkflows
-	origUpgrade := initUpgrade
-	origForce := initForce
-	origSkip := initSkip
-	origDryRun := dryRun
-	origUseColor := useColor
-	t.Cleanup(func() {
-		initDir = origDir
-		initWorkflows = origWorkflows
-		initUpgrade = origUpgrade
-		initForce = origForce
-		initSkip = origSkip
-		dryRun = origDryRun
-		useColor = origUseColor
-	})
-}
-
-// newTestCmd creates a minimal cobra.Command with a "config" flag,
-// which is needed by loadAndValidateConfig.
+// newTestCmd creates a minimal cobra.Command with the "config" flag that
+// loadAndValidateConfig looks for, plus scaffold-specific flags commonly
+// needed by downstream config loading.
 func newTestCmd(t *testing.T) *cobra.Command {
 	t.Helper()
 	cmd := &cobra.Command{}

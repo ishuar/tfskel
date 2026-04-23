@@ -29,19 +29,12 @@ func TestFlagErrorFunc_SuppressesUsage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Capture combined output (cobra writes usage to stdout, errors to stderr)
+			rootCmd := NewRootCmd()
 			stdout := new(bytes.Buffer)
 			stderr := new(bytes.Buffer)
-
 			rootCmd.SetOut(stdout)
 			rootCmd.SetErr(stderr)
 			rootCmd.SetArgs(tt.args)
-
-			t.Cleanup(func() {
-				rootCmd.SetOut(nil)
-				rootCmd.SetErr(nil)
-				rootCmd.SetArgs(nil)
-			})
 
 			err := rootCmd.Execute()
 			require.Error(t, err, "command should fail with invalid flag")
@@ -57,18 +50,12 @@ func TestSilenceUsage_ArgsValidationError(t *testing.T) {
 	// scaffold requires exactly 1 arg (cobra.ExactArgs(1)).
 	// With SilenceUsage set at the struct level, usage is suppressed even for
 	// argument validation errors — the user knows the command, they just forgot the arg.
+	rootCmd := NewRootCmd()
 	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)
-
 	rootCmd.SetOut(stdout)
 	rootCmd.SetErr(stderr)
 	rootCmd.SetArgs([]string{"scaffold"})
-
-	t.Cleanup(func() {
-		rootCmd.SetOut(nil)
-		rootCmd.SetErr(nil)
-		rootCmd.SetArgs(nil)
-	})
 
 	err := rootCmd.Execute()
 	require.Error(t, err, "scaffold without app-dir should fail")
@@ -79,18 +66,12 @@ func TestSilenceUsage_ArgsValidationError(t *testing.T) {
 }
 
 func TestRootCommand_ShowsUsageWithNoArgs(t *testing.T) {
+	rootCmd := NewRootCmd()
 	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)
-
 	rootCmd.SetOut(stdout)
 	rootCmd.SetErr(stderr)
 	rootCmd.SetArgs([]string{})
-
-	t.Cleanup(func() {
-		rootCmd.SetOut(nil)
-		rootCmd.SetErr(nil)
-		rootCmd.SetArgs(nil)
-	})
 
 	err := rootCmd.Execute()
 	require.NoError(t, err)
