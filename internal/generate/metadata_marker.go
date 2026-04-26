@@ -15,9 +15,10 @@ var (
 	// ErrTagsHashNotFound indicates no tfskel-tags-hash marker was found in file content
 	ErrTagsHashNotFound = errors.New("tfskel-tags-hash marker not found")
 
-	// tagsHashPattern matches the tfskel-tags-hash payload regardless of comment syntax
-	// (#, ##, or <!-- ... -->) — the key name is the anchor.
-	tagsHashPattern = regexp.MustCompile(`tfskel-tags-hash:\s*([0-9a-f]+)`)
+	// tagsHashPattern matches the tfskel-tags-hash payload on a comment line —
+	// anchored at line start with a bounded comment lead-in (#, ##, or <!--) so
+	// arbitrary prose mentioning the key name in a doc body cannot match.
+	tagsHashPattern = regexp.MustCompile(`(?m)^[ \t]*(?:#{1,2}|<!--)\s*tfskel-tags-hash:\s*([0-9a-f]+)`)
 )
 
 // marshalRaw marshals v to JSON without escaping HTML characters (<, >, &).
@@ -35,9 +36,13 @@ func marshalRaw(v any) ([]byte, error) {
 	return bytes.TrimRight(b, "\n"), nil
 }
 
+// defaultCommentFormat is used for any extension not listed in commentFormat
+// (.yaml, .gitignore, plain text, etc.) — a single-hash line comment.
+const defaultCommentFormat = "# %s"
+
 // commentFormat maps a file extension to the fmt.Sprintf template used to wrap
 // a metadata body in that file's native comment syntax. Unlisted extensions
-// fall back to "# %s" (line-comment with single hash).
+// fall back to defaultCommentFormat.
 var commentFormat = map[string]string{
 	".tf":       "## %s",
 	".hcl":      "## %s",
@@ -49,7 +54,7 @@ var commentFormat = map[string]string{
 func formatComment(fileExt, body string) string {
 	f, ok := commentFormat[fileExt]
 	if !ok {
-		f = "# %s"
+		f = defaultCommentFormat
 	}
 	return fmt.Sprintf(f, body)
 }

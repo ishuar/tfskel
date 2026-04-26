@@ -13,9 +13,10 @@ var (
 	// ErrSourceMarkerNotFound indicates no tfskel-source marker was found in file content
 	ErrSourceMarkerNotFound = errors.New("tfskel-source marker not found")
 
-	// sourceMarkerPattern matches the tfskel-source payload regardless of comment syntax
-	// (#, ##, or <!-- ... -->) — the key name is the anchor, surrounding delimiters are noise.
-	sourceMarkerPattern = regexp.MustCompile(`tfskel-source:\s*(\{[^}]*\})`)
+	// sourceMarkerPattern matches the tfskel-source payload on a comment line —
+	// anchored at line start with a bounded comment lead-in (#, ##, or <!--) so
+	// arbitrary prose mentioning the key name in a doc body cannot match.
+	sourceMarkerPattern = regexp.MustCompile(`(?m)^[ \t]*(?:#{1,2}|<!--)\s*tfskel-source:\s*(\{[^}]*\})`)
 )
 
 // SourceMarker holds the parsed tfskel-source metadata embedded in generated files

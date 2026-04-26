@@ -117,6 +117,17 @@ Some content.`
 		assert.Equal(t, "deadbeef", marker.Hash)
 	})
 
+	t.Run("ignores in-prose mention without comment lead-in", func(t *testing.T) {
+		// A README documenting tfskel might mention the marker key in body text.
+		// The hardened regex requires a comment lead-in (#, ##, <!--) at line start,
+		// so prose mentions must not be parsed as real markers.
+		content := `# Docs
+
+Generated files include a tfskel-source: {"template":"x","hash":"y"} line at the top.`
+		_, err := ExtractSourceMarker(content)
+		require.ErrorIs(t, err, ErrSourceMarkerNotFound)
+	})
+
 	t.Run("handles marker with extra whitespace", func(t *testing.T) {
 		content := `##  tfskel-source:  {"template":"tf/main.tf.tmpl","hash":"xyz"}
 resource "aws_s3_bucket" "main" {}`

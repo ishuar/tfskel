@@ -144,8 +144,7 @@ terraform {}`
 	})
 
 	t.Run("extracts hash from HTML comment in markdown", func(t *testing.T) {
-		content := `<!-- tfskel-source: {"template":"custom/readme.md.tmpl","hash":"abc"} -->
-<!-- tfskel-tags-hash: a1b2c3d4e5f67890 -->
+		content := `<!-- tfskel-tags-hash: a1b2c3d4e5f67890 -->
 # My Project`
 		hash, err := ExtractTagsHash(content)
 		require.NoError(t, err)
