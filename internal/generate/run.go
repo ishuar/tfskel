@@ -41,22 +41,7 @@ func (g *Generator) Run(env, region, appDir string) error {
 	}
 
 	// Generate files from templates
-	if err := g.generateFiles(appPath, env, region, appDir); err != nil {
-		return err
-	}
-
-	// Display success message
-	absPath, err := filepath.Abs(appPath)
-	if err != nil {
-		absPath = appPath
-	}
-	if g.dryRun {
-		g.log.Infof("[dry-run] Would create directory: %s", absPath)
-	} else {
-		g.log.Successf("Created directory: %s", absPath)
-	}
-
-	return nil
+	return g.generateFiles(appPath, env, region, appDir)
 }
 
 // RunWorkflows generates per-environment GitHub workflow files.
