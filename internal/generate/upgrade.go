@@ -44,10 +44,8 @@ func (g *Generator) upgradeFileIfEligible(tmplPath, outputPath string, data *tem
 	if err != nil {
 		return err
 	}
-	// Compare against the file's normalized form so that `terraform fmt`
-	// alignment changes don't show up as content drift. `rendered` is already
-	// formatted by renderWithMarkers; format the on-disk content too to handle
-	// files written by older tfskel versions that predate format-on-render.
+	// Normalize on-disk content so files written by older tfskel versions
+	// (predating format-on-render) don't false-positive as drifted.
 	if rendered == formatIfHCL(outputPath, string(content)) {
 		g.log.Debugf("%s is up to date, skipping", outputPath)
 		g.tracker.Record(OpSkipped, outputPath)
