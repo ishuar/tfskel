@@ -25,7 +25,8 @@ type SourceMarker struct {
 }
 
 // BuildSourceComment builds the source marker comment line for a given file extension.
-// Uses ## for .tf/.hcl files, # for everything else (.yaml, .gitignore, etc.)
+// Comment syntax is dispatched via commentFormat (## for .tf/.hcl, <!-- ... --> for .md/.markdown,
+// # for everything else).
 func BuildSourceComment(templateName, hash, fileExt string) string {
 	marker := SourceMarker{
 		Template: templateName,

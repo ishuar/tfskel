@@ -155,8 +155,6 @@ terraform {}`
 	t.Run("round-trips Build -> Extract for .md", func(t *testing.T) {
 		tags := map[string]string{"managed_by": "terraform"}
 		comment := BuildTagsHashComment(tags, ".md")
-		// Need a source-marker-shaped first line so Extract sees it as content;
-		// ExtractTagsHash only looks for the tags-hash key so the comment alone is enough.
 		hash, err := ExtractTagsHash(comment)
 		require.NoError(t, err)
 		assert.Equal(t, ComputeTagsHash(tags), hash)
