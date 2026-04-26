@@ -15,8 +15,10 @@ var (
 	// ErrTagsHashNotFound indicates no tfskel-tags-hash marker was found in file content
 	ErrTagsHashNotFound = errors.New("tfskel-tags-hash marker not found")
 
-	// tagsHashPattern matches both ## tfskel-tags-hash: <hex> (HCL) and # tfskel-tags-hash: <hex> (YAML/other)
-	tagsHashPattern = regexp.MustCompile(`#[#]?\s*tfskel-tags-hash:\s*([0-9a-f]+)`)
+	// tagsHashPattern matches the tfskel-tags-hash payload on a comment line —
+	// anchored at line start with a bounded comment lead-in (#, ##, or <!--) so
+	// arbitrary prose mentioning the key name in a doc body cannot match.
+	tagsHashPattern = regexp.MustCompile(`(?m)^[ \t]*(?:#{1,2}|<!--)\s*tfskel-tags-hash:\s*([0-9a-f]+)`)
 )
 
 // marshalRaw marshals v to JSON without escaping HTML characters (<, >, &).
@@ -34,12 +36,27 @@ func marshalRaw(v any) ([]byte, error) {
 	return bytes.TrimRight(b, "\n"), nil
 }
 
-// commentPrefix returns "##" for .tf/.hcl files, "#" for everything else.
-func commentPrefix(fileExt string) string {
-	if fileExt == ".tf" || fileExt == ".hcl" {
-		return "##"
+// defaultCommentFormat is used for any extension not listed in commentFormat
+// (.yaml, .gitignore, plain text, etc.) — a single-hash line comment.
+const defaultCommentFormat = "# %s"
+
+// commentFormat maps a file extension to the fmt.Sprintf template used to wrap
+// a metadata body in that file's native comment syntax. Unlisted extensions
+// fall back to defaultCommentFormat.
+var commentFormat = map[string]string{
+	".tf":       "## %s",
+	".hcl":      "## %s",
+	".md":       "<!-- %s -->",
+	".markdown": "<!-- %s -->",
+}
+
+// formatComment wraps body in the comment syntax appropriate for fileExt.
+func formatComment(fileExt, body string) string {
+	f, ok := commentFormat[fileExt]
+	if !ok {
+		f = defaultCommentFormat
 	}
-	return "#"
+	return fmt.Sprintf(f, body)
 }
 
 // BuildMetadataComment builds a tfskel-metadata comment line for the given metadata map.
@@ -53,7 +70,7 @@ func BuildMetadataComment(metadata map[string]string, fileExt string) string {
 	if err != nil {
 		return ""
 	}
-	return fmt.Sprintf("%s tfskel-metadata: %s", commentPrefix(fileExt), string(data))
+	return formatComment(fileExt, "tfskel-metadata: "+string(data))
 }
 
 // ComputeTagsHash produces a deterministic SHA-256 hash (first 16 hex chars) of a tags map.
@@ -78,7 +95,7 @@ func BuildTagsHashComment(tags map[string]string, fileExt string) string {
 	if hash == "" {
 		return ""
 	}
-	return fmt.Sprintf("%s tfskel-tags-hash: %s", commentPrefix(fileExt), hash)
+	return formatComment(fileExt, "tfskel-tags-hash: "+hash)
 }
 
 // ExtractTagsHash extracts the tfskel-tags-hash value from file content.

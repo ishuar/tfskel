@@ -13,8 +13,10 @@ var (
 	// ErrSourceMarkerNotFound indicates no tfskel-source marker was found in file content
 	ErrSourceMarkerNotFound = errors.New("tfskel-source marker not found")
 
-	// sourceMarkerPattern matches both ## tfskel-source: {...} (HCL) and # tfskel-source: {...} (YAML/other)
-	sourceMarkerPattern = regexp.MustCompile(`#[#]?\s*tfskel-source:\s*(\{[^}]*\})`)
+	// sourceMarkerPattern matches the tfskel-source payload on a comment line —
+	// anchored at line start with a bounded comment lead-in (#, ##, or <!--) so
+	// arbitrary prose mentioning the key name in a doc body cannot match.
+	sourceMarkerPattern = regexp.MustCompile(`(?m)^[ \t]*(?:#{1,2}|<!--)\s*tfskel-source:\s*(\{[^}]*\})`)
 )
 
 // SourceMarker holds the parsed tfskel-source metadata embedded in generated files
@@ -24,7 +26,8 @@ type SourceMarker struct {
 }
 
 // BuildSourceComment builds the source marker comment line for a given file extension.
-// Uses ## for .tf/.hcl files, # for everything else (.yaml, .gitignore, etc.)
+// Comment syntax is dispatched via commentFormat (## for .tf/.hcl, <!-- ... --> for .md/.markdown,
+// # for everything else).
 func BuildSourceComment(templateName, hash, fileExt string) string {
 	marker := SourceMarker{
 		Template: templateName,
@@ -36,7 +39,7 @@ func BuildSourceComment(templateName, hash, fileExt string) string {
 		return "# tfskel-source: {}"
 	}
 
-	return fmt.Sprintf("%s tfskel-source: %s", commentPrefix(fileExt), string(data))
+	return formatComment(fileExt, "tfskel-source: "+string(data))
 }
 
 // ExtractSourceMarker extracts the tfskel-source metadata from file content.

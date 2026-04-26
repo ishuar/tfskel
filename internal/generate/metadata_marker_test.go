@@ -29,6 +29,12 @@ func TestBuildMetadataComment(t *testing.T) {
 		assert.Empty(t, BuildMetadataComment(nil, ".tf"))
 	})
 
+	t.Run("uses HTML comment for .md files", func(t *testing.T) {
+		comment := BuildMetadataComment(map[string]string{"author": "tfskel"}, ".md")
+		assert.True(t, strings.HasPrefix(comment, "<!-- tfskel-metadata:"))
+		assert.True(t, strings.HasSuffix(comment, " -->"))
+	})
+
 	t.Run("produces deterministic sorted keys", func(t *testing.T) {
 		meta := map[string]string{"z_key": "z", "a_key": "a", "m_key": "m"}
 		comment := BuildMetadataComment(meta, ".tf")
@@ -84,6 +90,12 @@ func TestBuildTagsHashComment(t *testing.T) {
 		assert.NotContains(t, comment, "## tfskel-tags-hash:")
 	})
 
+	t.Run("uses HTML comment for .md files", func(t *testing.T) {
+		comment := BuildTagsHashComment(map[string]string{"managed_by": "terraform"}, ".md")
+		assert.True(t, strings.HasPrefix(comment, "<!-- tfskel-tags-hash:"))
+		assert.True(t, strings.HasSuffix(comment, " -->"))
+	})
+
 	t.Run("returns empty for empty map", func(t *testing.T) {
 		assert.Empty(t, BuildTagsHashComment(map[string]string{}, ".tf"))
 	})
@@ -129,6 +141,22 @@ terraform {}`
 		hash, err := ExtractTagsHash(content)
 		require.NoError(t, err)
 		assert.Equal(t, "a1b2c3d4e5f67890", hash)
+	})
+
+	t.Run("extracts hash from HTML comment in markdown", func(t *testing.T) {
+		content := `<!-- tfskel-tags-hash: a1b2c3d4e5f67890 -->
+# My Project`
+		hash, err := ExtractTagsHash(content)
+		require.NoError(t, err)
+		assert.Equal(t, "a1b2c3d4e5f67890", hash)
+	})
+
+	t.Run("round-trips Build -> Extract for .md", func(t *testing.T) {
+		tags := map[string]string{"managed_by": "terraform"}
+		comment := BuildTagsHashComment(tags, ".md")
+		hash, err := ExtractTagsHash(comment)
+		require.NoError(t, err)
+		assert.Equal(t, ComputeTagsHash(tags), hash)
 	})
 }
 
