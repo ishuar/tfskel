@@ -36,6 +36,17 @@ make build    # build binary
 - Follow Effective Go
 - See CONTRIBUTING.md for full guidelines
 
+### Prefer dynamic data over hardcoded values
+
+When a value can be derived from existing config, an API, the filesystem, or computed at runtime, derive it. Hardcoded literals drift from reality the moment something upstream changes.
+
+Hardcode only when one of these applies:
+- **Externally fixed standard** — a value defined by an outside spec/ecosystem with no programmatic source (e.g. HCL file extensions `.tf`/`.tfvars`/`.hcl`, HTTP status codes, well-known port numbers).
+- **Security boundary** — allowlists, trusted roots, or policy decisions that must not be derived from untrusted input.
+- **No reasonable dynamic source exists** — the value encodes a custom decision specific to this project that nothing else knows.
+
+When you do hardcode, **name it**: lift the literal into a named `const` or `var` with a short comment explaining why it can't be derived. A reader should be able to tell at a glance whether a literal is a deliberate constant or a value that should have been looked up.
+
 ### Defensive code / fail fast
 
 Trust invariants set by upstream code. Add runtime checks **only at system boundaries** (CLI flags, user input, file I/O, external APIs).

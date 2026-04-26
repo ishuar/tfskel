@@ -112,6 +112,10 @@ func (g *Generator) renderWithMarkers(tmplName, outputPath string, data *templat
 		content = InjectMetadataMarkers(content, metaComment, tagsHashComment)
 	}
 
+	// Match `terraform fmt` output for HCL files so that subsequent fmt runs
+	// are no-ops (and don't trigger spurious "content drift" on --upgrade).
+	content = formatIfHCL(outputPath, content)
+
 	return content, nil
 }
 

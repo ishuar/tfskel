@@ -44,7 +44,9 @@ func (g *Generator) upgradeFileIfEligible(tmplPath, outputPath string, data *tem
 	if err != nil {
 		return err
 	}
-	if rendered == string(content) {
+	// Normalize on-disk content so files written by older tfskel versions
+	// (predating format-on-render) don't false-positive as drifted.
+	if rendered == formatIfHCL(outputPath, string(content)) {
 		g.log.Debugf("%s is up to date, skipping", outputPath)
 		g.tracker.Record(OpSkipped, outputPath)
 		return nil
