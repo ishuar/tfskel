@@ -133,7 +133,8 @@ main() {
   fi
 
   if [[ -x "$dest" ]]; then
-    info "Installed $("$dest" --version) to ${dest}"
+    version_line=$("$dest" --version | grep -m1 '^tfskel [0-9]')
+    info "Installed ${version_line} to ${dest}"
     if ! command -v tfskel &>/dev/null; then
       warn "tfskel is not in your PATH. Run: export PATH=\"${INSTALL_DIR}:\$PATH\""
     fi
