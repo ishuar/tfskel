@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.8.3](https://github.com/ishuar/tfskel/compare/v0.8.2...v0.8.3) (2026-04-26)
+
+
+### 🐞 Bug Fixes
+
+* **scaffold:** prevent false content drift on .tf files after terraform fmt ([#98](https://github.com/ishuar/tfskel/issues/98)) ([7df7881](https://github.com/ishuar/tfskel/commit/7df7881794d17e96b57af2f05f950a25795fe091))
+* **scaffold:** remove duplicate directory log that ignored existing dirs ([#100](https://github.com/ishuar/tfskel/issues/100)) ([c14c962](https://github.com/ishuar/tfskel/commit/c14c96200667a2484f6e8cd74b27800722399552))
+* **scaffold:** use HTML comments for markdown metadata markers ([#97](https://github.com/ishuar/tfskel/issues/97)) ([39d80d7](https://github.com/ishuar/tfskel/commit/39d80d76a81537533cabd99039ac884dfd15b6df))
+
 ## [0.8.2](https://github.com/ishuar/tfskel/compare/v0.8.1...v0.8.2) (2026-04-23)
 
 
