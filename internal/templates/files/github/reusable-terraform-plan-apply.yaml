@@ -130,15 +130,6 @@ jobs:
         env:
           TERRAFORM_SSH_KEY: ${{ secrets.terraform_modules_ssh_deploy_key }}
 
-      - name: Set up Go for tfskel analysis
-        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
-        if: steps.plan.outputs.changes == 'true'
-        with:
-          go-version: '1.24.0'
-          cache: true
-          cache-dependency-path: |
-            ${{ inputs.terraform_files_path }}/.terraform.lock.hcl
-
       - name: Install tfskel & review plan
         id: review-plan
         if: steps.plan.outputs.changes == 'true'
@@ -147,9 +138,11 @@ jobs:
         continue-on-error: true
         env:
           FORCE_COLOR: ${{ inputs.tfskel_force_color }}
+          TFSKEL_VERSION: ${{ inputs.tfskel_version }}
+          INSTALL_DIR: /usr/local/bin
         run: |
-          go install github.com/ishuar/tfskel@${{ inputs.tfskel_version }}
-          tfskel --version
+          [[ "${TFSKEL_VERSION}" == "latest" ]] && unset TFSKEL_VERSION
+          curl -fsSL https://raw.githubusercontent.com/ishuar/tfskel/main/install.sh | bash
           tfskel review plan --json-file ${{ steps.plan.outputs.json_plan_path }}
 
   apply:
