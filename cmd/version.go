@@ -11,7 +11,7 @@ import (
 // Version is the current tfskel release version.
 // This value is automatically updated by release-please during releases.
 // https://github.com/googleapis/release-please/blob/main/docs/customizing.md#updating-arbitrary-files
-const Version = "0.8.3" // x-release-please-version
+const Version = "0.8.4" // x-release-please-version
 
 const repoURL = "https://github.com/ishuar/tfskel"
 

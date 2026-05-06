@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.8.4](https://github.com/ishuar/tfskel/compare/v0.8.3...v0.8.4) (2026-05-06)
+
+
+### ✨ Features
+
+* **scaffold:** add terraform_extra_secrets input to reusable workflow ([#103](https://github.com/ishuar/tfskel/issues/103)) ([1cfcd13](https://github.com/ishuar/tfskel/commit/1cfcd13540290b92189b5726e9c17048c8dd2f0d))
+
+
+### 📦 Other Changes
+
+* extract version line via grep in install success message ([#101](https://github.com/ishuar/tfskel/issues/101)) ([7465753](https://github.com/ishuar/tfskel/commit/7465753dae11a32a4fcdcc888dc907c9122950da))
+* **scaffold:** install tfskel via install.sh in reusable workflow ([#104](https://github.com/ishuar/tfskel/issues/104)) ([3c19128](https://github.com/ishuar/tfskel/commit/3c19128a7688fb6bf3000be9fc489d7c8b6f956f))
+
 ## [0.8.3](https://github.com/ishuar/tfskel/compare/v0.8.2...v0.8.3) (2026-04-26)
 
 
