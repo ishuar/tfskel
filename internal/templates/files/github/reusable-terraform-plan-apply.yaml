@@ -58,6 +58,12 @@ on:
           SSH private key for accessing private terraform modules,
           if applicable. Ensure the corresponding public key is added to the repository deploy keys with read access.
           For enhanced security, consider using a dedicated deploy key with limited permissions.
+      terraform_extra_secrets:
+        required: false
+        description: |-
+          Extra secrets exposed to Terraform as env vars, one KEY=VALUE per line.
+          Pass caller secret references in the value (e.g. TF_VAR_token pointing
+          at a caller secret). Values matching registered secrets are masked in logs.
 
 env:
   # verbosity setting for Terraform logs
@@ -101,6 +107,13 @@ jobs:
           # ref: https://github.com/dflook/terraform-github-actions/issues/105
           path: ${{ runner.temp }}/_github_home/.terraform.d/plugin-cache
           key: ${{ runner.os }}-${{ hashFiles(format('{0}/{1}', inputs.terraform_files_path , inputs.cache_hash_file)) }}
+
+      - name: Set extra secrets as env vars
+        env:
+          TERRAFORM_EXTRA_SECRETS: ${{ secrets.terraform_extra_secrets }}
+        if: ${{ env.TERRAFORM_EXTRA_SECRETS != '' }}
+        run: |
+          printf '%s\n' "$TERRAFORM_EXTRA_SECRETS" >> "$GITHUB_ENV"
 
       ## dflook/terraform-plan stores a hash of the generated plan inside a hidden
       ## PR comment. On merge, dflook/terraform-apply finds the PR by its merge
@@ -183,6 +196,13 @@ jobs:
           # ref: https://github.com/dflook/terraform-github-actions/issues/105
           path: ${{ runner.temp }}/_github_home/.terraform.d/plugin-cache
           key: ${{ runner.os }}-${{ hashFiles(format('{0}/{1}', inputs.terraform_files_path , inputs.cache_hash_file)) }}
+
+      - name: Set extra secrets as env vars
+        env:
+          TERRAFORM_EXTRA_SECRETS: ${{ secrets.terraform_extra_secrets }}
+        if: ${{ env.TERRAFORM_EXTRA_SECRETS != '' }}
+        run: |
+          printf '%s\n' "$TERRAFORM_EXTRA_SECRETS" >> "$GITHUB_ENV"
 
       - name: Terraform apply
         uses: dflook/terraform-apply@5489b988934a50bf1489d5b7c5253b46520a7dca # v2.2.3
