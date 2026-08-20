@@ -1,14 +1,17 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"strings"
 
+	"github.com/ishuar/tfskel/internal/ai"
 	"github.com/ishuar/tfskel/internal/format"
 	"github.com/ishuar/tfskel/internal/logger"
 	"github.com/ishuar/tfskel/internal/plan"
+	"github.com/ishuar/tfskel/internal/review"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -22,6 +25,8 @@ var (
 	ErrInvalidFormat = errors.New("invalid format")
 	// ErrInvalidFilter indicates an invalid filter value was specified.
 	ErrInvalidFilter = errors.New("invalid filter")
+	// ErrAIIncompatibleFormat indicates --ai was combined with a machine-readable format.
+	ErrAIIncompatibleFormat = errors.New("--ai is only supported with --format=table")
 )
 
 // reviewPlanOpts holds flag state for `tfskel review plan`.
@@ -33,8 +38,14 @@ type reviewPlanOpts struct {
 	filterSeverity    []string
 	minSeverity       string
 	filterAction      []string
+	ai                bool
+	aiModel           string
+	aiMaxTokens       int
 }
 
+// newReviewPlanCmd builds the `review plan` command.
+//
+//nolint:funlen // Flag registration is linear pflag boilerplate; extracting helpers would only forward arguments without hiding complexity.
 func newReviewPlanCmd(root *rootOpts) *cobra.Command {
 	opts := &reviewPlanOpts{root: root}
 
@@ -85,7 +96,13 @@ Severity Levels:
   tfskel review plan --json-file tfplan.json --filter-action delete,replace
 
   # Combine filters (AND semantics)
-  tfskel review plan --json-file tfplan.json --min-severity high --filter-action delete`,
+  tfskel review plan --json-file tfplan.json --min-severity high --filter-action delete
+
+  # Append an AI-generated narrative analysis (requires ANTHROPIC_API_KEY)
+  tfskel review plan --json-file tfplan.json --ai
+
+  # Use a specific Claude model for the AI analysis
+  tfskel review plan --json-file tfplan.json --ai --ai-model claude-opus-4-7`,
 		SilenceUsage: true,
 		RunE:         opts.run,
 	}
@@ -106,6 +123,13 @@ Severity Levels:
 	cmd.Flags().StringSliceVar(&opts.filterAction, "filter-action", nil,
 		"Filter by action: create, update, delete, replace (comma-separated)")
 	cmd.MarkFlagsMutuallyExclusive("filter-severity", "min-severity")
+
+	cmd.Flags().BoolVar(&opts.ai, "ai", false,
+		"Append an AI-generated narrative analysis (blast radius, security, rollback). Provider via TFSKEL_AI_PROVIDER=anthropic|gemini (default: anthropic); requires ANTHROPIC_API_KEY or GEMINI_API_KEY.")
+	cmd.Flags().StringVar(&opts.aiModel, "ai-model", "",
+		"Claude model override (default: from config or built-in default)")
+	cmd.Flags().IntVar(&opts.aiMaxTokens, "ai-max-tokens", 0,
+		"Maximum response tokens for the AI analysis (0 = use config or built-in default)")
 
 	return cmd
 }
@@ -128,36 +152,51 @@ func (o *reviewPlanOpts) run(cmd *cobra.Command, _ []string) error {
 	log.Info("Reviewing terraform plan...")
 	log.Infof("JSON plan file: %s", o.planFile)
 
-	planData, err := plan.ParsePlanFile(o.planFile)
+	// Resolve all config once at the CLI seam; flag > config > default.
+	planCfg := plan.LoadAnalysisConfig(viper.GetViper())
+	topResourcesCount := planCfg.TopResourcesCount
+	if cmd.Flags().Changed("top-resources-count") {
+		topResourcesCount = o.topResourcesCount
+	}
+
+	req := review.Request{
+		PlanFile:          o.planFile,
+		Format:            format.OutputFormat(o.outputFormat),
+		Filter:            filter,
+		TopResourcesCount: topResourcesCount,
+		UseColor:          o.root.useColor,
+		CriticalResources: plan.MergeCriticalResources(plan.DefaultCriticalResources(), planCfg.CriticalResources),
+		NewAIClient:       o.aiClientFactory(),
+	}
+
+	result, err := review.Run(cmd.Context(), req, os.Stdout, log)
 	if err != nil {
-		log.Errorf("Failed to parse plan file: %v", err)
-		return fmt.Errorf("failed to parse plan file: %w", err)
-	}
-
-	analyzer := plan.NewPlanAnalyzerWithConfig(viper.GetViper())
-	analysis := analyzer.Analyze(planData)
-
-	if !analysis.HasChanges {
-		log.Success("No changes detected in plan - infrastructure is up to date")
-		return nil
-	}
-	log.Infof("Found %d resource changes", analysis.TotalChanges)
-
-	totalResourceCount := len(analysis.ResourceChanges)
-	if !filter.IsEmpty() {
-		analysis.ResourceChanges = plan.FilterResources(analysis.ResourceChanges, filter)
-		log.Infof("Filtered to %d of %d resources", len(analysis.ResourceChanges), totalResourceCount)
-	}
-
-	if err := o.formatAndWrite(cmd, log, analysis, filter, totalResourceCount); err != nil {
 		return err
 	}
-
-	if exitCode := analysis.ExitCode(); exitCode != 0 {
-		log.Warnf("Changes detected - exiting with code %d", exitCode)
-		return NewExitError(exitCode, "")
+	if result.ExitCode != 0 {
+		log.Warnf("Changes detected - exiting with code %d", result.ExitCode)
+		return NewExitError(result.ExitCode, "")
 	}
 	return nil
+}
+
+// aiClientFactory returns the AI-client constructor for the review module, or
+// nil when --ai was not requested. Flag overrides are applied here so the
+// factory closes over a fully resolved config.
+func (o *reviewPlanOpts) aiClientFactory() func(ctx context.Context) (ai.Client, error) {
+	if !o.ai {
+		return nil
+	}
+	cfg := ai.LoadConfig(viper.GetViper())
+	if o.aiModel != "" {
+		cfg.Model = o.aiModel
+	}
+	if o.aiMaxTokens > 0 {
+		cfg.MaxTokens = o.aiMaxTokens
+	}
+	return func(ctx context.Context) (ai.Client, error) {
+		return ai.NewClient(ctx, cfg)
+	}
 }
 
 // validateInputs validates the format and filter flags and returns the
@@ -169,6 +208,11 @@ func (o *reviewPlanOpts) validateInputs(log *logger.Logger) (*plan.ResourceFilte
 	default:
 		log.Errorf("Invalid format: %s", o.outputFormat)
 		return nil, fmt.Errorf("%w: %s (must be one of %s)", ErrInvalidFormat, o.outputFormat, strings.Join(validFormats, ", "))
+	}
+
+	if o.ai && format.OutputFormat(o.outputFormat) != format.FormatTable {
+		log.Errorf("--ai is only supported with --format=table (got %s)", o.outputFormat)
+		return nil, fmt.Errorf("%w (got --format=%s)", ErrAIIncompatibleFormat, o.outputFormat)
 	}
 
 	filter := &plan.ResourceFilter{
@@ -199,27 +243,4 @@ func (o *reviewPlanOpts) ensurePlanFileReadable(log *logger.Logger) error {
 	}
 	log.Errorf("Failed to access file: %v", err)
 	return fmt.Errorf("failed to access file: %w", err)
-}
-
-// formatAndWrite builds a PlanFormatter (filtered or unfiltered) and writes the
-// formatted analysis to stdout. Top-resource count falls back to config unless
-// the CLI flag was set explicitly.
-func (o *reviewPlanOpts) formatAndWrite(cmd *cobra.Command, log *logger.Logger, analysis *plan.PlanAnalysis, filter *plan.ResourceFilter, totalResourceCount int) error {
-	planConfig := plan.LoadAnalysisConfig(viper.GetViper())
-	topResourcesCount := planConfig.TopResourcesCount
-	if cmd.Flags().Changed("top-resources-count") {
-		topResourcesCount = o.topResourcesCount
-	}
-
-	var formatter *plan.PlanFormatter
-	if !filter.IsEmpty() {
-		formatter = plan.NewPlanFormatterFiltered(o.root.useColor, topResourcesCount, totalResourceCount, filter.Descriptions())
-	} else {
-		formatter = plan.NewPlanFormatterWithConfig(o.root.useColor, topResourcesCount)
-	}
-	if err := formatter.Format(analysis, format.OutputFormat(o.outputFormat), os.Stdout); err != nil {
-		log.Errorf("Failed to format output: %v", err)
-		return fmt.Errorf("failed to format output: %w", err)
-	}
-	return nil
 }

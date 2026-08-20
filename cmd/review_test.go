@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"bytes"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -100,4 +102,44 @@ func TestReviewPlanCommand_FlagAliases(t *testing.T) {
 	formatFlag := planCmd.Flags().Lookup("format")
 	require.NotNil(t, formatFlag)
 	assert.Equal(t, "f", formatFlag.Shorthand)
+}
+
+func TestReviewPlanCommand_AIFlags(t *testing.T) {
+	root := NewRootCmd()
+	planCmd, _, err := root.Find([]string{"review", "plan"})
+	require.NoError(t, err)
+
+	aiFlag := planCmd.Flags().Lookup("ai")
+	require.NotNil(t, aiFlag, "--ai flag should exist")
+	assert.Equal(t, "false", aiFlag.DefValue)
+
+	modelFlag := planCmd.Flags().Lookup("ai-model")
+	require.NotNil(t, modelFlag, "--ai-model flag should exist")
+	assert.Equal(t, "", modelFlag.DefValue)
+}
+
+// TestReviewPlanCommand_AIRejectsMachineFormats verifies that combining --ai
+// with a machine-readable format fails fast with ErrAIIncompatibleFormat and
+// does not print the usage block.
+func TestReviewPlanCommand_AIRejectsMachineFormats(t *testing.T) {
+	for _, format := range []string{"json", "csv"} {
+		t.Run("format="+format, func(t *testing.T) {
+			root := NewRootCmd()
+			var stderr bytes.Buffer
+			root.SetErr(&stderr)
+			root.SetOut(&bytes.Buffer{})
+			root.SetArgs([]string{
+				"review", "plan",
+				"--json-file", "/nonexistent-on-purpose.json",
+				"--ai",
+				"--format", format,
+			})
+			err := root.Execute()
+			require.Error(t, err)
+			assert.True(t, errors.Is(err, ErrAIIncompatibleFormat),
+				"expected ErrAIIncompatibleFormat, got %v", err)
+			assert.NotContains(t, stderr.String(), "Usage:",
+				"invalid flag combination should not print usage block")
+		})
+	}
 }
