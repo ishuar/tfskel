@@ -179,7 +179,7 @@ func (o *reviewPlanOpts) run(cmd *cobra.Command, _ []string) error {
 	if o.ai {
 		// AI is additive: any failure here warns to stderr but never affects
 		// the exit code or propagates as a command error.
-		o.runAIAnalysis(cmd.Context(), log, planData, analysis)
+		o.runAIAnalysis(cmd.Context(), log, analysis)
 	}
 
 	if exitCode := analysis.ExitCode(); exitCode != 0 {
@@ -239,7 +239,7 @@ func (o *reviewPlanOpts) ensurePlanFileReadable(log *logger.Logger) error {
 // All failure modes are non-fatal: a missing API key, a network blip, or an
 // invalid model name produces a stderr warning and an early return — the
 // command's exit code stays whatever the structured analysis decided.
-func (o *reviewPlanOpts) runAIAnalysis(ctx context.Context, log *logger.Logger, planData *plan.TerraformPlan, analysis *plan.PlanAnalysis) {
+func (o *reviewPlanOpts) runAIAnalysis(ctx context.Context, log *logger.Logger, analysis *plan.PlanAnalysis) {
 	cfg := ai.LoadConfig(viper.GetViper())
 	if o.aiModel != "" {
 		cfg.Model = o.aiModel
@@ -254,8 +254,11 @@ func (o *reviewPlanOpts) runAIAnalysis(ctx context.Context, log *logger.Logger, 
 		return
 	}
 
+	// The model must be told the effective critical-resource list — defaults
+	// merged with user config — the same list the analyzer classified with.
 	planCfg := plan.LoadAnalysisConfig(viper.GetViper())
-	payload := ai.BuildPayload(planData, analysis, planCfg.CriticalResources)
+	criticalResources := plan.MergeCriticalResources(plan.DefaultCriticalResources(), planCfg.CriticalResources)
+	payload := ai.BuildPayload(analysis, criticalResources)
 
 	header := fmt.Sprintf("\n## AI Analysis\n\n- **Provider:** %s\n- **Model:** %s\n\n", client.Provider(), client.Model())
 	if _, err := fmt.Fprint(os.Stdout, header); err != nil {

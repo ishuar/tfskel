@@ -80,6 +80,8 @@ func (a *PlanAnalyzer) Analyze(plan *TerraformPlan) *PlanAnalysis {
 			ActionString:  formatActions(rc.Change.Actions),
 			Severity:      a.determineSeverity(rc.Change.Actions, rc.Type),
 			ModuleAddress: rc.ModuleAddress,
+			Change:        rc.Change,
+			ActionReason:  rc.ActionReason,
 		}
 
 		analysis.ResourceChanges = append(analysis.ResourceChanges, analyzed)

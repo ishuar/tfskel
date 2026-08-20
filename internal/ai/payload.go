@@ -65,33 +65,30 @@ type OutputPayload struct {
 	Sensitive bool     `json:"sensitive"`
 }
 
-// BuildPayload constructs a Payload from a parsed plan and its analyzed view.
-// The two arguments come from the same source (planData → analysis) but carry
-// complementary information: planData has the raw before/after attributes and
-// sensitivity marks; analysis has severity, normalized actions, and counts.
-func BuildPayload(planData *plan.TerraformPlan, analysis *plan.PlanAnalysis, criticalResources []string) *Payload {
-	severityByAddress := make(map[string]plan.Severity, len(analysis.ResourceChanges))
+// BuildPayload constructs a Payload from an analyzed plan. The analysis is the
+// single source of truth: exactly the resources it contains (post filtering,
+// data sources and no-ops already excluded) are sent to the model, so every
+// resource on the wire carries a computed severity. criticalResources must be
+// the effective list the analyzer classified with — defaults merged with user
+// config — not the raw config value.
+func BuildPayload(analysis *plan.PlanAnalysis, criticalResources []string) *Payload {
+	resources := make([]ResourcePayload, 0, len(analysis.ResourceChanges))
 	for _, r := range analysis.ResourceChanges {
-		severityByAddress[r.Address] = r.Severity
-	}
+		beforeSensitive := parseSensitive(r.Change.BeforeSensitive)
+		afterSensitive := parseSensitive(r.Change.AfterSensitive)
 
-	resources := make([]ResourcePayload, 0, len(planData.ResourceChanges))
-	for _, rc := range planData.ResourceChanges {
-		beforeSensitive := parseSensitive(rc.Change.BeforeSensitive)
-		afterSensitive := parseSensitive(rc.Change.AfterSensitive)
-
-		before := sanitizeAndDiff(rc.Change.Before, rc.Change.After, beforeSensitive)
-		after := sanitizeAndDiff(rc.Change.After, rc.Change.Before, afterSensitive)
+		before := sanitizeAndDiff(r.Change.Before, r.Change.After, beforeSensitive)
+		after := sanitizeAndDiff(r.Change.After, r.Change.Before, afterSensitive)
 
 		resources = append(resources, ResourcePayload{
-			Address:      rc.Address,
-			Type:         rc.Type,
-			Name:         rc.Name,
-			Module:       rc.ModuleAddress,
-			Provider:     rc.ProviderName,
-			Actions:      rc.Change.Actions,
-			Severity:     string(severityByAddress[rc.Address]),
-			ActionReason: rc.ActionReason,
+			Address:      r.Address,
+			Type:         r.Type,
+			Name:         r.Name,
+			Module:       r.ModuleAddress,
+			Provider:     r.Provider,
+			Actions:      r.Actions,
+			Severity:     string(r.Severity),
+			ActionReason: r.ActionReason,
 			Before:       before,
 			After:        after,
 		})
@@ -107,7 +104,7 @@ func BuildPayload(planData *plan.TerraformPlan, analysis *plan.PlanAnalysis, cri
 	}
 
 	return &Payload{
-		TerraformVersion: planData.TerraformVersion,
+		TerraformVersion: analysis.TerraformVersion,
 		Counts: Counts{
 			Total:         analysis.TotalChanges,
 			Additions:     analysis.Additions,

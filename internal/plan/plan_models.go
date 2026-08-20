@@ -75,6 +75,12 @@ type AnalyzedResource struct {
 	ActionString  string   `json:"action_string"`
 	Severity      Severity `json:"severity"`
 	ModuleAddress string   `json:"module_address,omitempty"`
+	// Change carries the raw before/after attribute maps and sensitivity marks
+	// from the plan for consumers that need attribute-level detail (the AI
+	// payload). Excluded from JSON output: machine formats expose only the
+	// analyzed summary fields above.
+	Change       ChangeDetail `json:"-"`
+	ActionReason string       `json:"-"`
 }
 
 // OutputChange represents a change to a Terraform output value
