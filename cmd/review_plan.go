@@ -11,6 +11,7 @@ import (
 	"github.com/ishuar/tfskel/internal/format"
 	"github.com/ishuar/tfskel/internal/logger"
 	"github.com/ishuar/tfskel/internal/plan"
+	"github.com/ishuar/tfskel/internal/review"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -151,42 +152,51 @@ func (o *reviewPlanOpts) run(cmd *cobra.Command, _ []string) error {
 	log.Info("Reviewing terraform plan...")
 	log.Infof("JSON plan file: %s", o.planFile)
 
-	planData, err := plan.ParsePlanFile(o.planFile)
+	// Resolve all config once at the CLI seam; flag > config > default.
+	planCfg := plan.LoadAnalysisConfig(viper.GetViper())
+	topResourcesCount := planCfg.TopResourcesCount
+	if cmd.Flags().Changed("top-resources-count") {
+		topResourcesCount = o.topResourcesCount
+	}
+
+	req := review.Request{
+		PlanFile:          o.planFile,
+		Format:            format.OutputFormat(o.outputFormat),
+		Filter:            filter,
+		TopResourcesCount: topResourcesCount,
+		UseColor:          o.root.useColor,
+		CriticalResources: plan.MergeCriticalResources(plan.DefaultCriticalResources(), planCfg.CriticalResources),
+		NewAIClient:       o.aiClientFactory(),
+	}
+
+	result, err := review.Run(cmd.Context(), req, os.Stdout, log)
 	if err != nil {
-		log.Errorf("Failed to parse plan file: %v", err)
-		return fmt.Errorf("failed to parse plan file: %w", err)
-	}
-
-	analyzer := plan.NewPlanAnalyzerWithConfig(viper.GetViper())
-	analysis := analyzer.Analyze(planData)
-
-	if !analysis.HasChanges {
-		log.Success("No changes detected in plan - infrastructure is up to date")
-		return nil
-	}
-	log.Infof("Found %d resource changes", analysis.TotalChanges)
-
-	totalResourceCount := len(analysis.ResourceChanges)
-	if !filter.IsEmpty() {
-		analysis.ResourceChanges = plan.FilterResources(analysis.ResourceChanges, filter)
-		log.Infof("Filtered to %d of %d resources", len(analysis.ResourceChanges), totalResourceCount)
-	}
-
-	if err := o.formatAndWrite(cmd, log, analysis, filter, totalResourceCount); err != nil {
 		return err
 	}
-
-	if o.ai {
-		// AI is additive: any failure here warns to stderr but never affects
-		// the exit code or propagates as a command error.
-		o.runAIAnalysis(cmd.Context(), log, analysis)
-	}
-
-	if exitCode := analysis.ExitCode(); exitCode != 0 {
-		log.Warnf("Changes detected - exiting with code %d", exitCode)
-		return NewExitError(exitCode, "")
+	if result.ExitCode != 0 {
+		log.Warnf("Changes detected - exiting with code %d", result.ExitCode)
+		return NewExitError(result.ExitCode, "")
 	}
 	return nil
+}
+
+// aiClientFactory returns the AI-client constructor for the review module, or
+// nil when --ai was not requested. Flag overrides are applied here so the
+// factory closes over a fully resolved config.
+func (o *reviewPlanOpts) aiClientFactory() func(ctx context.Context) (ai.Client, error) {
+	if !o.ai {
+		return nil
+	}
+	cfg := ai.LoadConfig(viper.GetViper())
+	if o.aiModel != "" {
+		cfg.Model = o.aiModel
+	}
+	if o.aiMaxTokens > 0 {
+		cfg.MaxTokens = o.aiMaxTokens
+	}
+	return func(ctx context.Context) (ai.Client, error) {
+		return ai.NewClient(ctx, cfg)
+	}
 }
 
 // validateInputs validates the format and filter flags and returns the
@@ -233,73 +243,4 @@ func (o *reviewPlanOpts) ensurePlanFileReadable(log *logger.Logger) error {
 	}
 	log.Errorf("Failed to access file: %v", err)
 	return fmt.Errorf("failed to access file: %w", err)
-}
-
-// runAIAnalysis streams Claude's narrative analysis to stdout below the table.
-// All failure modes are non-fatal: a missing API key, a network blip, or an
-// invalid model name produces a stderr warning and an early return — the
-// command's exit code stays whatever the structured analysis decided.
-func (o *reviewPlanOpts) runAIAnalysis(ctx context.Context, log *logger.Logger, analysis *plan.PlanAnalysis) {
-	cfg := ai.LoadConfig(viper.GetViper())
-	if o.aiModel != "" {
-		cfg.Model = o.aiModel
-	}
-	if o.aiMaxTokens > 0 {
-		cfg.MaxTokens = o.aiMaxTokens
-	}
-
-	client, err := ai.NewClient(ctx, cfg)
-	if err != nil {
-		log.Warnf("--ai requested but skipping AI analysis: %v", err)
-		return
-	}
-
-	// The model must be told the effective critical-resource list — defaults
-	// merged with user config — the same list the analyzer classified with.
-	planCfg := plan.LoadAnalysisConfig(viper.GetViper())
-	criticalResources := plan.MergeCriticalResources(plan.DefaultCriticalResources(), planCfg.CriticalResources)
-	payload := ai.BuildPayload(analysis, criticalResources)
-
-	header := fmt.Sprintf("\n## AI Analysis\n\n- **Provider:** %s\n- **Model:** %s\n\n", client.Provider(), client.Model())
-	if _, err := fmt.Fprint(os.Stdout, header); err != nil {
-		log.Warnf("AI analysis: failed to write section header: %v", err)
-		return
-	}
-	if err := client.Explain(ctx, payload, os.Stdout); err != nil {
-		if errors.Is(err, ai.ErrResponseTruncated) {
-			// Truncated output is still partially useful — finish the markdown
-			// cleanly and warn the user how to get the full response next time.
-			fmt.Fprintf(os.Stdout, "\n\n> **Output truncated** at the model's max-tokens ceiling. Re-run with `--ai-max-tokens <higher value>` (or set `ai.max_tokens` in your config) to see the full analysis.\n")
-			log.Warnf("AI analysis was truncated (%v) — raise --ai-max-tokens to get the full response", err)
-			return
-		}
-		log.Warnf("AI analysis failed: %v", err)
-		return
-	}
-	if _, err := fmt.Fprintln(os.Stdout); err != nil {
-		log.Warnf("AI analysis: failed to write trailing newline: %v", err)
-	}
-}
-
-// formatAndWrite builds a PlanFormatter (filtered or unfiltered) and writes the
-// formatted analysis to stdout. Top-resource count falls back to config unless
-// the CLI flag was set explicitly.
-func (o *reviewPlanOpts) formatAndWrite(cmd *cobra.Command, log *logger.Logger, analysis *plan.PlanAnalysis, filter *plan.ResourceFilter, totalResourceCount int) error {
-	planConfig := plan.LoadAnalysisConfig(viper.GetViper())
-	topResourcesCount := planConfig.TopResourcesCount
-	if cmd.Flags().Changed("top-resources-count") {
-		topResourcesCount = o.topResourcesCount
-	}
-
-	var formatter *plan.PlanFormatter
-	if !filter.IsEmpty() {
-		formatter = plan.NewPlanFormatterFiltered(o.root.useColor, topResourcesCount, totalResourceCount, filter.Descriptions())
-	} else {
-		formatter = plan.NewPlanFormatterWithConfig(o.root.useColor, topResourcesCount)
-	}
-	if err := formatter.Format(analysis, format.OutputFormat(o.outputFormat), os.Stdout); err != nil {
-		log.Errorf("Failed to format output: %v", err)
-		return fmt.Errorf("failed to format output: %w", err)
-	}
-	return nil
 }
