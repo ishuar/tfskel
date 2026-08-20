@@ -1,11 +1,13 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"strings"
 
+	"github.com/ishuar/tfskel/internal/ai"
 	"github.com/ishuar/tfskel/internal/format"
 	"github.com/ishuar/tfskel/internal/logger"
 	"github.com/ishuar/tfskel/internal/plan"
@@ -22,6 +24,8 @@ var (
 	ErrInvalidFormat = errors.New("invalid format")
 	// ErrInvalidFilter indicates an invalid filter value was specified.
 	ErrInvalidFilter = errors.New("invalid filter")
+	// ErrAIIncompatibleFormat indicates --ai was combined with a machine-readable format.
+	ErrAIIncompatibleFormat = errors.New("--ai is only supported with --format=table")
 )
 
 // reviewPlanOpts holds flag state for `tfskel review plan`.
@@ -33,8 +37,14 @@ type reviewPlanOpts struct {
 	filterSeverity    []string
 	minSeverity       string
 	filterAction      []string
+	ai                bool
+	aiModel           string
+	aiMaxTokens       int
 }
 
+// newReviewPlanCmd builds the `review plan` command.
+//
+//nolint:funlen // Flag registration is linear pflag boilerplate; extracting helpers would only forward arguments without hiding complexity.
 func newReviewPlanCmd(root *rootOpts) *cobra.Command {
 	opts := &reviewPlanOpts{root: root}
 
@@ -85,7 +95,13 @@ Severity Levels:
   tfskel review plan --json-file tfplan.json --filter-action delete,replace
 
   # Combine filters (AND semantics)
-  tfskel review plan --json-file tfplan.json --min-severity high --filter-action delete`,
+  tfskel review plan --json-file tfplan.json --min-severity high --filter-action delete
+
+  # Append an AI-generated narrative analysis (requires ANTHROPIC_API_KEY)
+  tfskel review plan --json-file tfplan.json --ai
+
+  # Use a specific Claude model for the AI analysis
+  tfskel review plan --json-file tfplan.json --ai --ai-model claude-opus-4-7`,
 		SilenceUsage: true,
 		RunE:         opts.run,
 	}
@@ -106,6 +122,13 @@ Severity Levels:
 	cmd.Flags().StringSliceVar(&opts.filterAction, "filter-action", nil,
 		"Filter by action: create, update, delete, replace (comma-separated)")
 	cmd.MarkFlagsMutuallyExclusive("filter-severity", "min-severity")
+
+	cmd.Flags().BoolVar(&opts.ai, "ai", false,
+		"Append an AI-generated narrative analysis (blast radius, security, rollback) using Claude. Requires ANTHROPIC_API_KEY.")
+	cmd.Flags().StringVar(&opts.aiModel, "ai-model", "",
+		"Claude model override (default: from config or built-in default)")
+	cmd.Flags().IntVar(&opts.aiMaxTokens, "ai-max-tokens", 0,
+		"Maximum response tokens for the AI analysis (0 = use config or built-in default)")
 
 	return cmd
 }
@@ -153,6 +176,12 @@ func (o *reviewPlanOpts) run(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
+	if o.ai {
+		// AI is additive: any failure here warns to stderr but never affects
+		// the exit code or propagates as a command error.
+		o.runAIAnalysis(cmd.Context(), log, planData, analysis)
+	}
+
 	if exitCode := analysis.ExitCode(); exitCode != 0 {
 		log.Warnf("Changes detected - exiting with code %d", exitCode)
 		return NewExitError(exitCode, "")
@@ -169,6 +198,11 @@ func (o *reviewPlanOpts) validateInputs(log *logger.Logger) (*plan.ResourceFilte
 	default:
 		log.Errorf("Invalid format: %s", o.outputFormat)
 		return nil, fmt.Errorf("%w: %s (must be one of %s)", ErrInvalidFormat, o.outputFormat, strings.Join(validFormats, ", "))
+	}
+
+	if o.ai && format.OutputFormat(o.outputFormat) != format.FormatTable {
+		log.Errorf("--ai is only supported with --format=table (got %s)", o.outputFormat)
+		return nil, fmt.Errorf("%w (got --format=%s)", ErrAIIncompatibleFormat, o.outputFormat)
 	}
 
 	filter := &plan.ResourceFilter{
@@ -199,6 +233,49 @@ func (o *reviewPlanOpts) ensurePlanFileReadable(log *logger.Logger) error {
 	}
 	log.Errorf("Failed to access file: %v", err)
 	return fmt.Errorf("failed to access file: %w", err)
+}
+
+// runAIAnalysis streams Claude's narrative analysis to stdout below the table.
+// All failure modes are non-fatal: a missing API key, a network blip, or an
+// invalid model name produces a stderr warning and an early return — the
+// command's exit code stays whatever the structured analysis decided.
+func (o *reviewPlanOpts) runAIAnalysis(ctx context.Context, log *logger.Logger, planData *plan.TerraformPlan, analysis *plan.PlanAnalysis) {
+	cfg := ai.LoadConfig(viper.GetViper())
+	if o.aiModel != "" {
+		cfg.Model = o.aiModel
+	}
+	if o.aiMaxTokens > 0 {
+		cfg.MaxTokens = o.aiMaxTokens
+	}
+
+	client, err := ai.NewClient(ctx, cfg)
+	if err != nil {
+		log.Warnf("--ai requested but skipping AI analysis: %v", err)
+		return
+	}
+
+	planCfg := plan.LoadAnalysisConfig(viper.GetViper())
+	payload := ai.BuildPayload(planData, analysis, planCfg.CriticalResources)
+
+	header := fmt.Sprintf("\n## AI Analysis\n\n- **Provider:** %s\n- **Model:** %s\n\n", client.Provider(), client.Model())
+	if _, err := fmt.Fprint(os.Stdout, header); err != nil {
+		log.Warnf("AI analysis: failed to write section header: %v", err)
+		return
+	}
+	if err := client.Explain(ctx, payload, os.Stdout); err != nil {
+		if errors.Is(err, ai.ErrResponseTruncated) {
+			// Truncated output is still partially useful — finish the markdown
+			// cleanly and warn the user how to get the full response next time.
+			fmt.Fprintf(os.Stdout, "\n\n> **Output truncated** at the model's max-tokens ceiling. Re-run with `--ai-max-tokens <higher value>` (or set `ai.max_tokens` in your config) to see the full analysis.\n")
+			log.Warnf("AI analysis was truncated (%v) — raise --ai-max-tokens to get the full response", err)
+			return
+		}
+		log.Warnf("AI analysis failed: %v", err)
+		return
+	}
+	if _, err := fmt.Fprintln(os.Stdout); err != nil {
+		log.Warnf("AI analysis: failed to write trailing newline: %v", err)
+	}
 }
 
 // formatAndWrite builds a PlanFormatter (filtered or unfiltered) and writes the
