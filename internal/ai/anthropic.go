@@ -22,6 +22,11 @@ const APIKeyEnvVar = "ANTHROPIC_API_KEY"
 // AI analysis when they see this; they do not propagate it as a command error.
 var ErrMissingAPIKey = errors.New("ANTHROPIC_API_KEY is not set")
 
+// AnthropicDefaultModel is the Claude model used when no override is
+// configured. Sonnet 4.6 balances capability, latency, and cost for
+// plan-narrative work.
+const AnthropicDefaultModel = "claude-sonnet-4-6"
+
 // AnthropicClient is the Claude implementation of Client.
 type AnthropicClient struct {
 	client anthropic.Client
@@ -31,17 +36,35 @@ type AnthropicClient struct {
 
 // NewAnthropicClient builds a Client backed by Anthropic's Messages API.
 // Returns ErrMissingAPIKey when the env var is empty so the caller can warn
-// without constructing a doomed request.
-func NewAnthropicClient(cfg *Config) (*AnthropicClient, error) {
+// without constructing a doomed request. Zero-value Config fields resolve to
+// this provider's defaults; opts open the transport seam for tests.
+func NewAnthropicClient(cfg *Config, opts ...Option) (*AnthropicClient, error) {
 	key := os.Getenv(APIKeyEnvVar)
 	if key == "" {
 		return nil, ErrMissingAPIKey
 	}
-	c := anthropic.NewClient(option.WithAPIKey(key))
+	o := applyOptions(opts)
+	reqOpts := []option.RequestOption{option.WithAPIKey(key)}
+	if o.baseURL != "" {
+		reqOpts = append(reqOpts, option.WithBaseURL(o.baseURL))
+	}
+	if o.httpClient != nil {
+		reqOpts = append(reqOpts, option.WithHTTPClient(o.httpClient))
+	}
+
+	model := cfg.Model
+	if model == "" {
+		model = AnthropicDefaultModel
+	}
+	maxTok := cfg.MaxTokens
+	if maxTok <= 0 {
+		maxTok = DefaultMaxTokens
+	}
+
 	return &AnthropicClient{
-		client: c,
-		model:  cfg.Model,
-		maxTok: int64(cfg.MaxTokens),
+		client: anthropic.NewClient(reqOpts...),
+		model:  model,
+		maxTok: int64(maxTok),
 	}, nil
 }
 

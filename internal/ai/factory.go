@@ -26,13 +26,14 @@ const (
 
 // NewClient constructs the Client implementation selected by ProviderEnvVar.
 // An unrecognized provider value is an error — silent fallback to Anthropic
-// would hide typos in the env var.
-func NewClient(ctx context.Context, cfg *Config) (Client, error) {
+// would hide typos in the env var. opts are forwarded to the selected
+// provider constructor.
+func NewClient(ctx context.Context, cfg *Config, opts ...Option) (Client, error) {
 	switch provider := os.Getenv(ProviderEnvVar); provider {
 	case "", ProviderAnthropic:
-		return NewAnthropicClient(cfg)
+		return NewAnthropicClient(cfg, opts...)
 	case ProviderGemini:
-		return NewGeminiClient(ctx, cfg)
+		return NewGeminiClient(ctx, cfg, opts...)
 	default:
 		return nil, fmt.Errorf("%w: %s=%q (want %q or %q)", ErrUnknownProvider, ProviderEnvVar, provider, ProviderAnthropic, ProviderGemini)
 	}

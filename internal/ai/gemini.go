@@ -35,28 +35,35 @@ type GeminiClient struct {
 
 // NewGeminiClient builds a Client backed by Google's Gemini API.
 // Returns ErrMissingGeminiAPIKey when the env var is empty so the caller can
-// warn without constructing a doomed request.
-func NewGeminiClient(ctx context.Context, cfg *Config) (*GeminiClient, error) {
+// warn without constructing a doomed request. Zero-value Config fields
+// resolve to this provider's defaults; opts open the transport seam for tests.
+func NewGeminiClient(ctx context.Context, cfg *Config, opts ...Option) (*GeminiClient, error) {
 	key := os.Getenv(GeminiAPIKeyEnvVar)
 	if key == "" {
 		return nil, ErrMissingGeminiAPIKey
 	}
+	o := applyOptions(opts)
 	c, err := genai.NewClient(ctx, &genai.ClientConfig{
-		APIKey:  key,
-		Backend: genai.BackendGeminiAPI,
+		APIKey:      key,
+		Backend:     genai.BackendGeminiAPI,
+		HTTPClient:  o.httpClient,
+		HTTPOptions: genai.HTTPOptions{BaseURL: o.baseURL},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("init gemini client: %w", err)
 	}
 	model := cfg.Model
-	if model == "" || model == DefaultModel {
+	if model == "" {
 		model = GeminiDefaultModel
+	}
+	maxTok := cfg.MaxTokens
+	if maxTok <= 0 {
+		maxTok = DefaultMaxTokens
 	}
 	return &GeminiClient{
 		client: c,
 		model:  model,
-		//nolint:gosec // G115: cfg.MaxTokens is loaded from viper with a 4096 default; values above int32 max are nonsensical for a single response and would be rejected by the API.
-		maxTok: int32(cfg.MaxTokens),
+		maxTok: int32(maxTok),
 	}, nil
 }
 
