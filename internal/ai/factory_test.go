@@ -16,7 +16,7 @@ func TestNewClient_DefaultsToAnthropic(t *testing.T) {
 	t.Setenv(ProviderEnvVar, "")
 	t.Setenv(APIKeyEnvVar, "test-key-not-used-in-this-test")
 	t.Setenv(GeminiAPIKeyEnvVar, "")
-	cfg := &Config{Model: DefaultModel, MaxTokens: DefaultMaxTokens}
+	cfg := &Config{}
 	c, err := NewClient(context.Background(), cfg)
 	require.NoError(t, err)
 	_, ok := c.(*AnthropicClient)
@@ -26,7 +26,7 @@ func TestNewClient_DefaultsToAnthropic(t *testing.T) {
 func TestNewClient_ExplicitAnthropic(t *testing.T) {
 	t.Setenv(ProviderEnvVar, ProviderAnthropic)
 	t.Setenv(APIKeyEnvVar, "test-key-not-used-in-this-test")
-	cfg := &Config{Model: DefaultModel, MaxTokens: DefaultMaxTokens}
+	cfg := &Config{}
 	c, err := NewClient(context.Background(), cfg)
 	require.NoError(t, err)
 	_, ok := c.(*AnthropicClient)
@@ -36,7 +36,7 @@ func TestNewClient_ExplicitAnthropic(t *testing.T) {
 func TestNewClient_Gemini(t *testing.T) {
 	t.Setenv(ProviderEnvVar, ProviderGemini)
 	t.Setenv(GeminiAPIKeyEnvVar, "test-key-not-used-in-this-test")
-	cfg := &Config{Model: DefaultModel, MaxTokens: DefaultMaxTokens}
+	cfg := &Config{}
 	c, err := NewClient(context.Background(), cfg)
 	require.NoError(t, err)
 	_, ok := c.(*GeminiClient)
@@ -49,7 +49,7 @@ func TestNewClient_Gemini(t *testing.T) {
 // surprise.
 func TestNewClient_UnknownProvider(t *testing.T) {
 	t.Setenv(ProviderEnvVar, "openai")
-	cfg := &Config{Model: DefaultModel, MaxTokens: DefaultMaxTokens}
+	cfg := &Config{}
 	c, err := NewClient(context.Background(), cfg)
 	require.Error(t, err)
 	assert.Nil(t, c)
@@ -63,7 +63,7 @@ func TestNewClient_UnknownProvider(t *testing.T) {
 func TestNewClient_GeminiMissingKey(t *testing.T) {
 	t.Setenv(ProviderEnvVar, ProviderGemini)
 	t.Setenv(GeminiAPIKeyEnvVar, "")
-	cfg := &Config{Model: DefaultModel, MaxTokens: DefaultMaxTokens}
+	cfg := &Config{}
 	c, err := NewClient(context.Background(), cfg)
 	require.Error(t, err)
 	assert.Nil(t, c)
