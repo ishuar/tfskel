@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.5](https://github.com/ishuar/tfskel/compare/v0.8.4...v0.8.5) (2026-08-20)
+
+
+### ✨ Features
+
+* **review:** AI narrative analysis with internal/review module ([#105](https://github.com/ishuar/tfskel/issues/105)) ([4425cb1](https://github.com/ishuar/tfskel/commit/4425cb15a98e12d665a09f7dc6c95dee25639b72))
+
 ## [0.8.4](https://github.com/ishuar/tfskel/compare/v0.8.3...v0.8.4) (2026-05-06)
 
 
