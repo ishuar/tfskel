@@ -2,6 +2,7 @@ package ai
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -54,7 +55,7 @@ func (a *AnthropicClient) Model() string { return a.model }
 // The system prompt is marked for ephemeral caching so repeated invocations
 // within the cache window are billed at the reduced rate.
 func (a *AnthropicClient) Explain(ctx context.Context, payload *Payload, writer io.Writer) error {
-	body, err := payload.MarshalCompact()
+	body, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("marshal payload: %w", err)
 	}

@@ -125,7 +125,7 @@ Severity Levels:
 	cmd.MarkFlagsMutuallyExclusive("filter-severity", "min-severity")
 
 	cmd.Flags().BoolVar(&opts.ai, "ai", false,
-		"Append an AI-generated narrative analysis (blast radius, security, rollback) using Claude. Requires ANTHROPIC_API_KEY.")
+		"Append an AI-generated narrative analysis (blast radius, security, rollback). Provider via TFSKEL_AI_PROVIDER=anthropic|gemini (default: anthropic); requires ANTHROPIC_API_KEY or GEMINI_API_KEY.")
 	cmd.Flags().StringVar(&opts.aiModel, "ai-model", "",
 		"Claude model override (default: from config or built-in default)")
 	cmd.Flags().IntVar(&opts.aiMaxTokens, "ai-max-tokens", 0,

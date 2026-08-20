@@ -2,6 +2,7 @@ package ai
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -69,7 +70,7 @@ func (g *GeminiClient) Model() string { return g.model }
 // The system prompt is passed via SystemInstruction so it is not re-tokenized
 // as part of the user message on each call.
 func (g *GeminiClient) Explain(ctx context.Context, payload *Payload, writer io.Writer) error {
-	body, err := payload.MarshalCompact()
+	body, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("marshal payload: %w", err)
 	}

@@ -118,12 +118,6 @@ func BuildPayload(analysis *plan.PlanAnalysis, criticalResources []string) *Payl
 	}
 }
 
-// MarshalCompact returns the compact JSON encoding of the payload, suitable
-// for inclusion as the user message body.
-func (p *Payload) MarshalCompact() ([]byte, error) {
-	return json.Marshal(p)
-}
-
 // parseSensitive decodes Terraform's before_sensitive/after_sensitive field,
 // which is either a bool (the entire value is/isn't sensitive) or a nested
 // object mirroring the value's shape with bool leaves. Returns nil when the

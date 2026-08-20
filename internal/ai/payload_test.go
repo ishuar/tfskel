@@ -135,18 +135,18 @@ func TestBuildPayload_OutputChangesDropValues(t *testing.T) {
 	require.Len(t, p.OutputChanges, 2)
 
 	// Confirm marshaled form does not contain any value fields — only name/actions/sensitive.
-	raw, err := p.MarshalCompact()
+	raw, err := json.Marshal(p)
 	require.NoError(t, err)
 	assert.NotContains(t, string(raw), `"value"`)
 }
 
-func TestBuildPayload_MarshalsAsCompactJSON(t *testing.T) {
-	analysis := &plan.PlanAnalysis{TerraformVersion: "1.9.0"}
+func TestBuildPayload_WireKeys(t *testing.T) {
+	analysis := &plan.PlanAnalysis{TerraformVersion: "1.9.0", TotalChanges: 1}
 	p := BuildPayload(analysis, nil)
-	raw, err := p.MarshalCompact()
+	raw, err := json.Marshal(p)
 	require.NoError(t, err)
-	assert.NotContains(t, string(raw), "\n", "compact JSON must not contain newlines")
-	assert.Contains(t, string(raw), `"terraform_version":"1.9.0"`)
+	assert.Contains(t, string(raw), `"terraform_version":"1.9.0"`, "wire key names are part of the prompt contract")
+	assert.Contains(t, string(raw), `"counts":{"total":1`)
 }
 
 // TestBuildPayload_OnlyAnalyzedResourcesWithSeverity locks in the alignment
