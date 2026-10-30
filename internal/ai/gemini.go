@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 
 	"google.golang.org/genai"
@@ -25,6 +26,10 @@ const GeminiDefaultModel = "gemini-2.5-flash"
 // ErrMissingGeminiAPIKey signals that GEMINI_API_KEY is unset. Callers warn and
 // skip AI analysis when they see this; they do not propagate it as a command error.
 var ErrMissingGeminiAPIKey = errors.New("GEMINI_API_KEY is not set")
+
+// ErrMaxTokensOutOfRange is returned when the configured max_tokens cannot be
+// represented as the int32 the Gemini SDK requires.
+var ErrMaxTokensOutOfRange = errors.New("max_tokens out of range for Gemini")
 
 // GeminiClient is the Gemini implementation of Client.
 type GeminiClient struct {
@@ -59,6 +64,11 @@ func NewGeminiClient(ctx context.Context, cfg *Config, opts ...Option) (*GeminiC
 	maxTok := cfg.MaxTokens
 	if maxTok <= 0 {
 		maxTok = DefaultMaxTokens
+	}
+	// The Gemini SDK takes max output tokens as int32; MaxTokens is user input
+	// (config file / --ai-max-tokens), so reject anything outside that range.
+	if maxTok < math.MinInt32 || maxTok > math.MaxInt32 {
+		return nil, fmt.Errorf("%w: ai.max_tokens=%d (limit %d)", ErrMaxTokensOutOfRange, maxTok, math.MaxInt32)
 	}
 	return &GeminiClient{
 		client: c,

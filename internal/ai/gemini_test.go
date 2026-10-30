@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -44,6 +45,22 @@ func TestNewGeminiClient_RespectsExplicitModel(t *testing.T) {
 	client, err := NewGeminiClient(context.Background(), &Config{Model: explicit})
 	require.NoError(t, err)
 	assert.Equal(t, explicit, client.Model())
+}
+
+// TestNewGeminiClient_MaxTokensOutOfRange verifies a max_tokens value that
+// cannot fit the SDK's int32 is rejected at construction instead of silently
+// wrapping.
+func TestNewGeminiClient_MaxTokensOutOfRange(t *testing.T) {
+	if math.MaxInt == math.MaxInt32 {
+		t.Skip("int is 32-bit on this platform; the value cannot be represented")
+	}
+	t.Setenv(GeminiAPIKeyEnvVar, "test-key-not-used-in-this-test")
+	tooBig := int64(math.MaxInt32) + 1
+	client, err := NewGeminiClient(context.Background(), &Config{MaxTokens: int(tooBig)})
+	require.Error(t, err)
+	assert.Nil(t, client)
+	assert.True(t, errors.Is(err, ErrMaxTokensOutOfRange),
+		"expected ErrMaxTokensOutOfRange sentinel, got %v", err)
 }
 
 // geminiSSEChunk is one streamGenerateContent SSE data frame.
