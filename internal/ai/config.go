@@ -15,10 +15,6 @@ package ai
 
 import "github.com/spf13/viper"
 
-// DefaultModel is the Claude model used when no override is configured.
-// Sonnet 4.6 balances capability, latency, and cost for plan-narrative work.
-const DefaultModel = "claude-sonnet-4-6"
-
 // DefaultMaxTokens caps a single response. 8192 fits the three required
 // Markdown sections (Blast Radius, Security, Rollback & Pre-apply) with
 // headroom for large plans. The previous 4096 default routinely truncated
@@ -29,22 +25,21 @@ const DefaultMaxTokens = 8192
 
 // Config holds AI-feature settings sourced from viper (file/env) and overridden
 // by command-line flags at the call site.
+//
+// Zero values mean "the provider's choice": an empty Model and a zero
+// MaxTokens are resolved by each provider constructor, so one provider's
+// default never leaks into another's.
 type Config struct {
 	Model     string `mapstructure:"model"`
 	MaxTokens int    `mapstructure:"max_tokens"`
 }
 
-// LoadConfig reads AI settings from viper, falling back to defaults for any
-// unset field. The returned Config is always usable.
+// LoadConfig reads AI settings from viper. Unset (or unusable) fields stay at
+// their zero value and are defaulted by the provider constructor.
 func LoadConfig(v *viper.Viper) *Config {
-	cfg := &Config{
-		Model:     DefaultModel,
-		MaxTokens: DefaultMaxTokens,
-	}
+	cfg := &Config{}
 	if v.IsSet("ai.model") {
-		if m := v.GetString("ai.model"); m != "" {
-			cfg.Model = m
-		}
+		cfg.Model = v.GetString("ai.model")
 	}
 	if v.IsSet("ai.max_tokens") {
 		if n := v.GetInt("ai.max_tokens"); n > 0 {

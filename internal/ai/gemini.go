@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 
 	"google.golang.org/genai"
@@ -26,6 +27,10 @@ const GeminiDefaultModel = "gemini-2.5-flash"
 // skip AI analysis when they see this; they do not propagate it as a command error.
 var ErrMissingGeminiAPIKey = errors.New("GEMINI_API_KEY is not set")
 
+// ErrMaxTokensOutOfRange is returned when the configured max_tokens cannot be
+// represented as the int32 the Gemini SDK requires.
+var ErrMaxTokensOutOfRange = errors.New("max_tokens out of range for Gemini")
+
 // GeminiClient is the Gemini implementation of Client.
 type GeminiClient struct {
 	client *genai.Client
@@ -35,28 +40,40 @@ type GeminiClient struct {
 
 // NewGeminiClient builds a Client backed by Google's Gemini API.
 // Returns ErrMissingGeminiAPIKey when the env var is empty so the caller can
-// warn without constructing a doomed request.
-func NewGeminiClient(ctx context.Context, cfg *Config) (*GeminiClient, error) {
+// warn without constructing a doomed request. Zero-value Config fields
+// resolve to this provider's defaults; opts open the transport seam for tests.
+func NewGeminiClient(ctx context.Context, cfg *Config, opts ...Option) (*GeminiClient, error) {
 	key := os.Getenv(GeminiAPIKeyEnvVar)
 	if key == "" {
 		return nil, ErrMissingGeminiAPIKey
 	}
+	o := applyOptions(opts)
 	c, err := genai.NewClient(ctx, &genai.ClientConfig{
-		APIKey:  key,
-		Backend: genai.BackendGeminiAPI,
+		APIKey:      key,
+		Backend:     genai.BackendGeminiAPI,
+		HTTPClient:  o.httpClient,
+		HTTPOptions: genai.HTTPOptions{BaseURL: o.baseURL},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("init gemini client: %w", err)
 	}
 	model := cfg.Model
-	if model == "" || model == DefaultModel {
+	if model == "" {
 		model = GeminiDefaultModel
+	}
+	maxTok := cfg.MaxTokens
+	if maxTok <= 0 {
+		maxTok = DefaultMaxTokens
+	}
+	// The Gemini SDK takes max output tokens as int32; MaxTokens is user input
+	// (config file / --ai-max-tokens), so reject anything outside that range.
+	if maxTok < math.MinInt32 || maxTok > math.MaxInt32 {
+		return nil, fmt.Errorf("%w: ai.max_tokens=%d (limit %d)", ErrMaxTokensOutOfRange, maxTok, math.MaxInt32)
 	}
 	return &GeminiClient{
 		client: c,
 		model:  model,
-		//nolint:gosec // G115: cfg.MaxTokens is loaded from viper with a 4096 default; values above int32 max are nonsensical for a single response and would be rejected by the API.
-		maxTok: int32(cfg.MaxTokens),
+		maxTok: int32(maxTok),
 	}, nil
 }
 

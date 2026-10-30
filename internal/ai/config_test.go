@@ -15,10 +15,10 @@ func TestLoadConfig(t *testing.T) {
 		wantMaxTokens int
 	}{
 		{
-			name:          "defaults when nothing configured",
+			name:          "zero values when nothing configured — provider constructors resolve defaults",
 			setup:         func(_ *viper.Viper) {},
-			wantModel:     DefaultModel,
-			wantMaxTokens: DefaultMaxTokens,
+			wantModel:     "",
+			wantMaxTokens: 0,
 		},
 		{
 			name: "override model only",
@@ -26,7 +26,7 @@ func TestLoadConfig(t *testing.T) {
 				v.Set("ai.model", "claude-opus-4-7")
 			},
 			wantModel:     "claude-opus-4-7",
-			wantMaxTokens: DefaultMaxTokens,
+			wantMaxTokens: 0,
 		},
 		{
 			name: "override both fields",
@@ -38,20 +38,20 @@ func TestLoadConfig(t *testing.T) {
 			wantMaxTokens: 8192,
 		},
 		{
-			name: "empty model falls back to default",
+			name: "empty model stays zero — no provider default baked in here",
 			setup: func(v *viper.Viper) {
 				v.Set("ai.model", "")
 			},
-			wantModel:     DefaultModel,
-			wantMaxTokens: DefaultMaxTokens,
+			wantModel:     "",
+			wantMaxTokens: 0,
 		},
 		{
-			name: "non-positive max_tokens falls back to default",
+			name: "non-positive max_tokens stays zero",
 			setup: func(v *viper.Viper) {
-				v.Set("ai.max_tokens", 0)
+				v.Set("ai.max_tokens", -5)
 			},
-			wantModel:     DefaultModel,
-			wantMaxTokens: DefaultMaxTokens,
+			wantModel:     "",
+			wantMaxTokens: 0,
 		},
 	}
 	for _, tt := range tests {
