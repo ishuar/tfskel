@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -65,14 +66,21 @@ func run(out string) error {
 // one newline. cobra/doc emits a trailing blank line, and the repo's
 // end-of-file-fixer pre-commit hook strips it; without this step every
 // regeneration would differ from the committed files and docs-check would
-// never pass.
+// never pass. All I/O goes through an os.Root scoped to dir so a page name
+// can never escape the output directory.
 func normalizeTrailingNewlines(dir string) error {
-	pages, err := filepath.Glob(filepath.Join(dir, "tfskel*.md"))
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return fmt.Errorf("open %s: %w", dir, err)
+	}
+	defer root.Close()
+
+	pages, err := fs.Glob(root.FS(), "tfskel*.md")
 	if err != nil {
 		return fmt.Errorf("glob generated docs: %w", err)
 	}
 	for _, page := range pages {
-		b, err := os.ReadFile(page)
+		b, err := fs.ReadFile(root.FS(), page)
 		if err != nil {
 			return fmt.Errorf("read %s: %w", page, err)
 		}
@@ -80,8 +88,16 @@ func normalizeTrailingNewlines(dir string) error {
 		if bytes.Equal(b, trimmed) {
 			continue
 		}
-		if err := os.WriteFile(page, trimmed, 0644); err != nil {
-			return fmt.Errorf("write %s: %w", page, err)
+		f, err := root.OpenFile(page, os.O_WRONLY|os.O_TRUNC, 0644)
+		if err != nil {
+			return fmt.Errorf("open %s for writing: %w", page, err)
+		}
+		_, werr := f.Write(trimmed)
+		if cerr := f.Close(); werr == nil {
+			werr = cerr
+		}
+		if werr != nil {
+			return fmt.Errorf("write %s: %w", page, werr)
 		}
 	}
 	return nil
