@@ -41,6 +41,7 @@ type reviewPlanOpts struct {
 	ai                bool
 	aiModel           string
 	aiMaxTokens       int
+	detailedExitCode  bool
 }
 
 // newReviewPlanCmd builds the `review plan` command.
@@ -70,12 +71,24 @@ Severity Levels:
   - Critical  - Deletions or replacements (data loss risk)
   - High      - Modifications to critical resources
   - Medium    - Standard resource modifications
-  - Low       - Additions only`,
+  - Low       - Additions only
+
+Exit Codes:
+  By default the command exits 0 whenever the review completes, like
+  'terraform plan'. With --detailed-exitcode it mirrors and extends
+  'terraform plan -detailed-exitcode':
+  - 0  - No changes
+  - 1  - Error (invalid flags, unreadable plan, ...)
+  - 2  - Non-critical changes (additions or modifications)
+  - 3  - Critical changes (deletions or replacements)`,
 		Example: `  # Analyze a plan file
   tfskel review plan --json-file tfplan.json
 
   # Export analysis as JSON for CI/CD
   tfskel review plan --json-file tfplan.json --format json
+
+  # Gate CI on the result: exit 2 on changes, 3 on deletions/replacements
+  tfskel review plan --json-file tfplan.json --detailed-exitcode
 
   # Generate CSV report
   tfskel review plan --json-file tfplan.json --format csv > plan-analysis.csv
@@ -123,6 +136,9 @@ Severity Levels:
 	cmd.Flags().StringSliceVar(&opts.filterAction, "filter-action", nil,
 		"Filter by action: create, update, delete, replace (comma-separated)")
 	cmd.MarkFlagsMutuallyExclusive("filter-severity", "min-severity")
+
+	cmd.Flags().BoolVar(&opts.detailedExitCode, "detailed-exitcode", false,
+		"Exit 2 on non-critical changes and 3 on critical changes instead of 0 (see Exit Codes above)")
 
 	cmd.Flags().BoolVar(&opts.ai, "ai", false,
 		"Append an AI-generated narrative analysis (blast radius, security, rollback). Provider via TFSKEL_AI_PROVIDER=anthropic|gemini (default: anthropic); requires ANTHROPIC_API_KEY or GEMINI_API_KEY.")
@@ -173,8 +189,8 @@ func (o *reviewPlanOpts) run(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	if result.ExitCode != 0 {
-		log.Warnf("Changes detected - exiting with code %d", result.ExitCode)
+	if o.detailedExitCode && result.ExitCode != plan.ExitCodeSuccess {
+		log.Infof("Changes detected - exiting with code %d (--detailed-exitcode)", result.ExitCode)
 		return NewExitError(result.ExitCode, "")
 	}
 	return nil

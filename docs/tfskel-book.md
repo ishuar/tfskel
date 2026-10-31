@@ -713,6 +713,7 @@ tfskel review plan [flags]
 - `--json-file`: Path to Terraform plan JSON file (required)
 - `--format, -f`: Output format: table, json, csv (default: table)
 - `--top-resources-count`: Show top N highest-impact resources (default: 10, use 0 for all)
+- `--detailed-exitcode`: Exit `2` on non-critical changes and `3` on deletions/replacements (`0` = no changes, `1` = error). Without it the command exits `0` whenever the review completes, like `terraform plan`.
 - `--no-color`: Disable colored output
 - `--verbose, -v`: Enable verbose output
 
@@ -732,6 +733,9 @@ tfskel review plan --json-file plan.json --format json
 
 # Export as CSV for reporting
 tfskel review plan --json-file plan.json --format csv > changes.csv
+
+# Gate CI on the plan content (mirrors terraform plan -detailed-exitcode)
+tfskel review plan --json-file plan.json --detailed-exitcode
 ```
 
 **What it does**:
