@@ -7,6 +7,7 @@ COMMIT=$(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 BUILD_TIME=$(shell date -u '+%Y-%m-%d_%H:%M:%S')
 LDFLAGS=-ldflags "-s -w -X github.com/ishuar/tfskel/cmd.Commit=$(COMMIT) -X github.com/ishuar/tfskel/cmd.Date=$(BUILD_TIME)"
 BUILD_DIR=dist
+DOCS_DIR=docs/reference
 GO_FILES=$(shell find . -name '*.go' -not -path "./vendor/*" -not -path "./.history/*" -not -path "./dist/*")
 
 # Build the application
@@ -73,24 +74,24 @@ security-scan:
 	@which gosec > /dev/null 2>&1 && gosec ./... || echo "Tip: Install gosec with: go install github.com/securego/gosec/v2/cmd/gosec@latest"
 	@which trivy > /dev/null 2>&1 && trivy fs --severity HIGH,CRITICAL . || echo "Tip: Install trivy from https://github.com/aquasecurity/trivy"
 
-# Regenerate the command reference (docs/reference/) from the cobra command tree
+# Regenerate the command reference ($(DOCS_DIR)) from the cobra command tree
 docs:
 	@echo "Generating command reference..."
-	@go run ./tools/gendocs
+	@go run ./tools/gendocs -out $(DOCS_DIR)
 
 # Fail when a fresh generation differs from what is staged or committed.
 # Compares against the index (not HEAD) so 'make docs && git add' passes
 # locally before the commit exists; in a clean CI checkout index == HEAD.
 docs-check: docs
-	@git diff --exit-code -- docs/reference >/dev/null || { \
-		git --no-pager diff --stat -- docs/reference; \
-		echo "docs/reference is stale: run 'make docs' and commit the result"; \
+	@git diff --exit-code -- $(DOCS_DIR) >/dev/null || { \
+		git --no-pager diff --stat -- $(DOCS_DIR); \
+		echo "$(DOCS_DIR) is stale: run 'make docs' and commit the result"; \
 		exit 1; \
 	}
-	@untracked="$$(git ls-files --others --exclude-standard -- docs/reference)"; \
+	@untracked="$$(git ls-files --others --exclude-standard -- $(DOCS_DIR))"; \
 	if [ -n "$$untracked" ]; then \
 		echo "new generated pages are not tracked: $$untracked"; \
-		echo "run 'git add docs/reference' and commit the result"; \
+		echo "run 'git add $(DOCS_DIR)' and commit the result"; \
 		exit 1; \
 	fi
 
