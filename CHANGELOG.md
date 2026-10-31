@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.9.0](https://github.com/ishuar/tfskel/compare/v0.8.4...v0.9.0) (2026-10-31)
+
+
+### ⚠ BREAKING CHANGES
+
+* **review:** exit 0 on plan changes by default; add --detailed-exitcode ([#108](https://github.com/ishuar/tfskel/issues/108))
+
+### ✨ Features
+
+* **review:** AI narrative analysis with internal/review module ([#105](https://github.com/ishuar/tfskel/issues/105)) ([4425cb1](https://github.com/ishuar/tfskel/commit/4425cb15a98e12d665a09f7dc6c95dee25639b72))
+* **review:** exit 0 on plan changes by default; add --detailed-exitcode ([#108](https://github.com/ishuar/tfskel/issues/108)) ([89419fc](https://github.com/ishuar/tfskel/commit/89419fc724e805932941efaf75e82a61fff29c33))
+
+
+### 📦 Other Changes
+
+* **review:** document --ai, --ai-model, --ai-max-tokens and provider selection ([#110](https://github.com/ishuar/tfskel/issues/110)) ([d573583](https://github.com/ishuar/tfskel/commit/d573583b19b765cee2c94ce746b7dab13e132486))
+* **review:** transport seam in AI clients + streaming tests ([#106](https://github.com/ishuar/tfskel/issues/106)) ([a57ea3a](https://github.com/ishuar/tfskel/commit/a57ea3a88a6c9894d2996301d80d8865fd2b50f5))
+
 ## [0.8.4](https://github.com/ishuar/tfskel/compare/v0.8.3...v0.8.4) (2026-05-06)
 
 
