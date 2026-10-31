@@ -87,9 +87,11 @@ type Report struct {
 	ToolReport *toolcheck.Report `json:"-"`
 }
 
-// Exit codes for validate. They follow the same rule as `review plan
-// --detailed-exitcode`: 1 always means "something broke", so a CI script
-// checking `exit == 1` gets the same answer from every tfskel command.
+// Exit codes for validate. 1 means "something broke" here as it does for
+// `review plan --detailed-exitcode` and for plain errors in main, so a CI
+// script checking `exit == 1` gets the same answer from every tfskel command.
+// Unlike internal/plan, this package emits 1 itself: a check that could not
+// run is recorded in the report as StatusError, not returned as a Go error.
 const (
 	// ExitCodeSuccess indicates every check passed (or was skipped).
 	ExitCodeSuccess = 0

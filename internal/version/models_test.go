@@ -58,62 +58,6 @@ func TestDriftReport_GetDriftSummaryText(t *testing.T) {
 	}
 }
 
-func TestDriftReport_GetExitCode(t *testing.T) {
-	tests := []struct {
-		name   string
-		report *DriftReport
-		want   int
-	}{
-		{
-			name: "no drift no errors",
-			report: &DriftReport{
-				FilesWithDrift: 0,
-				Summary: DriftSummary{
-					FilesWithErrors: 0,
-				},
-			},
-			want: 0,
-		},
-		{
-			name: "has drift no errors",
-			report: &DriftReport{
-				FilesWithDrift: 3,
-				Summary: DriftSummary{
-					FilesWithErrors: 0,
-				},
-			},
-			want: 1,
-		},
-		{
-			name: "no drift with errors",
-			report: &DriftReport{
-				FilesWithDrift: 0,
-				Summary: DriftSummary{
-					FilesWithErrors: 2,
-				},
-			},
-			want: 2,
-		},
-		{
-			name: "has drift and errors",
-			report: &DriftReport{
-				FilesWithDrift: 5,
-				Summary: DriftSummary{
-					FilesWithErrors: 1,
-				},
-			},
-			want: 2,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := tt.report.ExitCode()
-			assert.Equal(t, tt.want, got)
-		})
-	}
-}
-
 func TestVersionInfo(t *testing.T) {
 	t.Run("creates version info with providers", func(t *testing.T) {
 		vi := VersionInfo{

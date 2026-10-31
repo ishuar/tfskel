@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/ishuar/tfskel/internal/validate"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -65,6 +66,19 @@ func TestRunValidate(t *testing.T) {
 			var exitErr *ExitError
 			require.True(t, errors.As(err, &exitErr), "error should be ExitError, got: %v", err)
 		}
+	})
+
+	t.Run("findings exit with ExitCodeFindings", func(t *testing.T) {
+		tmpDir := validateTestSetup(t)
+		// A .terraform-version that cannot match the configured constraint
+		// makes the config check fail deterministically.
+		require.NoError(t, os.WriteFile(filepath.Join(tmpDir, ".terraform-version"), []byte("0.0.1\n"), 0o644))
+		opts := &validateOpts{root: &rootOpts{}, format: "json", skip: "tools"}
+
+		err := opts.run(newTestCmd(t), []string{})
+		var exitErr *ExitError
+		require.ErrorAs(t, err, &exitErr)
+		assert.Equal(t, validate.ExitCodeFindings, exitErr.Code)
 	})
 
 	t.Run("JSON output format", func(t *testing.T) {
