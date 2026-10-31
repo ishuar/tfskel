@@ -191,18 +191,6 @@ func extractVersionNumbers(version string) (major, minor int) {
 	return major, minor
 }
 
-// ExitCode returns appropriate exit code for CI/CD
-// 0 = no drift, 1 = drift detected, 2 = errors
-func (r *DriftReport) ExitCode() int {
-	if r.Summary.FilesWithErrors > 0 {
-		return 2
-	}
-	if r.FilesWithDrift > 0 {
-		return 1
-	}
-	return 0
-}
-
 // GetDriftSummaryText returns a human-readable summary
 func (r *DriftReport) GetDriftSummaryText() string {
 	if r.FilesWithDrift == 0 {

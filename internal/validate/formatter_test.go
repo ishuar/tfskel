@@ -63,7 +63,7 @@ func TestFormatter_FormatJSON(t *testing.T) {
 
 		assert.Len(t, result.Checks, 2)
 		assert.Len(t, result.Findings, 1)
-		assert.Equal(t, 1, result.ExitCode)
+		assert.Equal(t, ExitCodeFindings, result.ExitCode)
 	})
 
 	t.Run("exit code 0 for passing report", func(t *testing.T) {
@@ -77,7 +77,7 @@ func TestFormatter_FormatJSON(t *testing.T) {
 			ExitCode int `json:"exitCode"`
 		}
 		require.NoError(t, json.Unmarshal(buf.Bytes(), &result))
-		assert.Equal(t, 0, result.ExitCode)
+		assert.Equal(t, ExitCodeSuccess, result.ExitCode)
 	})
 
 	t.Run("findings contain expected fields", func(t *testing.T) {

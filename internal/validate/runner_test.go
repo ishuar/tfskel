@@ -137,6 +137,6 @@ func TestRunner_Run_AllSkipped(t *testing.T) {
 	for _, c := range report.Checks {
 		assert.Equal(t, StatusSkipped, c.Status, "check %s should be skipped", c.Check)
 	}
-	assert.Equal(t, 0, report.ExitCode())
+	assert.Equal(t, ExitCodeSuccess, report.ExitCode())
 	assert.Equal(t, 0, report.IssueCount())
 }

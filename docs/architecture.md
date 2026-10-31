@@ -869,7 +869,7 @@ User runs: tfskel validate
        ▼
 3. Formatting and Result
    ├─ Format output (table/JSON/CSV)
-   └─ Exit code: 0 = pass, 1 = findings, 2 = errors
+   └─ Exit code: 0 = pass, 1 = errors, 2 = findings
 ```
 
 #### Drift Plan Flow
