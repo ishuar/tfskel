@@ -55,7 +55,7 @@ func TestPlanAnalyzer_Analyze(t *testing.T) {
 			wantDeletions:     0,
 			wantReplacements:  0,
 			wantHasChanges:    false,
-			wantExitCode:      0,
+			wantExitCode:      ExitCodeSuccess,
 		},
 		{
 			name: "no changes - all no-op",
@@ -80,7 +80,7 @@ func TestPlanAnalyzer_Analyze(t *testing.T) {
 			wantDeletions:     0,
 			wantReplacements:  0,
 			wantHasChanges:    false,
-			wantExitCode:      0,
+			wantExitCode:      ExitCodeSuccess,
 		},
 		{
 			name: "create action - low severity",
@@ -105,7 +105,7 @@ func TestPlanAnalyzer_Analyze(t *testing.T) {
 			wantDeletions:     0,
 			wantReplacements:  0,
 			wantHasChanges:    true,
-			wantExitCode:      1,
+			wantExitCode:      ExitCodeChanges,
 			validateResources: func(t *testing.T, resources []AnalyzedResource) {
 				t.Helper()
 				require.Len(t, resources, 1)
@@ -137,7 +137,7 @@ func TestPlanAnalyzer_Analyze(t *testing.T) {
 			wantDeletions:     0,
 			wantReplacements:  0,
 			wantHasChanges:    true,
-			wantExitCode:      1,
+			wantExitCode:      ExitCodeChanges,
 			validateResources: func(t *testing.T, resources []AnalyzedResource) {
 				t.Helper()
 				require.Len(t, resources, 1)
@@ -168,7 +168,7 @@ func TestPlanAnalyzer_Analyze(t *testing.T) {
 			wantDeletions:     0,
 			wantReplacements:  0,
 			wantHasChanges:    true,
-			wantExitCode:      1,
+			wantExitCode:      ExitCodeChanges,
 			validateResources: func(t *testing.T, resources []AnalyzedResource) {
 				t.Helper()
 				require.Len(t, resources, 1)
@@ -200,7 +200,7 @@ func TestPlanAnalyzer_Analyze(t *testing.T) {
 			wantDeletions:     1,
 			wantReplacements:  0,
 			wantHasChanges:    true,
-			wantExitCode:      2,
+			wantExitCode:      ExitCodeCritical,
 			validateResources: func(t *testing.T, resources []AnalyzedResource) {
 				t.Helper()
 				require.Len(t, resources, 1)
@@ -231,7 +231,7 @@ func TestPlanAnalyzer_Analyze(t *testing.T) {
 			wantDeletions:     0,
 			wantReplacements:  1,
 			wantHasChanges:    true,
-			wantExitCode:      2,
+			wantExitCode:      ExitCodeCritical,
 			validateResources: func(t *testing.T, resources []AnalyzedResource) {
 				t.Helper()
 				require.Len(t, resources, 1)
@@ -289,7 +289,7 @@ func TestPlanAnalyzer_Analyze(t *testing.T) {
 			wantDeletions:     1,
 			wantReplacements:  1,
 			wantHasChanges:    true,
-			wantExitCode:      2,
+			wantExitCode:      ExitCodeCritical,
 			validateResources: func(t *testing.T, resources []AnalyzedResource) {
 				t.Helper()
 				require.Len(t, resources, 4)
@@ -335,7 +335,7 @@ func TestPlanAnalyzer_Analyze(t *testing.T) {
 			wantDeletions:     0,
 			wantReplacements:  0,
 			wantHasChanges:    false,
-			wantExitCode:      0,
+			wantExitCode:      ExitCodeSuccess,
 			validateResources: func(t *testing.T, resources []AnalyzedResource) {
 				t.Helper()
 				require.Len(t, resources, 0, "data sources should not be tracked")
@@ -681,7 +681,7 @@ func TestPlanAnalysis_ExitCode(t *testing.T) {
 			analysis: &PlanAnalysis{
 				TotalChanges: 0,
 			},
-			wantExitCode: 0,
+			wantExitCode: ExitCodeSuccess,
 		},
 		{
 			name: "only additions",
@@ -689,7 +689,7 @@ func TestPlanAnalysis_ExitCode(t *testing.T) {
 				TotalChanges: 5,
 				Additions:    5,
 			},
-			wantExitCode: 1,
+			wantExitCode: ExitCodeChanges,
 		},
 		{
 			name: "only modifications",
@@ -697,7 +697,7 @@ func TestPlanAnalysis_ExitCode(t *testing.T) {
 				TotalChanges:  3,
 				Modifications: 3,
 			},
-			wantExitCode: 1,
+			wantExitCode: ExitCodeChanges,
 		},
 		{
 			name: "has deletions - critical",
@@ -705,7 +705,7 @@ func TestPlanAnalysis_ExitCode(t *testing.T) {
 				TotalChanges: 1,
 				Deletions:    1,
 			},
-			wantExitCode: 2,
+			wantExitCode: ExitCodeCritical,
 		},
 		{
 			name: "has replacements - critical",
@@ -713,7 +713,7 @@ func TestPlanAnalysis_ExitCode(t *testing.T) {
 				TotalChanges: 1,
 				Replacements: 1,
 			},
-			wantExitCode: 2,
+			wantExitCode: ExitCodeCritical,
 		},
 		{
 			name: "mixed with deletions - critical takes precedence",
@@ -723,7 +723,7 @@ func TestPlanAnalysis_ExitCode(t *testing.T) {
 				Modifications: 3,
 				Deletions:     2,
 			},
-			wantExitCode: 2,
+			wantExitCode: ExitCodeCritical,
 		},
 	}
 

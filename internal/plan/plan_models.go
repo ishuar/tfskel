@@ -104,19 +104,23 @@ const (
 	SeverityCritical Severity = "critical"
 )
 
-// Exit codes for plan analysis
+// Exit codes for plan analysis, surfaced only when the caller opts in via
+// --detailed-exitcode. The values are an externally fixed standard: 0 and 2
+// mirror `terraform plan -detailed-exitcode`, 1 is reserved for runtime errors
+// (set by main.go) so it never collides with "changes", and 3 extends the
+// terraform scheme with the critical tier terraform cannot express.
 const (
 	// ExitCodeSuccess indicates no infrastructure changes detected
 	ExitCodeSuccess = 0
 	// ExitCodeChanges indicates non-critical changes detected (creates, updates)
-	ExitCodeChanges = 1
+	ExitCodeChanges = 2
 	// ExitCodeCritical indicates critical changes detected (deletes, replacements)
-	ExitCodeCritical = 2
+	ExitCodeCritical = 3
 )
 
-// ExitCode returns the appropriate exit code based on analysis results.
-// Returns ExitCodeSuccess (0) for no changes, ExitCodeChanges (1) for non-critical changes,
-// and ExitCodeCritical (2) for critical changes (deletions or replacements).
+// ExitCode returns the detailed exit code for the analysis results.
+// Returns ExitCodeSuccess (0) for no changes, ExitCodeChanges (2) for non-critical changes,
+// and ExitCodeCritical (3) for critical changes (deletions or replacements).
 func (a *PlanAnalysis) ExitCode() int {
 	if a.Deletions > 0 || a.Replacements > 0 {
 		return ExitCodeCritical

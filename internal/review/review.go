@@ -50,8 +50,9 @@ type Request struct {
 type Result struct {
 	// Analysis is the analyzed (and, when a filter was active, filtered) plan.
 	Analysis *plan.PlanAnalysis
-	// ExitCode is the process exit code the analysis calls for: 0 no changes,
-	// 1 non-critical changes, 2 critical changes.
+	// ExitCode is the detailed exit code the analysis calls for: 0 no changes,
+	// 2 non-critical changes, 3 critical changes. The CLI decides whether to
+	// act on it (--detailed-exitcode) or exit 0 regardless.
 	ExitCode int
 }
 

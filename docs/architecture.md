@@ -899,7 +899,7 @@ User runs: tfskel review plan --json-file tfplan.json
        │
        ▼
 5. Result
-   └─ Plan analysis report with severity and exit code
+   └─ Plan analysis report with severity; exit code 0 unless --detailed-exitcode (0/2/3)
 ```
 
 ### Configuration Loading Flow

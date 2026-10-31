@@ -260,22 +260,29 @@ Reads a `plan.json` file, summarizes resource changes, flags high-severity updat
 | Flag | Short | Default | Description |
 |---|---|---|---|
 | `--json-file` | | *(required)* | Path to the Terraform plan JSON file |
+| `--detailed-exitcode` | | `false` | Exit with a detailed code reflecting the plan content (see below). Without it the command exits `0` whenever the review completes, like `terraform plan`. |
 | `--format` | `-f` | `table` | Output format: `table`, `json`, `csv` |
 | `--no-color` | | `false` | Disable colored output |
 
 **Exit codes:**
 
-| Code | Meaning |
-|---|---|
-| `0` | No changes — infrastructure is up to date |
-| `1` | Non-critical changes detected (additions or modifications) |
-| `2` | Critical changes detected (deletions or replacements) |
+| Code | Meaning | Without `--detailed-exitcode` |
+|---|---|---|
+| `0` | No changes — infrastructure is up to date | `0` |
+| `1` | Error (invalid flags, unreadable plan file, ...) | `1` |
+| `2` | Non-critical changes detected (additions or modifications) | `0` |
+| `3` | Critical changes detected (deletions or replacements) | `0` |
+
+Codes `0` and `2` match `terraform plan -detailed-exitcode`; `3` is a tfskel extension for destructive changes. A non-zero exit fails a GitHub Actions step, so only pass `--detailed-exitcode` when you want the job to gate on the plan content (pair it with `continue-on-error: true` and `steps.<id>.outcome` if you need both). Scaffolded workflows generated before this change can drop `continue-on-error: true` from the tfskel step.
 
 ```bash
 # Generate and analyze a Terraform plan
 terraform plan -out plan.bin
 terraform show -json plan.bin > plan.json
 tfskel review plan --json-file plan.json
+
+# Gate CI on the plan: exit 2 on changes, 3 on deletions/replacements
+tfskel review plan --json-file plan.json --detailed-exitcode
 
 # Export as CSV for reporting
 tfskel review plan --json-file plan.json --format csv

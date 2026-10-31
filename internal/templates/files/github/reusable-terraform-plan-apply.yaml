@@ -133,9 +133,6 @@ jobs:
       - name: Install tfskel & review plan
         id: review-plan
         if: steps.plan.outputs.changes == 'true'
-        ## tfskel exit with non-zero code as per plan analysis results.
-        ## but we don't want to fail the job because of that
-        continue-on-error: true
         env:
           FORCE_COLOR: ${{ inputs.tfskel_force_color }}
           TFSKEL_VERSION: ${{ inputs.tfskel_version }}

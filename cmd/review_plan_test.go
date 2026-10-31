@@ -8,12 +8,13 @@ import (
 	"testing"
 
 	"github.com/ishuar/tfskel/internal/ai"
+	"github.com/ishuar/tfskel/internal/plan"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // reviewPlanFixture is a minimal valid plan: one replacement (critical
-// severity → exit code 2) and one creation.
+// severity → detailed exit code 3) and one creation.
 const reviewPlanFixture = `{
   "format_version": "1.2",
   "terraform_version": "1.9.0",
@@ -30,6 +31,26 @@ const reviewPlanFixture = `{
         "after": {"instance_class": "db.t3.small"}
       }
     },
+    {
+      "address": "aws_s3_bucket.logs",
+      "mode": "managed",
+      "type": "aws_s3_bucket",
+      "name": "logs",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["create"],
+        "after": {"bucket": "logs"}
+      }
+    }
+  ]
+}`
+
+// reviewPlanFixtureCreateOnly has a single addition (non-critical → detailed
+// exit code 2).
+const reviewPlanFixtureCreateOnly = `{
+  "format_version": "1.2",
+  "terraform_version": "1.9.0",
+  "resource_changes": [
     {
       "address": "aws_s3_bucket.logs",
       "mode": "managed",
@@ -69,12 +90,11 @@ func execReviewPlan(t *testing.T, planFile string, extraArgs ...string) error {
 	return root.Execute()
 }
 
-func TestReviewPlanCommand_ChangesExitWithCriticalCode(t *testing.T) {
+// TestReviewPlanCommand_ChangesExitZeroByDefault pins the terraform-like
+// default: a plan with changes is a successful review, not a failure.
+func TestReviewPlanCommand_ChangesExitZeroByDefault(t *testing.T) {
 	err := execReviewPlan(t, writeReviewPlanFixture(t, reviewPlanFixture))
-
-	var exitErr *ExitError
-	require.ErrorAs(t, err, &exitErr, "changes must surface as an ExitError")
-	assert.Equal(t, 2, exitErr.Code, "replacement present → critical exit code")
+	assert.NoError(t, err, "changes must not fail the command without --detailed-exitcode")
 }
 
 func TestReviewPlanCommand_NoChangesSucceeds(t *testing.T) {
@@ -82,14 +102,39 @@ func TestReviewPlanCommand_NoChangesSucceeds(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestReviewPlanCommand_DetailedExitCode(t *testing.T) {
+	tests := []struct {
+		name     string
+		fixture  string
+		wantCode int
+	}{
+		{name: "no changes", fixture: reviewPlanFixtureNoChanges, wantCode: plan.ExitCodeSuccess},
+		{name: "create only", fixture: reviewPlanFixtureCreateOnly, wantCode: plan.ExitCodeChanges},
+		{name: "replacement", fixture: reviewPlanFixture, wantCode: plan.ExitCodeCritical},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := execReviewPlan(t, writeReviewPlanFixture(t, tt.fixture), "--detailed-exitcode")
+
+			if tt.wantCode == plan.ExitCodeSuccess {
+				assert.NoError(t, err)
+				return
+			}
+			var exitErr *ExitError
+			require.ErrorAs(t, err, &exitErr, "changes must surface as an ExitError")
+			assert.Equal(t, tt.wantCode, exitErr.Code)
+		})
+	}
+}
+
 func TestReviewPlanCommand_MachineFormats(t *testing.T) {
 	for _, f := range []string{"json", "csv"} {
 		t.Run("format="+f, func(t *testing.T) {
-			err := execReviewPlan(t, writeReviewPlanFixture(t, reviewPlanFixture), "--format", f)
+			err := execReviewPlan(t, writeReviewPlanFixture(t, reviewPlanFixture), "--format", f, "--detailed-exitcode")
 
 			var exitErr *ExitError
 			require.ErrorAs(t, err, &exitErr)
-			assert.Equal(t, 2, exitErr.Code)
+			assert.Equal(t, plan.ExitCodeCritical, exitErr.Code)
 		})
 	}
 }
@@ -110,11 +155,11 @@ func TestReviewPlanCommand_FileNotFound(t *testing.T) {
 }
 
 func TestReviewPlanCommand_FilterNarrowsReport(t *testing.T) {
-	err := execReviewPlan(t, writeReviewPlanFixture(t, reviewPlanFixture), "--min-severity", "critical")
+	err := execReviewPlan(t, writeReviewPlanFixture(t, reviewPlanFixture), "--min-severity", "critical", "--detailed-exitcode")
 
 	var exitErr *ExitError
 	require.ErrorAs(t, err, &exitErr)
-	assert.Equal(t, 2, exitErr.Code, "exit code reflects the full analysis, not the filtered view")
+	assert.Equal(t, plan.ExitCodeCritical, exitErr.Code, "exit code reflects the full analysis, not the filtered view")
 }
 
 // TestReviewPlanCommand_AIMissingKeyIsAdditive verifies the additive-failure
@@ -124,9 +169,9 @@ func TestReviewPlanCommand_AIMissingKeyIsAdditive(t *testing.T) {
 	t.Setenv(ai.ProviderEnvVar, "")
 	t.Setenv(ai.APIKeyEnvVar, "")
 
-	err := execReviewPlan(t, writeReviewPlanFixture(t, reviewPlanFixture), "--ai", "--ai-model", "claude-test", "--ai-max-tokens", "128")
+	err := execReviewPlan(t, writeReviewPlanFixture(t, reviewPlanFixture), "--ai", "--ai-model", "claude-test", "--ai-max-tokens", "128", "--detailed-exitcode")
 
 	var exitErr *ExitError
 	require.ErrorAs(t, err, &exitErr, "AI failure must not replace the analysis exit code")
-	assert.Equal(t, 2, exitErr.Code)
+	assert.Equal(t, plan.ExitCodeCritical, exitErr.Code)
 }
