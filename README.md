@@ -263,6 +263,9 @@ Reads a `plan.json` file, summarizes resource changes, flags high-severity updat
 | `--detailed-exitcode` | | `false` | Exit with a detailed code reflecting the plan content (see below). Without it the command exits `0` whenever the review completes, like `terraform plan`. |
 | `--format` | `-f` | `table` | Output format: `table`, `json`, `csv` |
 | `--no-color` | | `false` | Disable colored output |
+| `--ai` | | `false` | Add an AI-written summary below the table. Works with `--format table` only. See [AI summary](#ai-summary---ai). |
+| `--ai-model` | | *(provider default)* | Pick the model, e.g. `claude-opus-4-7` or `gemini-2.5-pro`. |
+| `--ai-max-tokens` | | `8192` | Max length of the AI reply, in tokens. |
 
 **Exit codes:**
 
@@ -289,6 +292,42 @@ tfskel review plan --json-file plan.json --format csv
 
 # JSON output without colors (suitable for log files)
 tfskel review plan --json-file plan.json --format json --no-color
+
+# Add an AI-written summary (uses Anthropic Claude by default)
+export ANTHROPIC_API_KEY=sk-ant-...
+tfskel review plan --json-file plan.json --ai
+
+# Same, but with Google Gemini
+export TFSKEL_AI_PROVIDER=gemini GEMINI_API_KEY=...
+tfskel review plan --json-file plan.json --ai --ai-model gemini-2.5-pro
+```
+
+##### AI summary (`--ai`)
+
+Add `--ai` and tfskel asks an AI model to explain the plan in plain words below the table: what could break, security concerns, and how to roll back.
+
+**Setup**
+
+1. Pick a provider. Anthropic Claude is the default. For Google Gemini, set `TFSKEL_AI_PROVIDER=gemini`.
+2. Set the API key in your environment: `ANTHROPIC_API_KEY` for Claude, `GEMINI_API_KEY` for Gemini. Keys are never read from the config file or flags.
+3. Run `tfskel review plan --json-file plan.json --ai`.
+
+**Good to know**
+
+- Default models are `claude-sonnet-4-6` for Claude and `gemini-2.5-flash` for Gemini. Change them with `--ai-model` or `ai.model` in `.tfskel.yaml`.
+- Only changed attributes are sent. Values Terraform marks as sensitive are replaced with `<redacted>`. Output values are never sent, only their names.
+- If the key is missing or the API call fails, tfskel prints a warning and carries on. The table and the exit code do not change, so CI never fails because of `--ai`.
+- If the reply gets cut off, tfskel tells you. Raise `--ai-max-tokens` or `ai.max_tokens` to get the full text.
+- `--ai` works with `--format table` only. `json` and `csv` are rejected so their output stays machine-readable.
+- Every run costs tokens. With Claude, the fixed part of the prompt is cached, so repeated runs are cheaper.
+
+> **Note**: The AI summary does not replace scanners like `tfsec`, `checkov`, or `trivy`. Use both.
+
+```yaml
+# .tfskel.yaml (optional)
+ai:
+  model: claude-sonnet-4-6
+  max_tokens: 8192
 ```
 
 <p align="left">
