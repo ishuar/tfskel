@@ -138,7 +138,7 @@ Exit Codes:
 	cmd.MarkFlagsMutuallyExclusive("filter-severity", "min-severity")
 
 	cmd.Flags().BoolVar(&opts.detailedExitCode, "detailed-exitcode", false,
-		"Exit with a detailed code when the review completes: 0 = no changes, 2 = non-critical changes, 3 = critical changes (deletions/replacements). Errors always exit 1. Without this flag the command exits 0 whenever the review completes.")
+		"Exit 2 on non-critical changes and 3 on critical changes instead of 0 (see Exit Codes above)")
 
 	cmd.Flags().BoolVar(&opts.ai, "ai", false,
 		"Append an AI-generated narrative analysis (blast radius, security, rollback). Provider via TFSKEL_AI_PROVIDER=anthropic|gemini (default: anthropic); requires ANTHROPIC_API_KEY or GEMINI_API_KEY.")

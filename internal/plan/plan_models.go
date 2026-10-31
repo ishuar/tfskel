@@ -104,11 +104,10 @@ const (
 	SeverityCritical Severity = "critical"
 )
 
-// Exit codes for plan analysis, surfaced only when the caller opts in via
-// --detailed-exitcode. The values are an externally fixed standard: 0 and 2
-// mirror `terraform plan -detailed-exitcode`, 1 is reserved for runtime errors
-// (set by main.go) so it never collides with "changes", and 3 extends the
-// terraform scheme with the critical tier terraform cannot express.
+// Exit codes for plan analysis. 0 and 2 are an externally fixed standard,
+// mirroring `terraform plan -detailed-exitcode`; 3 extends that scheme with
+// the critical tier terraform cannot express. 1 is deliberately absent:
+// callers reserve it for runtime errors so it never collides with "changes".
 const (
 	// ExitCodeSuccess indicates no infrastructure changes detected
 	ExitCodeSuccess = 0

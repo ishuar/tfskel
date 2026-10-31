@@ -154,6 +154,17 @@ func TestReviewPlanCommand_FileNotFound(t *testing.T) {
 	assert.True(t, errors.Is(err, ErrFileNotFound), "expected ErrFileNotFound, got %v", err)
 }
 
+// TestReviewPlanCommand_FileNotFoundWithDetailedExitCode pins the contract that
+// errors exit 1 even with --detailed-exitcode: the command must return a plain
+// error, not an ExitError, so main.go falls through to os.Exit(1).
+func TestReviewPlanCommand_FileNotFoundWithDetailedExitCode(t *testing.T) {
+	err := execReviewPlan(t, filepath.Join(t.TempDir(), "missing.json"), "--detailed-exitcode")
+
+	assert.True(t, errors.Is(err, ErrFileNotFound), "expected ErrFileNotFound, got %v", err)
+	var exitErr *ExitError
+	assert.False(t, errors.As(err, &exitErr), "errors must not carry a detailed exit code")
+}
+
 func TestReviewPlanCommand_FilterNarrowsReport(t *testing.T) {
 	err := execReviewPlan(t, writeReviewPlanFixture(t, reviewPlanFixture), "--min-severity", "critical", "--detailed-exitcode")
 
