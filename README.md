@@ -263,6 +263,9 @@ Reads a `plan.json` file, summarizes resource changes, flags high-severity updat
 | `--detailed-exitcode` | | `false` | Exit with a detailed code reflecting the plan content (see below). Without it the command exits `0` whenever the review completes, like `terraform plan`. |
 | `--format` | `-f` | `table` | Output format: `table`, `json`, `csv` |
 | `--no-color` | | `false` | Disable colored output |
+| `--ai` | | `false` | Append an AI-generated narrative analysis (blast radius, security, rollback) below the table. Only valid with `--format=table`. See [AI narrative analysis](#ai-narrative-analysis---ai). |
+| `--ai-model` | | *(provider default)* | Model override for the AI analysis, e.g. `claude-opus-4-7` or `gemini-2.5-pro`. |
+| `--ai-max-tokens` | | *(config or `8192`)* | Maximum response tokens for the AI analysis. |
 
 **Exit codes:**
 
@@ -289,6 +292,36 @@ tfskel review plan --json-file plan.json --format csv
 
 # JSON output without colors (suitable for log files)
 tfskel review plan --json-file plan.json --format json --no-color
+
+# Append an AI-generated narrative (Anthropic Claude is the default provider)
+export ANTHROPIC_API_KEY=sk-ant-...
+tfskel review plan --json-file plan.json --ai
+
+# Same, using Google Gemini instead
+export TFSKEL_AI_PROVIDER=gemini GEMINI_API_KEY=...
+tfskel review plan --json-file plan.json --ai --ai-model gemini-2.5-pro
+```
+
+##### AI narrative analysis (`--ai`)
+
+When `--ai` is set, tfskel sends a sanitized view of the plan to an LLM provider and streams a Markdown narrative below the structured table. The narrative covers blast radius / downtime risk, security implications, and rollback + pre-apply checks — turning a list of changes into an actionable review.
+
+- **Provider**: the `TFSKEL_AI_PROVIDER` env var selects `anthropic` (default) or `gemini`. Any other value is an error.
+- **Credential**: `ANTHROPIC_API_KEY` or `GEMINI_API_KEY` env var, matching the provider. Keys are never read from config files or flags.
+- **Model**: defaults to `claude-sonnet-4-6` (Anthropic) or `gemini-2.5-flash` (Gemini). Override with `--ai-model` or `ai.model` in `.tfskel.yaml`.
+- **Privacy**: only changed attributes are sent, and attributes marked `sensitive` by Terraform are replaced with `<redacted>` before transmission. Output values are never sent — only the output name, actions, and sensitive flag.
+- **Failure mode**: a missing key, API error, or unknown model prints a warning to stderr; the structured report and the exit code are unchanged. AI analysis is additive — it never breaks CI.
+- **Truncation**: if the response hits the token ceiling, the partial narrative is kept and a notice is appended. Raise `--ai-max-tokens` (or `ai.max_tokens`, default `8192`) to get the full response.
+- **Format combo**: `--ai` only works with `--format=table`. Combining it with `json` or `csv` is rejected so machine-readable output stays parseable.
+- **Cost**: each invocation consumes provider tokens. With Anthropic, the static system prompt is marked for prompt caching, so repeated runs within the cache window are cheaper.
+
+> **Note**: AI-generated security commentary is not a substitute for rule-based scanners like `tfsec`, `checkov`, or `trivy`. Use both.
+
+```yaml
+# .tfskel.yaml (optional)
+ai:
+  model: claude-sonnet-4-6
+  max_tokens: 8192
 ```
 
 <p align="left">
