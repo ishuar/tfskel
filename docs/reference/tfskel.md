@@ -26,6 +26,7 @@ tfskel <command> <subcommand> [flags]
 
 ### SEE ALSO
 
+* [tfskel completion](tfskel_completion.md)	 - Generate the autocompletion script for the specified shell
 * [tfskel init](tfskel_init.md)	 - Initialize tfskel project structure
 * [tfskel review](tfskel_review.md)	 - Review and analyze Terraform plan changes
 * [tfskel scaffold](tfskel_scaffold.md)	 - Scaffold Terraform project structure for target application
