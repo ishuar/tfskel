@@ -140,7 +140,7 @@ Every command accepts `--config`, `--verbose`, `--dry-run`, and `--no-color`. Ex
 2. Set the API key in your environment: `ANTHROPIC_API_KEY` for Claude, `GEMINI_API_KEY` for Gemini. Keys are never read from the config file or flags.
 3. Run `tfskel review plan --json-file plan.json --ai`.
 
-Only changed attributes are sent, sensitive values are replaced with `<redacted>`, and output values are never sent. If the key is missing or the API call fails, tfskel warns and carries on with the same exit code, so CI never fails because of `--ai`. Works with `--format table` only. Model and token limit come from `--ai-model`, `--ai-max-tokens`, or `ai.model` and `ai.max_tokens` in `.tfskel.yaml`.
+Only changed attributes are sent, sensitive values are replaced with `<redacted>`, and output values are never sent. If the key is missing or the API call fails, tfskel warns and carries on with the same exit code, so CI never fails because of `--ai`. Works with `--format table` only. Model and token limit come from `--ai-model`, `--ai-max-tokens`, or `ai.model` and `ai.max_tokens` in `.tfskel.yaml`. See the [`review plan` reference](docs/reference/tfskel_review_plan.md) for all AI flags and defaults.
 
 > **Note**: The AI summary does not replace scanners like `tfsec`, `checkov`, or `trivy`. Use both.
 

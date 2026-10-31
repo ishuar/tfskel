@@ -475,14 +475,7 @@ Initialize a new tfskel project structure with configuration files.
 tfskel init [flags]
 ```
 
-**Flags**:
-- `--dir, -d`: Output directory (default: current directory)
-- `--workflows`: Generate shared GitHub Actions reusable workflow files (default: false)
-- `--upgrade`: Re-render init-managed files with latest embedded templates (default: false)
-- `--force`: With `--upgrade`, overwrite files even without source markers (default: false)
-- `--dry-run`: Show what would happen without writing files (global flag, works with all commands)
-- `--config, -c`: Path to config file (default: .tfskel.yaml in current directory)
-- `--verbose, -v`: Enable verbose output
+**Flags**: see the generated reference, [`tfskel init --help`](reference/tfskel_init.md).
 
 **Examples**:
 
@@ -553,16 +546,7 @@ tfskel scaffold <app-dir> [flags]
 **Subcommands**:
 - `workflows` - Generate a per-environment GitHub Actions Terraform plan/apply workflow
 
-**Flags**:
-- `--env, -e`: Target environment (required) - e.g., dev, stg, prd
-- `--region, -r`: AWS region (required) - e.g., us-east-1, eu-central-1
-- `--config, -c`: Path to config file (default: .tfskel.yaml in current directory)
-- `--templates-dir`: Directory containing custom template files
-- `--s3-bucket-name`: Override S3 bucket name for Terraform state
-- `--upgrade`: Re-render existing files from updated templates (default: false)
-- `--force`: With `--upgrade`, overwrite files even without source markers (default: false)
-- `--dry-run`: Show what would happen without writing files (global flag)
-- `--verbose, -v`: Enable verbose output
+**Flags**: see the generated reference, [`tfskel scaffold --help`](reference/tfskel_scaffold.md).
 
 **Examples**:
 
@@ -620,13 +604,7 @@ Generate a per-environment GitHub Actions Terraform plan/apply caller workflow. 
 tfskel scaffold workflows --env <env>
 ```
 
-**Flags**:
-- `--env, -e`: Target environment (required) - e.g., dev, stg, prd
-- `--upgrade`: Re-render existing workflow files from updated templates (default: false)
-- `--force`: With `--upgrade`, overwrite workflow files even without source markers (default: false)
-- `--dry-run`: Show what would happen without writing files (global flag)
-- `--config, -c`: Path to config file (default: .tfskel.yaml in current directory)
-- `--verbose, -v`: Enable verbose output
+**Flags**: see the generated reference, [`tfskel scaffold workflows --help`](reference/tfskel_scaffold_workflows.md).
 
 **Examples**:
 
@@ -661,12 +639,7 @@ Checks whether your project is in sync with `.tfskel.yaml` by running two valida
 tfskel validate [flags]
 ```
 
-**Flags**:
-- `--skip`: Comma-separated checks to skip (`config`, `tools`)
-- `--format, -f`: Output format: table, json, csv (default: table)
-- `--no-color`: Disable colored output
-- `--config`: Path to config file (default: .tfskel.yaml)
-- `--verbose, -v`: Enable verbose output
+**Flags**: see the generated reference, [`tfskel validate --help`](reference/tfskel_validate.md).
 
 **Examples**:
 
@@ -709,13 +682,7 @@ Analyze Terraform plan JSON to identify resource changes, impact severity, and p
 tfskel review plan [flags]
 ```
 
-**Flags**:
-- `--json-file`: Path to Terraform plan JSON file (required)
-- `--format, -f`: Output format: table, json, csv (default: table)
-- `--top-resources-count`: Show top N highest-impact resources (default: 10, use 0 for all)
-- `--detailed-exitcode`: Exit `2` on non-critical changes and `3` on deletions/replacements (`0` = no changes, `1` = error). Without it the command exits `0` whenever the review completes, like `terraform plan`.
-- `--no-color`: Disable colored output
-- `--verbose, -v`: Enable verbose output
+**Flags**: see the generated reference, [`tfskel review plan --help`](reference/tfskel_review_plan.md).
 
 **Examples**:
 
