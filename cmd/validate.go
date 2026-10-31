@@ -32,7 +32,12 @@ two validation checks:
   config  — Terraform/provider version constraints and .terraform-version files match config
   tools   — required tools are installed and at expected versions (compared against .mise.toml)
 
-By default all checks run. Use --skip to exclude specific checks.`,
+By default all checks run. Use --skip to exclude specific checks.
+
+Exit Codes:
+  - 0  - All checks pass
+  - 1  - Error (invalid flags, unreadable config, a check could not run)
+  - 2  - Findings detected (version drift or tool issues)`,
 		Example: `  # Run all checks
   tfskel validate
 
@@ -98,7 +103,7 @@ func (o *validateOpts) run(cmd *cobra.Command, _ []string) error {
 	}
 
 	exitCode := report.ExitCode()
-	if exitCode != 0 {
+	if exitCode != validate.ExitCodeSuccess {
 		return NewExitError(exitCode, "")
 	}
 
