@@ -232,8 +232,10 @@ Checks whether your project is in sync with `.tfskel.yaml` by running two valida
 | Code | Meaning |
 |---|---|
 | `0` | All checks pass |
-| `1` | Findings detected (drift or tool issues) |
-| `2` | Execution errors |
+| `1` | Error (invalid flags, unreadable config, a check could not run) |
+| `2` | Findings detected (drift or tool issues) |
+
+`1` means the same thing for every tfskel command: something broke. Gate CI on findings with `exit == 2`, not `!= 0`.
 
 ```bash
 # Run all checks

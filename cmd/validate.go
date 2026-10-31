@@ -98,7 +98,7 @@ func (o *validateOpts) run(cmd *cobra.Command, _ []string) error {
 	}
 
 	exitCode := report.ExitCode()
-	if exitCode != 0 {
+	if exitCode != validate.ExitCodeSuccess {
 		return NewExitError(exitCode, "")
 	}
 

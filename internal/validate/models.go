@@ -87,16 +87,29 @@ type Report struct {
 	ToolReport *toolcheck.Report `json:"-"`
 }
 
-// ExitCode returns the appropriate exit code for CI/CD.
-// 0 = all pass, 1 = findings detected, 2 = execution errors.
+// Exit codes for validate. They follow the same rule as `review plan
+// --detailed-exitcode`: 1 always means "something broke", so a CI script
+// checking `exit == 1` gets the same answer from every tfskel command.
+const (
+	// ExitCodeSuccess indicates every check passed (or was skipped).
+	ExitCodeSuccess = 0
+	// ExitCodeError indicates at least one check could not run.
+	ExitCodeError = 1
+	// ExitCodeFindings indicates every check ran and at least one reported findings.
+	ExitCodeFindings = 2
+)
+
+// ExitCode returns the exit code for CI/CD.
+// Returns ExitCodeError (1) if any check errored, ExitCodeFindings (2) if any
+// check failed, and ExitCodeSuccess (0) otherwise.
 func (r *Report) ExitCode() int {
-	code := 0
+	code := ExitCodeSuccess
 	for _, c := range r.Checks {
 		switch c.Status {
 		case StatusError:
-			return 2
+			return ExitCodeError
 		case StatusFail:
-			code = 1
+			code = ExitCodeFindings
 		case StatusPass, StatusSkipped:
 			// no-op
 		}

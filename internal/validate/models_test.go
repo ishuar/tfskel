@@ -18,7 +18,7 @@ func TestReport_ExitCode(t *testing.T) {
 				{Check: CheckConfig, Status: StatusPass},
 				{Check: CheckTools, Status: StatusPass},
 			},
-			want: 0,
+			want: ExitCodeSuccess,
 		},
 		{
 			name: "one fail",
@@ -26,7 +26,7 @@ func TestReport_ExitCode(t *testing.T) {
 				{Check: CheckConfig, Status: StatusFail, Issues: 2},
 				{Check: CheckTools, Status: StatusPass},
 			},
-			want: 1,
+			want: ExitCodeFindings,
 		},
 		{
 			name: "one error",
@@ -34,7 +34,7 @@ func TestReport_ExitCode(t *testing.T) {
 				{Check: CheckConfig, Status: StatusError},
 				{Check: CheckTools, Status: StatusPass},
 			},
-			want: 2,
+			want: ExitCodeError,
 		},
 		{
 			name: "error takes precedence over fail",
@@ -42,7 +42,7 @@ func TestReport_ExitCode(t *testing.T) {
 				{Check: CheckConfig, Status: StatusError},
 				{Check: CheckTools, Status: StatusFail, Issues: 1},
 			},
-			want: 2,
+			want: ExitCodeError,
 		},
 		{
 			name: "skipped checks ignored",
@@ -50,12 +50,12 @@ func TestReport_ExitCode(t *testing.T) {
 				{Check: CheckConfig, Status: StatusSkipped},
 				{Check: CheckTools, Status: StatusPass},
 			},
-			want: 0,
+			want: ExitCodeSuccess,
 		},
 		{
 			name:   "empty report",
 			checks: []CheckResult{},
-			want:   0,
+			want:   ExitCodeSuccess,
 		},
 	}
 
