@@ -68,12 +68,16 @@ func run(out string) error {
 // regeneration would differ from the committed files and docs-check would
 // never pass. All I/O goes through an os.Root scoped to dir so a page name
 // can never escape the output directory.
-func normalizeTrailingNewlines(dir string) error {
+func normalizeTrailingNewlines(dir string) (err error) {
 	root, err := os.OpenRoot(dir)
 	if err != nil {
 		return fmt.Errorf("open %s: %w", dir, err)
 	}
-	defer root.Close()
+	defer func() {
+		if cerr := root.Close(); cerr != nil && err == nil {
+			err = fmt.Errorf("close %s: %w", dir, cerr)
+		}
+	}()
 
 	pages, err := fs.Glob(root.FS(), "tfskel*.md")
 	if err != nil {
