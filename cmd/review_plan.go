@@ -111,10 +111,13 @@ Exit Codes:
   # Combine filters (AND semantics)
   tfskel review plan --json-file tfplan.json --min-severity high --filter-action delete
 
-  # Append an AI-generated narrative analysis (requires ANTHROPIC_API_KEY)
+  # Append an AI-written summary (Anthropic Claude by default; needs ANTHROPIC_API_KEY)
   tfskel review plan --json-file tfplan.json --ai
 
-  # Use a specific Claude model for the AI analysis
+  # Same with Google Gemini (needs GEMINI_API_KEY)
+  TFSKEL_AI_PROVIDER=gemini tfskel review plan --json-file tfplan.json --ai
+
+  # Pick a specific model for the AI summary
   tfskel review plan --json-file tfplan.json --ai --ai-model claude-opus-4-7`,
 		SilenceUsage: true,
 		RunE:         opts.run,
@@ -143,7 +146,7 @@ Exit Codes:
 	cmd.Flags().BoolVar(&opts.ai, "ai", false,
 		"Append an AI-generated narrative analysis (blast radius, security, rollback). Provider via TFSKEL_AI_PROVIDER=anthropic|gemini (default: anthropic); requires ANTHROPIC_API_KEY or GEMINI_API_KEY.")
 	cmd.Flags().StringVar(&opts.aiModel, "ai-model", "",
-		"Claude model override (default: from config or built-in default)")
+		"Model override for the selected provider (default: ai.model from config, else the provider's built-in default)")
 	cmd.Flags().IntVar(&opts.aiMaxTokens, "ai-max-tokens", 0,
 		"Maximum response tokens for the AI analysis (0 = use config or built-in default)")
 

@@ -226,10 +226,10 @@ func TestMyFunction(t *testing.T) {
 
 ### Documentation
 
-- Update README.md for user-facing changes
+- The command reference in `docs/reference/` is generated from the cobra command tree. Write flag help, `Long`, and `Example` strings in `cmd/` for readers, then run `make docs` and commit the output. `make check` and CI fail when it is stale.
+- Update the matching concept page in `docs/` and, for user-facing changes, README.md
 - Add godoc comments for all exported APIs
 - Include code examples in documentation
-- Document all CLI flags and commands
 - Update CHANGELOG.md
 
 ### File Structure
@@ -264,16 +264,16 @@ internal/
 ### Adding New Commands
 
 1. Create command file in `cmd/`
-2. Register command in `init()` function
+2. Register the command in `NewRootCmd()` in `cmd/root.go`
 3. Add tests
-4. Update README.md with usage examples
+4. Run `make docs` and commit the new `docs/reference/` page; add a row to the Commands table in README.md
 
 ### Modifying Configuration
 
 1. Update `Config` struct in `internal/config/config.go`
 2. Update validation logic
 3. Add tests
-4. Update `.tfskel.yaml` example in README
+4. Update `.tfskel.example.yaml`
 
 ## Testing
 

@@ -7,6 +7,8 @@ on:
       - 'go.mod'
       - 'go.sum'
       - '.golangci.yml'
+      - 'Makefile'
+      - 'docs/reference/**'
       - '.github/workflows/test.yaml'
     branches:
       - main
@@ -16,6 +18,8 @@ on:
       - 'go.mod'
       - 'go.sum'
       - '.golangci.yml'
+      - 'Makefile'
+      - 'docs/reference/**'
       - '.github/workflows/test.yaml'
     branches:
       - main
@@ -80,6 +84,9 @@ jobs:
 
     - name: Check go mod tidy
       run: go mod tidy -diff
+
+    - name: Check generated command reference is current
+      run: make docs-check
 
     - name: Run golangci-lint
       uses: golangci/golangci-lint-action@v9

@@ -85,294 +85,75 @@ Make sure `$HOME/go/bin` is in your PATH.
 
 ## Quick Start
 
-### Global Flags
-
-These flags are available on every `tfskel` command:
-
-| Flag | Short | Default | Description |
-|---|---|---|---|
-| `--config` | `-c` | `.tfskel.yaml` (current dir) | Path to config file; takes precedence over auto-discovery |
-| `--verbose` | `-v` | `false` | Enable verbose/debug output |
-| `--dry-run` | | `false` | Show what would happen without writing files |
-| `--no-color` | | `false` | Disable colored output (also respects `NO_COLOR`, `FORCE_COLOR`, and `CI` env vars) |
-| `--version` | | | Print tfskel version, commit, and build info (same output as `tfskel version`) |
-
-### `tfskel version`
-
-Prints the installed tfskel version along with the build commit, OS/arch, and — for official release builds — a link to the GitHub release page.
-
 ```bash
-tfskel version
-```
-
-### `tfskel init`
-
-Initializes a new Terraform monorepo with an environment-and-region-based directory layout (`dev`/`stg`/`prd`) with sensible defaults already in place — `.gitignore`, `.pre-commit-config.yaml`, `.tflint.hcl`, `trivy.yaml`, `.tfskel.yaml`, and per-environment `.terraform-version` files. The same structure, every time, across every project.
-
-If a `.tfskel.yaml` already exists in the target directory, `init` reads environments from `provider.aws.account_mapping` and regions from `provider.aws.regions`, so your existing configuration drives the scaffold.
-
-With `--workflows`, also generates the shared GitHub Actions reusable workflow files (`lint.yaml`, `reusable-detect-changes.yaml`, `reusable-terraform-plan-apply.yaml`, `reusable-lint.yaml`) under `.github/workflows/`. This can also be enabled via `workflows.create: true` in `.tfskel.yaml`.
-
-| Flag | Short | Default | Description |
-|---|---|---|---|
-| `--dir` | `-d` | current directory | Directory to initialize |
-| `--workflows` | | `false` | Generate shared GitHub Actions reusable workflow files |
-| `--upgrade` | | `false` | Re-render init-managed files with latest embedded templates |
-| `--force` | | `false` | With `--upgrade`, overwrite files even without source markers |
-
-```bash
-# Initialize in the current directory
-tfskel init
-
-# Initialize in a specific directory
-tfskel init --dir /path/to/your/project
-
-# Initialize with an explicit config file
-tfskel init --config /path/to/config.yaml
-
-# Also generate shared GitHub Actions workflow files
+# 1. Create the repo layout, .tfskel.yaml, .mise.toml, lint config, and shared workflows
 tfskel init --workflows
 
-# Re-render init files (e.g. .pre-commit-config.yaml, .tflint.hcl) from latest templates
-tfskel init --upgrade
+# 2. Fill in provider.aws.account_mapping and backend.s3.bucket_name in .tfskel.yaml
 
-# Force overwrite all init files, even those without source markers
-tfskel init --upgrade --force
+# 3. Create a root module for one app
+tfskel scaffold myapp --env dev --region eu-central-1
 
-# Preview what init would create/upgrade without writing files
-tfskel init --dry-run
-```
-
-<p align="left">
-  <img src="assets/tfskel-init.gif" alt="tfskel init demo" width="600" />
-</p>
-
-### `tfskel scaffold`
-
-It accepts any subcommand as an input for target app-dir and creates per-application root module directories with a pre-configured `backend.tf` (S3 with state locking and encryption) and a `versions.tf` with pinned Terraform and AWS provider versions. You can extend this with your own `.tmpl` files — any custom template you place in your templates directory is processed alongside the built-in defaults; if the same filename is provided, the custom template takes precedence.
-
-| Flag | Short | Default | Description |
-|---|---|---|---|
-| `--env` | `-e` | *(required)* | Target environment (e.g. `dev`, `stg`, `prd`) |
-| `--region` | `-r` | *(required)* | AWS region (e.g. `us-east-1`, `eu-central-1`) |
-| `--templates-dir` | | `""` | Directory containing custom `.tmpl` template files |
-| `--s3-bucket-name` | | `""` | S3 bucket name for Terraform state (overrides config) |
-| `--upgrade` | | `false` | Re-render existing files from updated templates (only files with source markers) |
-| `--force` | | `false` | With `--upgrade`, overwrite files even without source markers |
-
-```bash
-# Scaffold structure for an app in dev/us-east-1
-tfskel scaffold myapp --env dev --region us-east-1
-
-# Scaffold with a custom templates directory
-tfskel scaffold myapp --env stg --region eu-central-1 --templates-dir ./templates
-
-# Override S3 bucket name at runtime
-tfskel scaffold myapp --env prd --region us-east-1 --s3-bucket-name my-tf-state-bucket
-
-# Scaffold with a custom config file
-tfskel scaffold myapp --config ./my-config.yaml --env dev --region us-east-1
-
-# Using the short alias
-tfskel sc myapp --env dev --region us-east-1
-
-# Re-render scaffolded files after updating templates or config
-tfskel scaffold myapp --env dev --region us-east-1 --upgrade
-
-# Force overwrite all scaffolded files, even without source markers
-tfskel scaffold myapp --env dev --region us-east-1 --upgrade --force
-
-# Dry-run: see what scaffold would do without writing
-tfskel scaffold myapp --env dev --region us-east-1 --dry-run
-```
-
-
-#### `tfskel scaffold workflows`
-
-Generates a per-environment GitHub Actions Terraform plan/apply caller workflow. Run this once per environment after `tfskel init --workflows` has created the shared reusable workflow files.
-
-| Flag | Short | Default | Description |
-|---|---|---|---|
-| `--env` | `-e` | *(required)* | Target environment (e.g. `dev`, `stg`, `prd`) |
-| `--upgrade` | | `false` | Re-render existing workflow files from updated templates |
-| `--force` | | `false` | With `--upgrade`, overwrite workflow files even without source markers |
-
-```bash
-# Generate a per-env Terraform workflow for dev
+# 4. Add the per-environment GitHub Actions plan/apply workflow
 tfskel scaffold workflows --env dev
 
-# Generate with a custom config file
-tfskel scaffold workflows --env prd --config ./my-config.yaml
-
-# Re-render an existing workflow after config changes
-tfskel scaffold workflows --env dev --upgrade
-```
-
-Generated file: `.github/workflows/<env>-<name>.yaml`
-
-> [!Note]
-> `workflows.name` is a **plain string** (Go template syntax is not supported). The environment prefix and `.yaml` extension are added automatically. Example: with `name: "terraform"` and `--env dev`, the file will be `dev-terraform.yaml`.
-
-<p align="left">
-<img src="assets/tfskel-scaffold.gif" alt="tfskel scaffold demo" width="600" />
-</p>
-
-#### `tfskel validate`
-
-Checks whether your project is in sync with `.tfskel.yaml` by running two validation checks: config drift detection (Terraform/provider version constraints and `.terraform-version` files) and tool installation status (compared against `.mise.toml`).
-
-| Flag | Short | Default | Description |
-|---|---|---|---|
-| `--skip` | | | Comma-separated checks to skip (`config`, `tools`) |
-| `--format` | `-f` | `table` | Output format: `table`, `json`, `csv` |
-| `--no-color` | | `false` | Disable colored output |
-
-**Exit codes:**
-
-| Code | Meaning |
-|---|---|
-| `0` | All checks pass |
-| `1` | Error (invalid flags, unreadable config, a check could not run) |
-| `2` | Findings detected (drift or tool issues) |
-
-`1` means the same thing for every tfskel command: something broke. Gate CI on findings with `exit == 2`, not `!= 0`.
-
-```bash
-# Run all checks
+# 5. Check the repo is still in sync with .tfskel.yaml
 tfskel validate
 
-# Skip tool checks
-tfskel validate --skip tools
-
-# JSON output for CI/CD pipelines
-tfskel validate --format json
-
-# Generate a CSV report without ANSI colors
-tfskel validate --format csv --no-color > validate-report.csv
-```
-
-<p align="left">
-<img src="assets/tfskel-validate.gif" alt="tfskel validate demo" width="600" />
-</p>
-
-#### `tfskel review plan`
-
-Reads a `plan.json` file, summarizes resource changes, flags high-severity updates based on a configurable list of critical resources, and produces a structured report. Output can be exported as CSV, table, or JSON for reporting.
-
-| Flag | Short | Default | Description |
-|---|---|---|---|
-| `--json-file` | | *(required)* | Path to the Terraform plan JSON file |
-| `--detailed-exitcode` | | `false` | Exit with a detailed code reflecting the plan content (see below). Without it the command exits `0` whenever the review completes, like `terraform plan`. |
-| `--format` | `-f` | `table` | Output format: `table`, `json`, `csv` |
-| `--no-color` | | `false` | Disable colored output |
-| `--ai` | | `false` | Add an AI-written summary below the table. Works with `--format table` only. See [AI summary](#ai-summary---ai). |
-| `--ai-model` | | *(provider default)* | Pick the model, e.g. `claude-opus-4-7` or `gemini-2.5-pro`. |
-| `--ai-max-tokens` | | `8192` | Max length of the AI reply, in tokens. |
-
-**Exit codes:**
-
-| Code | Meaning | Without `--detailed-exitcode` |
-|---|---|---|
-| `0` | No changes — infrastructure is up to date | `0` |
-| `1` | Error (invalid flags, unreadable plan file, ...) | `1` |
-| `2` | Non-critical changes detected (additions or modifications) | `0` |
-| `3` | Critical changes detected (deletions or replacements) | `0` |
-
-Codes `0` and `2` match `terraform plan -detailed-exitcode`; `3` is a tfskel extension for destructive changes. A non-zero exit fails a GitHub Actions step, so only pass `--detailed-exitcode` when you want the job to gate on the plan content (pair it with `continue-on-error: true` and `steps.<id>.outcome` if you need both). Scaffolded workflows generated before this change can drop `continue-on-error: true` from the tfskel step.
-
-```bash
-# Generate and analyze a Terraform plan
-terraform plan -out plan.bin
-terraform show -json plan.bin > plan.json
+# 6. Review a plan before applying it
+terraform plan -out plan.bin && terraform show -json plan.bin > plan.json
 tfskel review plan --json-file plan.json
-
-# Gate CI on the plan: exit 2 on changes, 3 on deletions/replacements
-tfskel review plan --json-file plan.json --detailed-exitcode
-
-# Export as CSV for reporting
-tfskel review plan --json-file plan.json --format csv
-
-# JSON output without colors (suitable for log files)
-tfskel review plan --json-file plan.json --format json --no-color
-
-# Add an AI-written summary (uses Anthropic Claude by default)
-export ANTHROPIC_API_KEY=sk-ant-...
-tfskel review plan --json-file plan.json --ai
-
-# Same, but with Google Gemini
-export TFSKEL_AI_PROVIDER=gemini GEMINI_API_KEY=...
-tfskel review plan --json-file plan.json --ai --ai-model gemini-2.5-pro
 ```
 
-##### AI summary (`--ai`)
+Add `--dry-run` to any command to see what it would write without touching disk.
 
-Add `--ai` and tfskel asks an AI model to explain the plan in plain words below the table: what could break, security concerns, and how to roll back.
+## Commands
 
-**Setup**
+The full flag reference for every command is generated from the CLI itself and lives in [`docs/reference/`](docs/reference/tfskel.md). Run `tfskel <command> --help` for the same text in the terminal.
+
+| Command | What it does | Reference |
+|---|---|---|
+| `tfskel init` | Create the env/region layout, `.tfskel.yaml`, `.mise.toml`, lint and pre-commit config. `--workflows` adds the shared reusable GitHub Actions workflows. | [init](docs/reference/tfskel_init.md) |
+| `tfskel scaffold <app-dir>` | Create a root module under `envs/<env>/<region>/<app-dir>` with `backend.tf` and `versions.tf` rendered from templates. `--upgrade` re-renders when templates or config change. | [scaffold](docs/reference/tfskel_scaffold.md) |
+| `tfskel scaffold workflows` | Create the per-environment plan/apply caller workflow. Run once per environment after `init --workflows`. | [scaffold workflows](docs/reference/tfskel_scaffold_workflows.md) |
+| `tfskel validate` | Report Terraform and provider version drift across the repo and missing or outdated tools. Exit `2` on findings. | [validate](docs/reference/tfskel_validate.md) |
+| `tfskel review plan` | Summarize a plan JSON file, flag critical changes, and optionally add an AI-written summary. `--detailed-exitcode` exits `2` on changes, `3` on deletions or replacements. | [review plan](docs/reference/tfskel_review_plan.md) |
+| `tfskel version` | Print version, commit, and build info. | [version](docs/reference/tfskel_version.md) |
+
+Every command accepts `--config`, `--verbose`, `--dry-run`, and `--no-color`. Exit code `1` always means an error, so gate CI on the specific finding codes above, not on `!= 0`.
+
+<details>
+<summary>Demos</summary>
+
+<p align="left"><img src="assets/tfskel-init.gif" alt="tfskel init demo" width="600" /></p>
+<p align="left"><img src="assets/tfskel-scaffold.gif" alt="tfskel scaffold demo" width="600" /></p>
+<p align="left"><img src="assets/tfskel-validate.gif" alt="tfskel validate demo" width="600" /></p>
+<p align="left"><img src="assets/tfskel-review-plan.gif" alt="tfskel review plan demo" width="600" /></p>
+
+</details>
+
+### AI summary for plan reviews
+
+`tfskel review plan --ai` asks an AI model to explain the plan in plain words below the table: what could break, security concerns, and how to roll back.
 
 1. Pick a provider. Anthropic Claude is the default. For Google Gemini, set `TFSKEL_AI_PROVIDER=gemini`.
 2. Set the API key in your environment: `ANTHROPIC_API_KEY` for Claude, `GEMINI_API_KEY` for Gemini. Keys are never read from the config file or flags.
 3. Run `tfskel review plan --json-file plan.json --ai`.
 
-**Good to know**
-
-- Default models are `claude-sonnet-4-6` for Claude and `gemini-2.5-flash` for Gemini. Change them with `--ai-model` or `ai.model` in `.tfskel.yaml`.
-- Only changed attributes are sent. Values Terraform marks as sensitive are replaced with `<redacted>`. Output values are never sent, only their names.
-- If the key is missing or the API call fails, tfskel prints a warning and carries on. The table and the exit code do not change, so CI never fails because of `--ai`.
-- If the reply gets cut off, tfskel tells you. Raise `--ai-max-tokens` or `ai.max_tokens` to get the full text.
-- `--ai` works with `--format table` only. `json` and `csv` are rejected so their output stays machine-readable.
-- Every run costs tokens. With Claude, the fixed part of the prompt is cached, so repeated runs are cheaper.
+Only changed attributes are sent, sensitive values are replaced with `<redacted>`, and output values are never sent. If the key is missing or the API call fails, tfskel warns and carries on with the same exit code, so CI never fails because of `--ai`. Works with `--format table` only. Model and token limit come from `--ai-model`, `--ai-max-tokens`, or `ai.model` and `ai.max_tokens` in `.tfskel.yaml`.
 
 > **Note**: The AI summary does not replace scanners like `tfsec`, `checkov`, or `trivy`. Use both.
 
-```yaml
-# .tfskel.yaml (optional)
-ai:
-  model: claude-sonnet-4-6
-  max_tokens: 8192
-```
+## Configuration
 
-<p align="left">
-<img src="assets/tfskel-review-plan.gif" alt="tfskel review plan demo" width="600" />
-</p>
+Create a `.tfskel.yaml` in your project root. Precedence is **CLI flags → config file → defaults**.
+
+- [`.tfskel.example.yaml`](.tfskel.example.yaml) is the annotated reference for every key.
+- `backend.s3.bucket_name`, `workflows.aws_role_arn`, and `workflows.aws_role_name` accept Go template syntax. The available placeholders and template functions are listed in the [tfskel book](docs/tfskel-book.md#template-data-structure).
 
 ## Upgrading Generated Files
 
-tfskel embeds **source markers** (e.g. `## tfskel-source: {...}`) in every generated file (except `.terraform-version`). These markers record which template produced the file and its content hash, enabling safe, selective re-rendering with `--upgrade`. After each `scaffold` or `scaffold workflows` run, tfskel prints an operation summary (e.g. `2 files created, 1 file skipped`).
-
-> [!TIP]
-> For more details on source markers, metadata tracking, and selective upgrade whitelists, see the [tfskel book](docs/tfskel-book.md#upgrading-generated-files).
-
-## Configuration
-
-Create a `.tfskel.yaml` in your project root to customize defaults:
-
-> [!TIP]
-> Use [.tfskel.example.yaml](.tfskel.example.yaml) for a full annotated reference.
-> Configuration precedence: **CLI flags → config file → defaults**
-
-### Template context variables
-
-The following config fields accept Go template syntax: `backend.s3.bucket_name`, `workflows.aws_role_arn`, and `workflows.aws_role_name`.
-
-All placeholders are populated from the `tfskel scaffold` invocation:
-
-| Placeholder               | Source                                         | Description                                                                         | Example value                                          |
-|---------------------------|------------------------------------------------|-------------------------------------------------------------------------------------|--------------------------------------------------------|
-| `{{.AppDir}}`             | `<app-dir>` argument to `tfskel scaffold`      | Application directory name. Path separators `/` are replaced with `-` in filenames. | `myapp`, `base-infra-ecs`                              |
-| `{{.Env}}`                | `--env` / `-e` flag                            | Target environment.                                                                 | `dev`, `stg`, `prd`                                    |
-| `{{.Region}}`             | `--region` / `-r` flag                         | Full AWS region name.                                                               | `eu-central-1`, `us-east-1`                            |
-| `{{.ShortRegion}}`        | Derived from `--region` / `-r` flag            | Abbreviated region (e.g. `eu-central-1` → `euc1`).                                  | `euc1`, `use1`                                         |
-| `{{.AccountID}}`          | `provider.aws.account_mapping[.Env]`           | AWS account ID for the target environment.                                          | `123456789012`                                         |
-| `{{.S3BucketName}}`       | `backend.s3.bucket_name` (post-render)         | Resolved S3 bucket name after template rendering.                                   | `my-tfstate-bucket`                                    |
-| `{{.TerraformVersion}}`   | `terraform_version` in config                  | Terraform version constraint.                                                       | `~> 1.13`                                              |
-| `{{.AWSProviderVersion}}` | `provider.aws.version` in config               | AWS provider version constraint.                                                    | `~> 6.0`                                               |
-| `{{.AWSRoleArn}}`         | Resolved from `aws_role_arn` / `aws_role_name` | Final IAM role ARN used in workflow files.                                          | `arn:aws:iam::123456789012:role/dev-githubactionsrole` |
-| `{{.WorkflowFileName}}`   | Auto-generated                                 | Rendered workflow filename (used for self-reference in workflow `on:` triggers).    | `dev-terraform.yaml`                                   |
-
-#### Template functions
-
-In addition to the standard Go `text/template` built-ins, additional [template functions](https://github.com/ishuar/tfskel/blob/main/docs/tfskel-book.md#string-checking-functions) are available in all templated config values.
+Every generated file carries a source marker recording the template and content hash that produced it. `--upgrade` on `init`, `scaffold`, and `scaffold workflows` re-renders only files whose marker no longer matches, and `--force` extends that to files without a marker. Details are in the [tfskel book](docs/tfskel-book.md#upgrading-generated-files).
 
 ## Contributing
 
