@@ -234,15 +234,18 @@ func TestMyFunction(t *testing.T) {
 
 ### File Structure
 
-Place files in the appropriate directory:
+Place files in the appropriate directory. Every package has a `doc.go` package comment stating what it owns; read it before adding code there, and keep it true when you change the package. `golangci-lint` fails on a package without one.
 
 ```
-cmd/           - CLI commands (init, scaffold, validate, review)
+cmd/           - CLI commands (init, scaffold, validate, review, version)
 internal/
+  ai/          - AI narrative clients (Anthropic, Gemini) and the plan payload
+  bootstrap/   - One-time project setup behind `tfskel init`
   config/      - Configuration handling
   validate/    - Validation orchestration and reporting
   version/     - Version detection and drift analysis
-  generate/    - Terraform file generation
+  generate/    - Terraform file generation behind `tfskel scaffold`
+  review/      - `tfskel review plan` flow: analyze, format, optional AI step
   templates/   - Template rendering
   plan/        - Terraform plan parsing and analysis
   toolcheck/   - Tool detection and version checking
@@ -256,10 +259,10 @@ internal/
 
 ### Adding New Templates
 
-1. Create template file in `internal/templates/`
-2. Add template to `NewRenderer()` in `renderer.go`
-3. Add test in `renderer_test.go`
-4. Update documentation
+1. Add the file under `internal/templates/files/<tf|root|github>/`; the `go:embed` glob in `renderer.go` picks up `*.tmpl` and `*.yaml` automatically
+2. Wire the output path: `root/` files are listed in `internal/bootstrap/runner.go`, `tf/` files in `internal/generate` (the `tmpl*` constants in `generator.go`); `github/` files need no wiring
+3. Add a test in `internal/templates/renderer_test.go`
+4. Update `docs/templates.md`
 
 ### Adding New Commands
 

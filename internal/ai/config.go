@@ -1,16 +1,3 @@
-// Package ai produces a human-readable narrative analysis of a Terraform plan
-// by sending a sanitized, compressed view of the plan to Anthropic's Claude API.
-//
-// The package is layered so additional providers (or an MCP server surface) can
-// be added later without touching command code:
-//
-//   - Client   is the provider-agnostic interface (Explain streams Markdown).
-//   - Payload  is the wire-format shipped to the model (built from a parsed plan).
-//   - Config   holds model + max-tokens settings (loaded from viper).
-//
-// v1 ships only the Anthropic implementation. The ANTHROPIC_API_KEY environment
-// variable is the sole credential source — keys are never read from config files
-// or command-line flags.
 package ai
 
 import "github.com/spf13/viper"

@@ -141,6 +141,9 @@ linters:
           arguments:
             - checkPrivateReceivers
             - disableStutteringCheck
+        # Every package must have a package comment (doc.go by convention).
+        # Package comments are the architecture documentation; see docs/architecture.md.
+        - name: package-comments
         - name: if-return
         - name: increment-decrement
         - name: var-declaration
