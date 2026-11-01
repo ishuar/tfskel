@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.9.0](https://github.com/ishuar/tfskel/compare/v0.8.4...v0.9.0) (2026-11-01)
+
+
+### ⚠ BREAKING CHANGES
+
+* **validate:** exit 1 on error, 2 on findings ([#111](https://github.com/ishuar/tfskel/issues/111))
+* **review:** exit 0 on plan changes by default; add --detailed-exitcode ([#108](https://github.com/ishuar/tfskel/issues/108))
+
+### ✨ Features
+
+* **review:** AI narrative analysis with internal/review module ([#105](https://github.com/ishuar/tfskel/issues/105)) ([4425cb1](https://github.com/ishuar/tfskel/commit/4425cb15a98e12d665a09f7dc6c95dee25639b72))
+* **review:** exit 0 on plan changes by default; add --detailed-exitcode ([#108](https://github.com/ishuar/tfskel/issues/108)) ([89419fc](https://github.com/ishuar/tfskel/commit/89419fc724e805932941efaf75e82a61fff29c33))
+* **validate:** exit 1 on error, 2 on findings ([#111](https://github.com/ishuar/tfskel/issues/111)) ([7378fff](https://github.com/ishuar/tfskel/commit/7378fff6304043e462d57964da8d7c9749bd325f))
+
+
+### 📦 Other Changes
+
+* drop sunset Go Report Card badge ([#115](https://github.com/ishuar/tfskel/issues/115)) ([73e5031](https://github.com/ishuar/tfskel/commit/73e5031891986a6e608794d4f0ad9c255b4e7ee7))
+* generate command reference from cobra; trim README to a landing page ([#112](https://github.com/ishuar/tfskel/issues/112)) ([fbd0813](https://github.com/ishuar/tfskel/commit/fbd0813b0b9418a9ab0ce148510e5f7a5e609c45))
+* package comments for every package; architecture.md becomes a map ([#116](https://github.com/ishuar/tfskel/issues/116)) ([085ae8b](https://github.com/ishuar/tfskel/commit/085ae8b80280fe3333aba2bc94ae2fbb82f34433))
+* replace tfskel-book.md with per-concept pages ([#114](https://github.com/ishuar/tfskel/issues/114)) ([815c199](https://github.com/ishuar/tfskel/commit/815c199deb7bc38cc47e2a0763b1899a8082a314))
+* **review:** document --ai, --ai-model, --ai-max-tokens and provider selection ([#110](https://github.com/ishuar/tfskel/issues/110)) ([d573583](https://github.com/ishuar/tfskel/commit/d573583b19b765cee2c94ce746b7dab13e132486))
+* **review:** drop unused NewPlanAnalyzerWithConfig ([#117](https://github.com/ishuar/tfskel/issues/117)) ([85a548d](https://github.com/ishuar/tfskel/commit/85a548d464cb39b492a862364e8802515487904c))
+* **review:** transport seam in AI clients + streaming tests ([#106](https://github.com/ishuar/tfskel/issues/106)) ([a57ea3a](https://github.com/ishuar/tfskel/commit/a57ea3a88a6c9894d2996301d80d8865fd2b50f5))
+
 ## [0.8.4](https://github.com/ishuar/tfskel/compare/v0.8.3...v0.8.4) (2026-05-06)
 
 
