@@ -1,0 +1,66 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:best-practices",
+    ":semanticCommits",
+    "schedule:weekly"
+  ],
+  "timezone": "Europe/Berlin",
+  "minimumReleaseAge": "3 days",
+  "semanticCommitScope": null,
+  "labels": ["dependencies"],
+  "postUpdateOptions": ["gomodTidy", "gomodUpdateImportPaths"],
+  "packageRules": [
+    {
+      "description": "Go modules commit as build: (shown in release-please changelog)",
+      "matchManagers": ["gomod"],
+      "semanticCommitType": "build"
+    },
+    {
+      "description": "GitHub Actions and workflow tool pins commit as ci: (hidden from changelog)",
+      "matchManagers": ["github-actions", "custom.regex"],
+      "semanticCommitType": "ci"
+    },
+    {
+      "description": "Group non-major Go module bumps into one PR",
+      "matchManagers": ["gomod"],
+      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "groupName": "go modules"
+    },
+    {
+      "description": "Go toolchain directive gets its own PR so the CI matrix can be reviewed with it",
+      "matchManagers": ["gomod"],
+      "matchDepTypes": ["golang"],
+      "groupName": null
+    },
+    {
+      "description": "Group non-major GitHub Actions bumps and digest pins into one PR",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["minor", "patch", "digest", "pin", "pinDigest"],
+      "groupName": "github actions"
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "golangci-lint version under golangci/golangci-lint-action `with.version`",
+      "managerFilePatterns": ["/^\\.github/workflows/.+\\.ya?ml$/"],
+      "matchStrings": [
+        "uses: golangci/golangci-lint-action@[^\\n]*\\n\\s+with:\\n(?:\\s+[^\\n]*\\n)*?\\s+version:\\s*(?<currentValue>v\\d+\\.\\d+\\.\\d+)"
+      ],
+      "depNameTemplate": "golangci/golangci-lint",
+      "datasourceTemplate": "github-releases"
+    },
+    {
+      "customType": "regex",
+      "description": "mise version under jdx/mise-action `with.version` (tag has v prefix, workflow does not)",
+      "managerFilePatterns": ["/^\\.github/workflows/.+\\.ya?ml$/"],
+      "matchStrings": [
+        "uses: jdx/mise-action@[^\\n]*\\n\\s+with:\\n(?:\\s+[^\\n]*\\n)*?\\s+version:\\s*(?<currentValue>\\d{4}\\.\\d+\\.\\d+)"
+      ],
+      "depNameTemplate": "jdx/mise",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.+)$"
+    }
+  ]
+}
