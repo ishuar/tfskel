@@ -1,0 +1,19 @@
+# Repo-level Codecov config. Keys here merge over the account-level config,
+# which already sets `status.patch: off`.
+coverage:
+  status:
+    project:
+      default:
+        target: auto   # compare to the base commit
+        threshold: 1%  # fail only when total coverage drops by more than 1 point
+    patch: off         # mirrors the account-level setting so this file is self-contained
+
+ignore:
+  # Process entrypoint: only runs via the built binary, never under `go test`.
+  - "main.go"
+  # Build-time generators (`make docs`). Not shipped in tfskel; their uncovered
+  # lines are OS-failure branches that need fault injection to reach.
+  - "tools/**"
+
+comment:
+  require_changes: true  # stay quiet on pushes that do not move coverage
