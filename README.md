@@ -5,7 +5,6 @@
 [![GitHub Release][release-img]][release]
 [![License: MIT][license-img]][license]
 [![Stargazers][stars-shield]][stars-url]
-[![Go Report Card][go-report-img]][go-report]
 [![codecov](https://codecov.io/gh/ishuar/tfskel/graph/badge.svg?token=66VT000UYO)](https://codecov.io/gh/ishuar/tfskel)
 [![Go Version][go-version-img]][go-version]
 
@@ -226,8 +225,6 @@ Released under [MIT LICENSE](/LICENSE)
 [go-version]: https://golang.org
 [test]: https://github.com/ishuar/tfskel/actions/workflows/test.yaml
 [test-img]: https://github.com/ishuar/tfskel/actions/workflows/test.yaml/badge.svg
-[go-report]: https://goreportcard.com/report/github.com/ishuar/tfskel
-[go-report-img]: https://goreportcard.com/badge/github.com/ishuar/tfskel
 [release]: https://github.com/ishuar/tfskel/releases
 [release-img]: https://img.shields.io/github/release/ishuar/tfskel.svg?logo=github
 [license]: https://github.com/ishuar/tfskel/blob/main/LICENSE
