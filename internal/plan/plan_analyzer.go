@@ -3,8 +3,6 @@ package plan
 import (
 	"slices"
 	"sort"
-
-	"github.com/spf13/viper"
 )
 
 // PlanAnalyzer analyzes terraform plans and assesses change severity
@@ -16,17 +14,6 @@ type PlanAnalyzer struct {
 func NewPlanAnalyzer() *PlanAnalyzer {
 	return &PlanAnalyzer{
 		criticalResourceTypes: DefaultCriticalResources(),
-	}
-}
-
-// NewPlanAnalyzerWithConfig creates a plan analyzer with default critical resources
-// merged with user-defined resources from viper config.
-// This allows extending the default list via .tfskel.yaml configuration.
-func NewPlanAnalyzerWithConfig(v *viper.Viper) *PlanAnalyzer {
-	cfg := LoadAnalysisConfig(v)
-	criticalResources := MergeCriticalResources(DefaultCriticalResources(), cfg.CriticalResources)
-	return &PlanAnalyzer{
-		criticalResourceTypes: criticalResources,
 	}
 }
 
