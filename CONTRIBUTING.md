@@ -259,10 +259,10 @@ internal/
 
 ### Adding New Templates
 
-1. Create template file in `internal/templates/`
-2. Add template to `NewRenderer()` in `renderer.go`
-3. Add test in `renderer_test.go`
-4. Update documentation
+1. Add the file under `internal/templates/files/<tf|root|github>/`; the `go:embed` glob in `renderer.go` picks up `*.tmpl` and `*.yaml` automatically
+2. Wire the output path: `root/` files are listed in `internal/bootstrap/runner.go`, `tf/` files in `internal/generate` (the `tmpl*` constants in `generator.go`); `github/` files need no wiring
+3. Add a test in `internal/templates/renderer_test.go`
+4. Update `docs/templates.md`
 
 ### Adding New Commands
 

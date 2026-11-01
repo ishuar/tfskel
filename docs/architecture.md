@@ -92,6 +92,7 @@ go list -f '{{$p := .ImportPath}}{{range .Imports}}{{$p}} {{.}}{{"\n"}}{{end}}' 
 
 | Package | Owns | User docs |
 | --- | --- | --- |
+| `main` | Entry point: runs the cobra tree and maps `cmd.ExitError` to the process exit code. | |
 | `cmd` | Cobra command tree, flag parsing, boundary validation, flag > config > default resolution, exit-code contract. `Long`/`Example` strings are rendered into `docs/reference/` by `tools/gendocs`. | [reference](reference/tfskel.md) |
 | `internal/bootstrap` | `tfskel init`: one-time project setup from zero (root config files, `envs/<env>/<region>/`, optional shared workflows, seed `.tfskel.yaml`). | [upgrading](upgrading.md) |
 | `internal/generate` | `tfskel scaffold` and `scaffold workflows`: per-app rendering, output paths, source and metadata markers, `--upgrade` decisions, operation summary. | [templates](templates.md), [upgrading](upgrading.md) |

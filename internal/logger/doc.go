@@ -1,6 +1,7 @@
 // Package logger is the console logger used by every command. It writes
 // human-readable, optionally colored lines at Debug, Info, Warn and Error
-// levels; Debug lines carry a timestamp and the caller's file:line.
+// levels. When the logger runs at Debug level every line carries a
+// timestamp, and Debug lines also carry the caller's file:line.
 //
 // Two rules keep report output machine-safe:
 //
