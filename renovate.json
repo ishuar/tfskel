@@ -6,35 +6,38 @@
     "schedule:weekly"
   ],
   "timezone": "Europe/Berlin",
+  "minimumReleaseAge": "3 days",
   "semanticCommitScope": null,
   "labels": ["dependencies"],
   "postUpdateOptions": ["gomodTidy", "gomodUpdateImportPaths"],
   "packageRules": [
     {
-      "description": "Go modules: build type (shown in changelog), group non-major bumps",
+      "description": "Go modules commit as build: (shown in release-please changelog)",
       "matchManagers": ["gomod"],
-      "semanticCommitType": "build",
+      "semanticCommitType": "build"
+    },
+    {
+      "description": "GitHub Actions and workflow tool pins commit as ci: (hidden from changelog)",
+      "matchManagers": ["github-actions", "custom.regex"],
+      "semanticCommitType": "ci"
+    },
+    {
+      "description": "Group non-major Go module bumps into one PR",
+      "matchManagers": ["gomod"],
       "matchUpdateTypes": ["minor", "patch", "digest"],
       "groupName": "go modules"
     },
     {
-      "description": "Go toolchain directive bumps stay separate so CI matrix can be reviewed alongside",
+      "description": "Go toolchain directive gets its own PR so the CI matrix can be reviewed with it",
       "matchManagers": ["gomod"],
       "matchDepTypes": ["golang"],
-      "semanticCommitType": "build",
       "groupName": null
     },
     {
-      "description": "GitHub Actions: ci type (hidden from changelog), group everything non-major",
+      "description": "Group non-major GitHub Actions bumps and digest pins into one PR",
       "matchManagers": ["github-actions"],
-      "semanticCommitType": "ci",
       "matchUpdateTypes": ["minor", "patch", "digest", "pin", "pinDigest"],
       "groupName": "github actions"
-    },
-    {
-      "description": "Tool versions pinned as plain strings in workflows",
-      "matchManagers": ["custom.regex"],
-      "semanticCommitType": "ci"
     }
   ],
   "customManagers": [
