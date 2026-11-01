@@ -51,9 +51,6 @@ It gives you a clean, opinionated foundation that keeps your Terraform projects 
 > [!NOTE]
 > *⭐️ If you find tfskel useful, consider starring the repo to stay updated and support the project. ⭐️*
 
-### Demo
-👉 Check out this https://github.com/ishuar/tfskel-demo/pull/2 to see _how to initialize a new terraform monorepo in just 4 steps and leverage the built-in GitHub Actions workflows_:
-
 ## Installation
 
 ### Quick Install
@@ -111,26 +108,60 @@ Add `--dry-run` to any command to see what it would write without touching disk.
 
 The full flag reference for every command is generated from the CLI itself and lives in [`docs/reference/`](docs/reference/tfskel.md). Run `tfskel <command> --help` for the same text in the terminal.
 
+👉 For an end-to-end walkthrough, see [tfskel-demo PR #2](https://github.com/ishuar/tfskel-demo/pull/2): a new Terraform monorepo in four steps using the built-in GitHub Actions workflows.
+
 | Command | What it does | Reference |
 |---|---|---|
-| `tfskel init` | Create the env/region layout, `.tfskel.yaml`, `.mise.toml`, lint and pre-commit config. `--workflows` adds the shared reusable GitHub Actions workflows. | [init](docs/reference/tfskel_init.md) |
-| `tfskel scaffold <app-dir>` | Create a root module under `envs/<env>/<region>/<app-dir>` with `backend.tf` and `versions.tf` rendered from templates. `--upgrade` re-renders when templates or config change. | [scaffold](docs/reference/tfskel_scaffold.md) |
-| `tfskel scaffold workflows` | Create the per-environment plan/apply caller workflow. Run once per environment after `init --workflows`. | [scaffold workflows](docs/reference/tfskel_scaffold_workflows.md) |
-| `tfskel validate` | Report Terraform and provider version drift across the repo and missing or outdated tools. Exit `2` on findings. | [validate](docs/reference/tfskel_validate.md) |
-| `tfskel review plan` | Summarize a plan JSON file, flag critical changes, and optionally add an AI-written summary. `--detailed-exitcode` exits `2` on changes, `3` on deletions or replacements. | [review plan](docs/reference/tfskel_review_plan.md) |
-| `tfskel version` | Print version, commit, and build info. | [version](docs/reference/tfskel_version.md) |
+| `tfskel init` | Create the repo layout and config files | [init](docs/reference/tfskel_init.md) |
+| `tfskel scaffold <app-dir>` | Create a root module from templates | [scaffold](docs/reference/tfskel_scaffold.md) |
+| `tfskel scaffold workflows` | Create the per-environment plan/apply workflow | [scaffold workflows](docs/reference/tfskel_scaffold_workflows.md) |
+| `tfskel validate` | Report version drift and missing tools, exit `2` on findings | [validate](docs/reference/tfskel_validate.md) |
+| `tfskel review plan` | Summarize a plan JSON, flag risky changes, optional AI summary | [review plan](docs/reference/tfskel_review_plan.md) |
+| `tfskel version` | Print version, commit, and build info | [version](docs/reference/tfskel_version.md) |
 
 Every command accepts `--config`, `--verbose`, `--dry-run`, and `--no-color`. Exit code `1` always means an error, so gate CI on the specific finding codes above, not on `!= 0`.
 
-<details>
-<summary>Demos</summary>
+### `tfskel init`
 
-<p align="left"><img src="assets/tfskel-init.gif" alt="tfskel init demo" width="600" /></p>
-<p align="left"><img src="assets/tfskel-scaffold.gif" alt="tfskel scaffold demo" width="600" /></p>
-<p align="left"><img src="assets/tfskel-validate.gif" alt="tfskel validate demo" width="600" /></p>
-<p align="left"><img src="assets/tfskel-review-plan.gif" alt="tfskel review plan demo" width="600" /></p>
+Creates the env/region layout, `.tfskel.yaml`, `.mise.toml`, lint and pre-commit config. Add `--workflows` for the shared reusable GitHub Actions workflows.
 
-</details>
+```bash
+tfskel init --workflows
+```
+
+<img src="assets/tfskel-init.gif" alt="tfskel init demo" width="600" />
+
+### `tfskel scaffold`
+
+Creates a root module under `envs/<env>/<region>/<app-dir>` with `backend.tf` and `versions.tf` rendered from templates. `scaffold workflows` adds the per-environment plan/apply caller workflow.
+
+```bash
+tfskel scaffold myapp --env dev --region eu-central-1
+tfskel scaffold workflows --env dev
+```
+
+<img src="assets/tfskel-scaffold.gif" alt="tfskel scaffold demo" width="600" />
+
+### `tfskel validate`
+
+Reports Terraform and provider version drift across the repo plus missing or outdated tools. Exits `2` when it finds something, so it works as a CI gate.
+
+```bash
+tfskel validate
+```
+
+<img src="assets/tfskel-validate.gif" alt="tfskel validate demo" width="600" />
+
+### `tfskel review plan`
+
+Summarizes a plan JSON file and flags critical changes. `--detailed-exitcode` exits `2` on changes and `3` on deletions or replacements; `--ai` adds a written summary (see below).
+
+```bash
+terraform plan -out plan.bin && terraform show -json plan.bin > plan.json
+tfskel review plan --json-file plan.json --detailed-exitcode
+```
+
+<img src="assets/tfskel-review-plan.gif" alt="tfskel review plan demo" width="600" />
 
 ### AI summary for plan reviews
 
