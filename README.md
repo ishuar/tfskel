@@ -106,7 +106,7 @@ Add `--dry-run` to any command to see what it would write without touching disk.
 
 ## Commands
 
-The full flag reference for every command is generated from the CLI itself and lives in [`docs/reference/`](docs/reference/tfskel.md). Run `tfskel <command> --help` for the same text in the terminal.
+The full flag reference for every command is generated from the CLI itself and lives in [`docs/reference/`](docs/reference/tfskel.md). Run `tfskel <command> --help` for the same text in the terminal. For running tfskel in GitHub Actions, including the workflows it generates and the exit codes to gate on, see [docs/ci-usage.md](docs/ci-usage.md).
 
 👉 For an end-to-end walkthrough, see [tfskel-demo PR #2](https://github.com/ishuar/tfskel-demo/pull/2): a new Terraform monorepo in four steps using the built-in GitHub Actions workflows.
 
@@ -175,16 +175,18 @@ Only changed attributes are sent, sensitive values are replaced with `<redacted>
 
 > **Note**: The AI summary does not replace scanners like `tfsec`, `checkov`, or `trivy`. Use both.
 
+What is sent, how redaction works, and every failure mode are in [docs/ai-review.md](docs/ai-review.md).
+
 ## Configuration
 
 Create a `.tfskel.yaml` in your project root. Precedence is **CLI flags → config file → defaults**.
 
-- [`.tfskel.example.yaml`](.tfskel.example.yaml) is the annotated reference for every key.
-- `backend.s3.bucket_name`, `workflows.aws_role_arn`, and `workflows.aws_role_name` accept Go template syntax. The available placeholders and template functions are listed in the [tfskel book](docs/tfskel-book.md#template-data-structure).
+- [docs/configuration.md](docs/configuration.md) documents every key, its default, and the validation behind each error. [`.tfskel.example.yaml`](.tfskel.example.yaml) is the annotated copy.
+- `backend.s3.bucket_name`, `workflows.aws_role_arn`, and `workflows.aws_role_name` accept Go template syntax. The available placeholders, template functions, and custom template rules are in [docs/templates.md](docs/templates.md).
 
 ## Upgrading Generated Files
 
-Every generated file carries a source marker recording the template and content hash that produced it. `--upgrade` on `init`, `scaffold`, and `scaffold workflows` re-renders only files whose marker no longer matches, and `--force` extends that to files without a marker. Details are in the [tfskel book](docs/tfskel-book.md#upgrading-generated-files).
+Every generated file carries a source marker recording the template and content hash that produced it. `--upgrade` on `init`, `scaffold`, and `scaffold workflows` re-renders only files whose marker no longer matches, and `--force` extends that to files without a marker. The decision rules, `templates.upgrade`, and `--upgrade-all` are in [docs/upgrading.md](docs/upgrading.md).
 
 ## Contributing
 

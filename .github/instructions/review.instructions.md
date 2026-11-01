@@ -187,9 +187,9 @@ When code changes:
 
 * Update README if behavior changes.
 * Update command help output.
-* Update docs/tfskel-book.md for user-facing changes
+* Run `make docs` when cmd/ changes; docs/reference/ is generated and CI fails when it is stale
+* Update the matching concept page in docs/ (configuration, templates, upgrading, ai-review, ci-usage) for user-facing changes
 * Update docs/architecture for architectural changes
-* update docs/golang.md for GoLang concepts changes
 
 If a feature is added:
 
