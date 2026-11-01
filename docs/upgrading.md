@@ -19,7 +19,7 @@ The comment syntax follows the output file's extension (the `.tmpl` suffix is st
 | ------------------ | --------------------------------------------- |
 | `.tf`, `.hcl`      | `## tfskel-source: {...}`                     |
 | `.md`, `.markdown` | `<!-- tfskel-source: {...} -->`               |
-| anything else      | `# tfskel-source: {...}` (YAML, `.gitignore`) |
+| anything else      | `# tfskel-source: {...}` (YAML files)         |
 
 Files without a marker:
 

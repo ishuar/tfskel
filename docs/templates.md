@@ -21,6 +21,32 @@ Source tree: [`internal/templates/files/`](../internal/templates/files/). Files 
 
 The output path is decided by the first path segment of the template name (`tf/`, `root/`, `github/`), not by anything inside the template. `tfskel init` always uses the embedded templates; it does not read `templates.dir`. `.tf`, `.tfvars` and `.hcl` files written by `scaffold` are passed through `hclwrite.Format` after rendering, so the result matches `terraform fmt` and a later `fmt` run is a no-op.
 
+Put together, `tfskel init` followed by `tfskel scaffold myapp --env dev --region eu-central-1` and `tfskel scaffold workflows --env dev` produces:
+
+```text
+.tfskel.yaml
+.gitignore
+.mise.toml
+.pre-commit-config.yaml
+.tflint.hcl
+trivy.yaml
+.github/workflows/
+    lint.yaml                      # only with init --workflows
+    reusable-*.yaml                # only with init --workflows
+    dev-terraform-plan-apply.yaml  # from scaffold workflows
+envs/
+    dev/
+        .terraform-version
+        eu-central-1/
+            myapp/
+                backend.tf
+                versions.tf
+    stg/
+        .terraform-version
+    prd/
+        .terraform-version
+```
+
 ## Custom templates
 
 Point `templates.dir` in `.tfskel.yaml` (or `--templates-dir`, which overrides it) at a directory. Rules, from `internal/templates/renderer.go`:

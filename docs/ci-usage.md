@@ -86,7 +86,7 @@ A push to `main` always applies, regardless of `auto_apply`. Put required review
 - The final file name must not contain `..`, `/`, or `\`, and must survive `filepath.Clean` unchanged; otherwise generation fails.
 - `workflows.create: false` disables this command entirely.
 
-The caller triggers on `pull_request` and `push` to `main` for `envs/<env>/**` and for the workflow file itself, and on `workflow_dispatch` with inputs `auto_apply` (default `false`) and `tfskel_version` (default `latest`). It calls `reusable-detect-changes.yaml` with `envs/<env>/**/*.tf`, then fans out to `reusable-terraform-plan-apply.yaml` with `terraform_files_path`, `aws_region`, and `environment` taken from the matrix.
+The caller triggers on `pull_request` and `push` to `main` for `envs/<env>/**` and for the workflow file itself, and on `workflow_dispatch` with inputs `auto_apply` (default `false`) and `tfskel_version` (default `latest`). It calls `reusable-detect-changes.yaml` with `envs/<env>/**/*.tf`, then fans out to `reusable-terraform-plan-apply.yaml` with `terraform_files_path`, `aws_region`, and `environment` taken from the matrix, `aws_role_to_assume` baked in at scaffold time, and `auto_apply` and `tfskel_version` forwarded from the `workflow_dispatch` inputs.
 
 `aws_role_to_assume` is baked in at scaffold time from `workflows.aws_role_arn`, or from `arn:aws:iam::<account_id>:role/<workflows.aws_role_name>` using the account mapped to that environment. If neither is set the file contains `REPLACE_WITH_ROLE_TO_ASSUME`; edit it before the first run. The `secrets:` block for the SSH deploy key is left commented out.
 

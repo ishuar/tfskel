@@ -90,23 +90,25 @@ Keys marked "template" accept Go template syntax (`{{.Env}}`, `{{.AccountID}}`, 
 `init` creates `.tfskel.yaml` only when none exists. The seed contains:
 
 ```yaml
-terraform_version: ~> 1.13
-provider:
-  aws:
-    version: ~> 6.0
-    account_mapping:
-      dev: REPLACE_WITH_YOUR_DEV_ACCOUNT_ID
-      stg: REPLACE_WITH_YOUR_STG_ACCOUNT_ID
-      prd: REPLACE_WITH_YOUR_PRD_ACCOUNT_ID
-    default_tags:
-      managed_by: terraform
-    regions:
-      - eu-central-1
 backend:
-  s3:
-    bucket_name: CHANGE_ME_WITH_YOUR_GLOBALLY_UNIQUE_S3_BUCKET_NAME
+    s3:
+        bucket_name: CHANGE_ME_WITH_YOUR_GLOBALLY_UNIQUE_S3_BUCKET_NAME
 critical_resources: []
+provider:
+    aws:
+        account_mapping:
+            dev: REPLACE_WITH_YOUR_DEV_ACCOUNT_ID
+            prd: REPLACE_WITH_YOUR_PRD_ACCOUNT_ID
+            stg: REPLACE_WITH_YOUR_STG_ACCOUNT_ID
+        default_tags:
+            managed_by: terraform
+        regions:
+            - eu-central-1
+        version: ~> 6.0
+terraform_version: ~> 1.13
 ```
+
+Keys are written in alphabetical order with four-space indentation because the seed is marshalled from a map; the order carries no meaning.
 
 Edit before running `scaffold` or `validate`:
 
