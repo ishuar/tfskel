@@ -1,5 +1,6 @@
 # tfskel configuration file
-# For more information, visit: https://github.com/ishuar/tfskel/blob/main/docs/tfskel-book.md#configuration
+# Every key is documented in docs/configuration.md:
+# https://github.com/ishuar/tfskel/blob/main/docs/configuration.md
 
 # Terraform version constraint, Required with default embedded templates
 terraform_version: terraform-version-constraint # e.g. ~> 1.13
@@ -9,7 +10,7 @@ backend:
   s3:
     # Required with default embedded templates:
     # Update with your globally unique S3 bucket name for Terraform state storage.
-    # Accepts Go template syntax — see "Template context variables" in README for available placeholders.
+    # Accepts Go template syntax — see docs/templates.md for the available placeholders.
     # Example with templating: "my-tfstate-{{.Env}}-{{.AccountID}}"
     bucket_name: CHANGE_ME_WITH_YOUR_GLOBALLY_UNIQUE_S3_BUCKET_NAME
 provider:
@@ -50,6 +51,16 @@ critical_resources: []
 # Controls how many resources to show in "Changes by Resource Type" and "Changes by Module" tables
 # Set to 0 to show all items (not recommended for large projects)
 top_resources_count: 10
+
+# AI summary for `tfskel review plan --ai` (optional).
+# The provider is chosen with the TFSKEL_AI_PROVIDER env var (anthropic|gemini) and
+# the API key comes from ANTHROPIC_API_KEY or GEMINI_API_KEY; neither is read from this file.
+# See docs/ai-review.md.
+ai:
+  # Model override. Defaults: claude-sonnet-4-6 (anthropic), gemini-2.5-flash (gemini).
+  model: claude-sonnet-4-6
+  # Maximum response tokens. Default: 8192.
+  max_tokens: 8192
 
 # Custom templates directory configuration
 templates:
