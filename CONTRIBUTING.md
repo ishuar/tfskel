@@ -234,15 +234,18 @@ func TestMyFunction(t *testing.T) {
 
 ### File Structure
 
-Place files in the appropriate directory:
+Place files in the appropriate directory. Every package has a `doc.go` package comment stating what it owns; read it before adding code there, and keep it true when you change the package. `golangci-lint` fails on a package without one.
 
 ```
-cmd/           - CLI commands (init, scaffold, validate, review)
+cmd/           - CLI commands (init, scaffold, validate, review, version)
 internal/
+  ai/          - AI narrative clients (Anthropic, Gemini) and the plan payload
+  bootstrap/   - One-time project setup behind `tfskel init`
   config/      - Configuration handling
   validate/    - Validation orchestration and reporting
   version/     - Version detection and drift analysis
-  generate/    - Terraform file generation
+  generate/    - Terraform file generation behind `tfskel scaffold`
+  review/      - `tfskel review plan` flow: analyze, format, optional AI step
   templates/   - Template rendering
   plan/        - Terraform plan parsing and analysis
   toolcheck/   - Tool detection and version checking
