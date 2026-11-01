@@ -10,7 +10,7 @@ go doc ./internal/generate
 
 ## Package map
 
-Arrows point from importer to imported. The graph is derived from the real import list; regenerate it with the command below it when packages change.
+Arrows point from importer to imported. The edge list is derived from the real import list, not drawn by hand: run the command under the diagram and paste its output over the edge lines inside the `subgraph` blocks when packages change.
 
 ```mermaid
 graph TD
@@ -80,7 +80,12 @@ graph TD
 ```
 
 ```bash
-go list -f '{{.ImportPath}} -> {{join .Imports " "}}' ./cmd ./internal/... ./tools/... | grep -o 'github.com/ishuar/tfskel/[^ ]*' | sed 's#github.com/ishuar/tfskel/##'
+# One "importer --> imported" line per in-module edge, ready to paste into the mermaid block.
+go list -f '{{$p := .ImportPath}}{{range .Imports}}{{$p}} {{.}}{{"\n"}}{{end}}' ./... \
+  | grep ' github.com/ishuar/tfskel' \
+  | sed -e 's#github.com/ishuar/tfskel/##g' -e 's#^github.com/ishuar/tfskel #main #' \
+        -e 's#internal/##g' -e 's#tools/gendocs#gendocs#' -e 's# # --> #' \
+  | sort
 ```
 
 ## Packages
