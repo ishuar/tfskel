@@ -259,14 +259,14 @@ git commit -m "fix(generator,templates): handle edge cases in template rendering
 
 #### Job 1: Test Matrix
 - **Operating Systems**: Ubuntu, macOS
-- **Go Versions**: 1.24, 1.25.5
+- **Go Versions**: 1.26, 1.27
 - Race detector enabled (`-race`)
 - Coverage reports generated
-- Codecov upload (Ubuntu + Go 1.25.5 only)
+- Codecov upload (Ubuntu + Go 1.26 only)
 
 #### Job 2: Lint
 - Validates `go mod tidy` consistency
-- `golangci-lint` v2.8.0 (5-minute timeout)
+- `golangci-lint` v2.9.0 (5-minute timeout)
 - Runs after tests complete
 
 #### Job 3: Build
@@ -576,13 +576,13 @@ Before commits reach `main` and trigger releases, they are validated by the test
 
 **Test matrix**:
 - Operating Systems: Ubuntu, macOS
-- Go Versions: 1.24, 1.25.5
+- Go Versions: 1.26, 1.27
 
 **Validation steps**:
 1. **Tests**: Unit tests with race detector and coverage
-2. **Linting**: golangci-lint v2.8.0 with strict checks
+2. **Linting**: golangci-lint v2.9.0 with strict checks
 3. **Build**: Binary compilation and smoke tests
-4. **Coverage**: Upload to Codecov (Ubuntu + Go 1.25.5)
+4. **Coverage**: Upload to Codecov (Ubuntu + Go 1.26)
 
 **Quality gates**:
 - All tests must pass on all platforms

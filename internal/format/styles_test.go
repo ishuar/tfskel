@@ -5,9 +5,6 @@ import (
 	"testing"
 )
 
-// ptr returns a pointer to s, used to distinguish "set to value" from "not set" in test cases.
-func ptr(s string) *string { return &s }
-
 func TestShouldUseColor(t *testing.T) {
 	// envVars lists all environment variables that ShouldUseColor inspects.
 	// Each subtest clears these before applying its own values.
@@ -34,17 +31,17 @@ func TestShouldUseColor(t *testing.T) {
 		// NO_COLOR (presence-based, per https://no-color.org/)
 		{
 			name: "NO_COLOR=1 - colors disabled",
-			env:  map[string]*string{"NO_COLOR": ptr("1")},
+			env:  map[string]*string{"NO_COLOR": new("1")},
 			want: false,
 		},
 		{
 			name: "NO_COLOR empty string - colors disabled (presence is enough)",
-			env:  map[string]*string{"NO_COLOR": ptr("")},
+			env:  map[string]*string{"NO_COLOR": new("")},
 			want: false,
 		},
 		{
 			name: "NO_COLOR beats FORCE_COLOR",
-			env:  map[string]*string{"NO_COLOR": ptr("1"), "FORCE_COLOR": ptr("1")},
+			env:  map[string]*string{"NO_COLOR": new("1"), "FORCE_COLOR": new("1")},
 			want: false,
 		},
 
@@ -52,60 +49,60 @@ func TestShouldUseColor(t *testing.T) {
 		{
 			name:        "FORCE_COLOR=1 overrides flag",
 			noColorFlag: true,
-			env:         map[string]*string{"FORCE_COLOR": ptr("1")},
+			env:         map[string]*string{"FORCE_COLOR": new("1")},
 			want:        true,
 		},
 		{
 			name:        "FORCE_COLOR=true overrides flag",
 			noColorFlag: true,
-			env:         map[string]*string{"FORCE_COLOR": ptr("true")},
+			env:         map[string]*string{"FORCE_COLOR": new("true")},
 			want:        true,
 		},
 		{
 			name:        "FORCE_COLOR=yes overrides flag",
 			noColorFlag: true,
-			env:         map[string]*string{"FORCE_COLOR": ptr("yes")},
+			env:         map[string]*string{"FORCE_COLOR": new("yes")},
 			want:        true,
 		},
 		{
 			name:        "FORCE_COLOR=0 does not override flag",
 			noColorFlag: true,
-			env:         map[string]*string{"FORCE_COLOR": ptr("0")},
+			env:         map[string]*string{"FORCE_COLOR": new("0")},
 			want:        false,
 		},
 		{
 			name:        "FORCE_COLOR=false does not override flag",
 			noColorFlag: true,
-			env:         map[string]*string{"FORCE_COLOR": ptr("false")},
+			env:         map[string]*string{"FORCE_COLOR": new("false")},
 			want:        false,
 		},
 
 		// CI environment variable
 		{
 			name: "CI=true - colors disabled",
-			env:  map[string]*string{"CI": ptr("true")},
+			env:  map[string]*string{"CI": new("true")},
 			want: false,
 		},
 		{
 			name: "CI=1 - colors disabled",
-			env:  map[string]*string{"CI": ptr("1")},
+			env:  map[string]*string{"CI": new("1")},
 			want: false,
 		},
 		{
 			name: "CI=false - falls back to flag",
-			env:  map[string]*string{"CI": ptr("false")},
+			env:  map[string]*string{"CI": new("false")},
 			want: true,
 		},
 
 		// Precedence: NO_COLOR > FORCE_COLOR > CI > flag
 		{
 			name: "FORCE_COLOR overrides CI",
-			env:  map[string]*string{"CI": ptr("true"), "FORCE_COLOR": ptr("1")},
+			env:  map[string]*string{"CI": new("true"), "FORCE_COLOR": new("1")},
 			want: true,
 		},
 		{
 			name: "NO_COLOR overrides FORCE_COLOR and CI",
-			env:  map[string]*string{"NO_COLOR": ptr("1"), "FORCE_COLOR": ptr("1"), "CI": ptr("true")},
+			env:  map[string]*string{"NO_COLOR": new("1"), "FORCE_COLOR": new("1"), "CI": new("true")},
 			want: false,
 		},
 	}
