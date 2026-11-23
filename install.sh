@@ -19,6 +19,7 @@ set -euo pipefail
 #   INSTALL_DIR     — install destination  (default: ~/.local/bin)
 #   TFSKEL_DEBUG    — set to 1 to enable bash debug tracing (set -x)
 #   NO_COLOR        — set to any value to disable colored output
+#   TMPDIR          — where the download is unpacked and test-run (default: /tmp)
 # ─────────────────────────────────────────────
 
 if [[ "${TFSKEL_DEBUG:-0}" == "1" ]]; then
@@ -30,7 +31,8 @@ INSTALL_DIR="${INSTALL_DIR:-${HOME}/.local/bin}"
 
 # ── Colors ───────────────────────────────────
 # Messages go to stderr, so color only when stderr is a terminal (not CI logs or pipes).
-if [[ -t 2 && -z "${NO_COLOR:-}" ]]; then
+# NO_COLOR counts when set to anything, including empty, the same as tfskel itself.
+if [[ -t 2 && -z "${NO_COLOR+x}" ]]; then
   RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
 else
   RED=''; GREEN=''; YELLOW=''; NC=''
@@ -113,7 +115,10 @@ main() {
 
   local filename="tfskel_${version}_${os}_${arch}.tar.gz"
   local base_url="https://github.com/${REPO}/releases/download/v${version}"
-  TMP="$(mktemp -d)"
+  # An explicit template makes TMPDIR take effect on macOS too, where a bare
+  # `mktemp -d` prefers the per-user temp dir.
+  local tmp_root="${TMPDIR:-/tmp}"
+  TMP="$(mktemp -d "${tmp_root%/}/tfskel.XXXXXX")"
   trap 'rm -rf "$TMP"' EXIT
 
   info "Installing tfskel v${version} (${os}/${arch})"
@@ -127,12 +132,18 @@ main() {
 
   tar -xzf "${TMP}/${filename}" -C "${TMP}" tfskel
 
-  # Run the new binary before it replaces a working install.
-  local version_line
-  version_line="$("${TMP}/tfskel" --version | grep -m1 '^tfskel [0-9]')" \
-    || error "The downloaded tfskel does not run on this machine. Nothing was installed."
+  # Run the new binary before it replaces a working install. Only the exit status
+  # decides: the wording of the first line differs between releases
+  # ("tfskel 0.9.0 (...)" vs "tfskel version 0.7.0").
+  local version_output
+  version_output="$("${TMP}/tfskel" --version)" \
+    || error "Could not run the downloaded tfskel from ${TMP} (cause above). Nothing was installed. If that directory is mounted noexec, set TMPDIR to one that allows execution and retry."
+  local version_line="${version_output%%$'\n'*}"
 
   local dest="${INSTALL_DIR}/tfskel"
+  # mv would move the binary inside a directory of that name and still exit 0.
+  [[ ! -d "$dest" ]] \
+    || error "${dest} is a directory. Remove it or set INSTALL_DIR to another location. Nothing was installed."
   if [[ -d "$INSTALL_DIR" && -w "$INSTALL_DIR" ]]; then
     mv "${TMP}/tfskel" "$dest"
   elif [[ -d "$INSTALL_DIR" ]]; then
