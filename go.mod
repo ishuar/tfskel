@@ -3,7 +3,7 @@ module github.com/ishuar/tfskel
 go 1.26.0
 
 require (
-	github.com/anthropics/anthropic-sdk-go v1.84.0
+	github.com/anthropics/anthropic-sdk-go/v2 v2.13.0
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/hashicorp/hcl/v2 v2.25.0
 	github.com/muesli/termenv v0.16.0
