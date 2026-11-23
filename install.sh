@@ -18,6 +18,7 @@ set -euo pipefail
 #   TFSKEL_VERSION  — version to install (default: latest release tag)
 #   INSTALL_DIR     — install destination  (default: ~/.local/bin)
 #   TFSKEL_DEBUG    — set to 1 to enable bash debug tracing (set -x)
+#   NO_COLOR        — set to any value to disable colored output
 # ─────────────────────────────────────────────
 
 if [[ "${TFSKEL_DEBUG:-0}" == "1" ]]; then
@@ -28,7 +29,12 @@ REPO="ishuar/tfskel"
 INSTALL_DIR="${INSTALL_DIR:-${HOME}/.local/bin}"
 
 # ── Colors ───────────────────────────────────
-RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
+# Messages go to stderr, so color only when stderr is a terminal (not CI logs or pipes).
+if [[ -t 2 && -z "${NO_COLOR:-}" ]]; then
+  RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
+else
+  RED=''; GREEN=''; YELLOW=''; NC=''
+fi
 info()  { printf "${GREEN}[✓]${NC}  %s\n" "$*" >&2; }
 warn()  { printf "${YELLOW}[!]${NC}  %s\n" "$*" >&2; }
 error() { printf "${RED}[✗]${NC}  %s\n" "$*" >&2; exit 1; }
@@ -91,7 +97,7 @@ verify_checksum() {
   fi
 
   [[ "$expected" == "$actual" ]] \
-    || error "Checksum mismatch!\n  Expected : ${expected}\n  Got      : ${actual}"
+    || error "Checksum mismatch for ${name}!"$'\n'"     Expected : ${expected}"$'\n'"     Got      : ${actual}"
   info "Checksum verified."
 }
 
@@ -112,11 +118,19 @@ main() {
 
   info "Installing tfskel v${version} (${os}/${arch})"
 
-  curl -fsSL "${base_url}/${filename}" -o "${TMP}/${filename}"
-  curl -fsSL "${base_url}/checksums.txt" -o "${TMP}/checksums.txt"
+  # curl prints the underlying cause (HTTP status, DNS, ...) above these messages.
+  curl -fsSL "${base_url}/checksums.txt" -o "${TMP}/checksums.txt" \
+    || error "Could not download checksums for v${version}. Check that the release exists: https://github.com/${REPO}/releases"
+  curl -fsSL "${base_url}/${filename}" -o "${TMP}/${filename}" \
+    || error "Could not download ${filename}. Release v${version} may not ship a ${os}/${arch} build."
   verify_checksum "${TMP}/${filename}" "${TMP}/checksums.txt"
 
   tar -xzf "${TMP}/${filename}" -C "${TMP}" tfskel
+
+  # Run the new binary before it replaces a working install.
+  local version_line
+  version_line="$("${TMP}/tfskel" --version | grep -m1 '^tfskel [0-9]')" \
+    || error "The downloaded tfskel does not run on this machine. Nothing was installed."
 
   local dest="${INSTALL_DIR}/tfskel"
   if [[ -d "$INSTALL_DIR" && -w "$INSTALL_DIR" ]]; then
@@ -132,14 +146,9 @@ main() {
     sudo mv "${TMP}/tfskel" "$dest"
   fi
 
-  if [[ -x "$dest" ]]; then
-    version_line=$("$dest" --version | grep -m1 '^tfskel [0-9]')
-    info "Installed ${version_line} to ${dest}"
-    if ! command -v tfskel &>/dev/null; then
-      warn "tfskel is not in your PATH. Run: export PATH=\"${INSTALL_DIR}:\$PATH\""
-    fi
-  else
-    error "Installation failed — ${dest} is not executable."
+  info "Installed ${version_line} to ${dest}"
+  if ! command -v tfskel &>/dev/null; then
+    warn "tfskel is not in your PATH. Run: export PATH=\"${INSTALL_DIR}:\$PATH\""
   fi
 }
 
