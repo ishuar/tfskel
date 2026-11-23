@@ -35,7 +35,7 @@ jobs:
           cache: true
 
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7
         with:
           distribution: goreleaser
           version: ~> v2
