@@ -221,7 +221,7 @@ Released under [MIT LICENSE](/LICENSE)
 <!-- MARKDOWN LINKS & IMAGES -->
 <!-- https://www.markdownguide.org/basic-syntax/#reference-style-links -->
 
-[go-version-img]: https://img.shields.io/badge/Go-1.24%2B-blue.svg
+[go-version-img]: https://img.shields.io/badge/Go-1.26%2B-blue.svg
 [go-version]: https://golang.org
 [test]: https://github.com/ishuar/tfskel/actions/workflows/test.yaml
 [test-img]: https://github.com/ishuar/tfskel/actions/workflows/test.yaml/badge.svg
