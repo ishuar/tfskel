@@ -18,6 +18,8 @@ set -euo pipefail
 #   TFSKEL_VERSION  — version to install (default: latest release tag)
 #   INSTALL_DIR     — install destination  (default: ~/.local/bin)
 #   TFSKEL_DEBUG    — set to 1 to enable bash debug tracing (set -x)
+#   NO_COLOR        — set to any value to disable colored output
+#   TMPDIR          — where the download is unpacked and test-run (default: /tmp)
 # ─────────────────────────────────────────────
 
 if [[ "${TFSKEL_DEBUG:-0}" == "1" ]]; then
@@ -28,7 +30,13 @@ REPO="ishuar/tfskel"
 INSTALL_DIR="${INSTALL_DIR:-${HOME}/.local/bin}"
 
 # ── Colors ───────────────────────────────────
-RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
+# Messages go to stderr, so color only when stderr is a terminal (not CI logs or pipes).
+# NO_COLOR counts when set to anything, including empty, the same as tfskel itself.
+if [[ -t 2 && -z "${NO_COLOR+x}" ]]; then
+  RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
+else
+  RED=''; GREEN=''; YELLOW=''; NC=''
+fi
 info()  { printf "${GREEN}[✓]${NC}  %s\n" "$*" >&2; }
 warn()  { printf "${YELLOW}[!]${NC}  %s\n" "$*" >&2; }
 error() { printf "${RED}[✗]${NC}  %s\n" "$*" >&2; exit 1; }
@@ -91,7 +99,7 @@ verify_checksum() {
   fi
 
   [[ "$expected" == "$actual" ]] \
-    || error "Checksum mismatch!\n  Expected : ${expected}\n  Got      : ${actual}"
+    || error "Checksum mismatch for ${name}!"$'\n'"     Expected : ${expected}"$'\n'"     Got      : ${actual}"
   info "Checksum verified."
 }
 
@@ -107,18 +115,35 @@ main() {
 
   local filename="tfskel_${version}_${os}_${arch}.tar.gz"
   local base_url="https://github.com/${REPO}/releases/download/v${version}"
-  TMP="$(mktemp -d)"
+  # An explicit template makes TMPDIR take effect on macOS too, where a bare
+  # `mktemp -d` prefers the per-user temp dir.
+  local tmp_root="${TMPDIR:-/tmp}"
+  TMP="$(mktemp -d "${tmp_root%/}/tfskel.XXXXXX")"
   trap 'rm -rf "$TMP"' EXIT
 
   info "Installing tfskel v${version} (${os}/${arch})"
 
-  curl -fsSL "${base_url}/${filename}" -o "${TMP}/${filename}"
-  curl -fsSL "${base_url}/checksums.txt" -o "${TMP}/checksums.txt"
+  # curl prints the underlying cause (HTTP status, DNS, ...) above these messages.
+  curl -fsSL "${base_url}/checksums.txt" -o "${TMP}/checksums.txt" \
+    || error "Could not download checksums for v${version}. Check that the release exists: https://github.com/${REPO}/releases"
+  curl -fsSL "${base_url}/${filename}" -o "${TMP}/${filename}" \
+    || error "Could not download ${filename}. Release v${version} may not ship a ${os}/${arch} build."
   verify_checksum "${TMP}/${filename}" "${TMP}/checksums.txt"
 
   tar -xzf "${TMP}/${filename}" -C "${TMP}" tfskel
 
+  # Run the new binary before it replaces a working install. Only the exit status
+  # decides: the wording of the first line differs between releases
+  # ("tfskel 0.9.0 (...)" vs "tfskel version 0.7.0").
+  local version_output
+  version_output="$("${TMP}/tfskel" --version)" \
+    || error "Could not run the downloaded tfskel from ${TMP} (cause above). Nothing was installed. If that directory is mounted noexec, set TMPDIR to one that allows execution and retry."
+  local version_line="${version_output%%$'\n'*}"
+
   local dest="${INSTALL_DIR}/tfskel"
+  # mv would move the binary inside a directory of that name and still exit 0.
+  [[ ! -d "$dest" ]] \
+    || error "${dest} is a directory. Remove it or set INSTALL_DIR to another location. Nothing was installed."
   if [[ -d "$INSTALL_DIR" && -w "$INSTALL_DIR" ]]; then
     mv "${TMP}/tfskel" "$dest"
   elif [[ -d "$INSTALL_DIR" ]]; then
@@ -132,14 +157,9 @@ main() {
     sudo mv "${TMP}/tfskel" "$dest"
   fi
 
-  if [[ -x "$dest" ]]; then
-    version_line=$("$dest" --version | grep -m1 '^tfskel [0-9]')
-    info "Installed ${version_line} to ${dest}"
-    if ! command -v tfskel &>/dev/null; then
-      warn "tfskel is not in your PATH. Run: export PATH=\"${INSTALL_DIR}:\$PATH\""
-    fi
-  else
-    error "Installation failed — ${dest} is not executable."
+  info "Installed ${version_line} to ${dest}"
+  if ! command -v tfskel &>/dev/null; then
+    warn "tfskel is not in your PATH. Run: export PATH=\"${INSTALL_DIR}:\$PATH\""
   fi
 }
 

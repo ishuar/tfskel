@@ -106,6 +106,8 @@ tfskel does not check that the shared files exist. The caller references them wi
 
 `install.sh` downloads the release tarball for the runner's OS and architecture (Linux or Darwin, `x86_64` or `arm64`), verifies it against `checksums.txt`, and places the binary in `INSTALL_DIR` (default `~/.local/bin`, which is not on `PATH` on GitHub runners). Leave `TFSKEL_VERSION` unset for the latest release; a value must be `MAJOR.MINOR.PATCH` with or without a `v` prefix. The script needs `curl`, `tar`, and `sha256sum` or `shasum`.
 
+Before it replaces anything, the script runs the downloaded binary from its temp directory. If that fails it stops and leaves an existing `tfskel` untouched. On a host whose temp directory is mounted `noexec`, set `TMPDIR` to a directory that allows execution.
+
 With a Go toolchain on the runner, `go install github.com/ishuar/tfskel@<RELEASED_VERSION>` works too; the binary lands in `$(go env GOPATH)/bin`.
 
 ### Color
@@ -118,6 +120,8 @@ tfskel decides on color in this order, first match wins:
 4. Otherwise `--no-color` decides.
 
 GitHub Actions sets `CI=true`, so output is plain by default. Set `FORCE_COLOR=1` on the step to get ANSI colors in the job log.
+
+`install.sh` decides separately for its own messages: color only when stderr is a terminal and `NO_COLOR` is not set. It does not read `FORCE_COLOR` or `CI`, so its lines are plain in job logs.
 
 ### Machine-readable output
 
