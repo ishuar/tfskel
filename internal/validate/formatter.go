@@ -6,12 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image/color"
 	"io"
 	"os"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/lipgloss/table"
+	"charm.land/lipgloss/v2"
+	"charm.land/lipgloss/v2/table"
 	"github.com/ishuar/tfskel/internal/format"
 	"github.com/ishuar/tfskel/internal/toolcheck"
 	"golang.org/x/term"
@@ -67,6 +68,9 @@ func (f *Formatter) Format(report *Report, outputFormat format.OutputFormat, w i
 // --- Table Output ---
 
 func (f *Formatter) formatTable(report *Report, w io.Writer) error {
+	if !f.useColor {
+		w = format.PlainWriter(w)
+	}
 	buf := &bytes.Buffer{}
 	styles := format.NewCommonStyles(f.useColor)
 	f.tableWidth = f.calculateOptimalWidth()
@@ -462,11 +466,11 @@ func findingsForCheck(findings []Finding, check CheckName) []Finding {
 	return result
 }
 
-func (f *Formatter) colorize(text string, color lipgloss.Color) string {
+func (f *Formatter) colorize(text string, c color.Color) string {
 	if !f.useColor {
 		return text
 	}
-	return lipgloss.NewStyle().Foreground(color).Render(text)
+	return lipgloss.NewStyle().Foreground(c).Render(text)
 }
 
 func (f *Formatter) calculateOptimalWidth() int {
