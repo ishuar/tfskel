@@ -90,12 +90,9 @@ func (a *AnthropicClient) Explain(ctx context.Context, payload *Payload, writer 
 			Text:         SystemPrompt,
 			CacheControl: anthropic.NewCacheControlEphemeralParam(),
 		}},
-		Messages: []anthropic.MessageParam{{
-			Role: anthropic.MessageParamRoleUser,
-			Content: []anthropic.ContentBlockParamUnion{{
-				OfText: &anthropic.TextBlockParam{Text: string(body)},
-			}},
-		}},
+		Messages: []anthropic.MessageParam{
+			anthropic.NewUserMessage(anthropic.NewTextBlock(string(body))),
+		},
 	})
 
 	var stopReason anthropic.StopReason
