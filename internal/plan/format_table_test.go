@@ -113,7 +113,7 @@ func TestPlanFormatter_writeTableOutputChanges(t *testing.T) {
 			}
 
 			var buf bytes.Buffer
-			err := formatter.writeTableOutputChanges(&buf, analysis, newTestStyles())
+			err := formatter.writeTableOutputChanges(&buf, analysis, format.NewCommonStyles())
 			require.NoError(t, err)
 
 			output := buf.String()
@@ -136,7 +136,7 @@ func TestPlanFormatter_writeTableResourceDetails_Filtered(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	err := formatter.writeTableResourceDetails(&buf, analysis, newTestStyles())
+	err := formatter.writeTableResourceDetails(&buf, analysis, format.NewCommonStyles())
 	require.NoError(t, err)
 
 	output := buf.String()
@@ -156,7 +156,7 @@ func TestPlanFormatter_writeTableResourceDetails_FilterMatchesAll(t *testing.T) 
 	}
 
 	var buf bytes.Buffer
-	err := formatter.writeTableResourceDetails(&buf, analysis, newTestStyles())
+	err := formatter.writeTableResourceDetails(&buf, analysis, format.NewCommonStyles())
 	require.NoError(t, err)
 
 	output := buf.String()
@@ -176,7 +176,7 @@ func TestPlanFormatter_writeTableResourceDetails_Unfiltered(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	err := formatter.writeTableResourceDetails(&buf, analysis, newTestStyles())
+	err := formatter.writeTableResourceDetails(&buf, analysis, format.NewCommonStyles())
 	require.NoError(t, err)
 
 	output := buf.String()
@@ -223,10 +223,4 @@ func TestPlanFormatter_formatTable_ColorModes(t *testing.T) {
 
 		assert.Contains(t, buf.String(), "\x1b[")
 	})
-}
-
-// newTestStyles returns CommonStyles with color off. Bold codes still render:
-// lipgloss v2 leaves stripping to the writer (see format.PlainWriter).
-func newTestStyles() format.CommonStyles {
-	return format.NewCommonStyles(false)
 }
