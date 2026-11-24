@@ -41,9 +41,9 @@ func NewCommonStyles(useColor bool) CommonStyles {
 		titleStyle = titleStyle.Foreground(lipgloss.NoColor{})
 		headerStyle = headerStyle.Foreground(lipgloss.NoColor{})
 		mutedStyle = mutedStyle.Foreground(lipgloss.NoColor{})
-		borderColor = lipgloss.NoColor{}
-		headerColor = lipgloss.NoColor{}
-		rowColor = lipgloss.NoColor{}
+		borderColor = lipgloss.Color("")
+		headerColor = lipgloss.Color("")
+		rowColor = lipgloss.Color("")
 	}
 
 	return CommonStyles{
