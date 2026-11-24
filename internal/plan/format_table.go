@@ -17,7 +17,7 @@ func (f *PlanFormatter) formatTable(analysis *PlanAnalysis, w io.Writer) error {
 	if !f.useColor {
 		w = format.PlainWriter(w)
 	}
-	styles := format.NewCommonStyles(f.useColor)
+	styles := format.NewCommonStyles()
 
 	// Calculate optimal width for all tables
 	f.tableWidth = f.calculateOptimalWidth()

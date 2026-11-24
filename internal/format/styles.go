@@ -27,8 +27,10 @@ func PlainWriter(w io.Writer) io.Writer {
 	return &colorprofile.Writer{Forward: w, Profile: colorprofile.NoTTY}
 }
 
-// NewCommonStyles creates consistent styles for both version and plan formatters
-func NewCommonStyles(useColor bool) CommonStyles {
+// NewCommonStyles creates the styles shared by the plan and validate table
+// formatters. They always carry color: when color is off, the formatters strip
+// it at the writer with PlainWriter.
+func NewCommonStyles() CommonStyles {
 	borderColor := lipgloss.Color("14")
 	headerColor := lipgloss.Color("14")
 	rowColor := lipgloss.Color("252")
@@ -36,15 +38,6 @@ func NewCommonStyles(useColor bool) CommonStyles {
 	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(headerColor).MarginBottom(1)
 	headerStyle := lipgloss.NewStyle().Bold(true).Foreground(headerColor).MarginTop(1)
 	mutedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
-
-	if !useColor {
-		titleStyle = titleStyle.Foreground(lipgloss.NoColor{})
-		headerStyle = headerStyle.Foreground(lipgloss.NoColor{})
-		mutedStyle = mutedStyle.Foreground(lipgloss.NoColor{})
-		borderColor = lipgloss.Color("")
-		headerColor = lipgloss.Color("")
-		rowColor = lipgloss.Color("")
-	}
 
 	return CommonStyles{
 		TitleStyle:  titleStyle,

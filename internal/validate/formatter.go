@@ -72,7 +72,7 @@ func (f *Formatter) formatTable(report *Report, w io.Writer) error {
 		w = format.PlainWriter(w)
 	}
 	buf := &bytes.Buffer{}
-	styles := format.NewCommonStyles(f.useColor)
+	styles := format.NewCommonStyles()
 	f.tableWidth = f.calculateOptimalWidth()
 
 	// Header
