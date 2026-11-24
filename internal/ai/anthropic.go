@@ -8,8 +8,8 @@ import (
 	"io"
 	"os"
 
-	"github.com/anthropics/anthropic-sdk-go"
-	"github.com/anthropics/anthropic-sdk-go/option"
+	"github.com/anthropics/anthropic-sdk-go/v2"
+	"github.com/anthropics/anthropic-sdk-go/v2/option"
 )
 
 // APIKeyEnvVar is the sole credential source for the Anthropic client.
@@ -90,12 +90,9 @@ func (a *AnthropicClient) Explain(ctx context.Context, payload *Payload, writer 
 			Text:         SystemPrompt,
 			CacheControl: anthropic.NewCacheControlEphemeralParam(),
 		}},
-		Messages: []anthropic.MessageParam{{
-			Role: anthropic.MessageParamRoleUser,
-			Content: []anthropic.ContentBlockParamUnion{{
-				OfText: &anthropic.TextBlockParam{Text: string(body)},
-			}},
-		}},
+		Messages: []anthropic.MessageParam{
+			anthropic.NewUserMessage(anthropic.NewTextBlock(string(body))),
+		},
 	})
 
 	var stopReason anthropic.StopReason
