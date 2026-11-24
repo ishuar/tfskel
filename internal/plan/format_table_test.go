@@ -195,7 +195,6 @@ func countOutputAction(changes []OutputChange, action string) int {
 	return count
 }
 
-// newTestStyles returns unstyled CommonStyles for deterministic test output.
 func TestPlanFormatter_formatTable_ColorModes(t *testing.T) {
 	analysis := &PlanAnalysis{
 		TotalChanges:     1,
@@ -226,6 +225,8 @@ func TestPlanFormatter_formatTable_ColorModes(t *testing.T) {
 	})
 }
 
+// newTestStyles returns CommonStyles with color off. Bold codes still render:
+// lipgloss v2 leaves stripping to the writer (see format.PlainWriter).
 func newTestStyles() format.CommonStyles {
 	return format.NewCommonStyles(false)
 }
