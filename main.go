@@ -14,8 +14,7 @@ import (
 func main() {
 	if err := cmd.Execute(); err != nil {
 		// Check if it's an ExitError with a specific code
-		var exitErr *cmd.ExitError
-		if errors.As(err, &exitErr) {
+		if exitErr, ok := errors.AsType[*cmd.ExitError](err); ok {
 			os.Exit(exitErr.Code)
 		}
 		os.Exit(1)

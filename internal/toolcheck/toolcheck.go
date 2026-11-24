@@ -25,6 +25,13 @@ const (
 	StatusGlobalPath
 )
 
+const (
+	// versionFlag is the argument every default tool accepts to print its version.
+	versionFlag = "--version"
+	// preCommit is spelled the same as display name, binary, and mise plugin.
+	preCommit = "pre-commit"
+)
+
 // ToolDef defines how to detect and version-check a tool.
 type ToolDef struct {
 	Name       string   // display name, e.g. "Terraform"
@@ -58,11 +65,11 @@ var versionPattern = regexp.MustCompile(`(\d+\.\d+\.\d+)`)
 // DefaultTools returns the standard tool set for tfskel projects.
 func DefaultTools() []ToolDef {
 	return []ToolDef{
-		{Name: "Terraform", Binary: "terraform", VersionCmd: []string{"--version"}, MisePlugin: "terraform", Required: true},
-		{Name: "TFLint", Binary: "tflint", VersionCmd: []string{"--version"}, MisePlugin: "tflint", Required: true},
-		{Name: "Trivy", Binary: "trivy", VersionCmd: []string{"--version"}, MisePlugin: "trivy", Required: true},
-		{Name: "pre-commit", Binary: "pre-commit", VersionCmd: []string{"--version"}, MisePlugin: "pre-commit", Required: true},
-		{Name: "AWS CLI", Binary: "aws", VersionCmd: []string{"--version"}, MisePlugin: "awscli", Required: false},
+		{Name: "Terraform", Binary: "terraform", VersionCmd: []string{versionFlag}, MisePlugin: "terraform", Required: true},
+		{Name: "TFLint", Binary: "tflint", VersionCmd: []string{versionFlag}, MisePlugin: "tflint", Required: true},
+		{Name: "Trivy", Binary: "trivy", VersionCmd: []string{versionFlag}, MisePlugin: "trivy", Required: true},
+		{Name: preCommit, Binary: preCommit, VersionCmd: []string{versionFlag}, MisePlugin: preCommit, Required: true},
+		{Name: "AWS CLI", Binary: "aws", VersionCmd: []string{versionFlag}, MisePlugin: "awscli", Required: false},
 	}
 }
 

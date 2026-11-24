@@ -40,7 +40,7 @@ func newScaffoldCmd(root *rootOpts) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "scaffold [app-dir]",
 		Aliases: []string{"sc"},
-		GroupID: "main",
+		GroupID: mainGroupID,
 		Short:   "Scaffold Terraform project structure for target application",
 		Long: `Accepts any subcommand value as an <app-dir> input and
 creates its root module directories.

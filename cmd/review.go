@@ -10,7 +10,7 @@ import (
 func newReviewCmd(root *rootOpts) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "review",
-		GroupID: "main",
+		GroupID: mainGroupID,
 		Short:   "Review and analyze Terraform plan changes",
 		Long: `The review command helps you analyze terraform plan output
 to understand the impact of planned changes before applying them.`,
