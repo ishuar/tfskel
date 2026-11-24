@@ -4,9 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/ishuar/tfskel/internal/format"
-	"github.com/muesli/termenv"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -45,11 +43,6 @@ not managing folder structures, drift, or plan reviews. It provides clean, consi
 and scalable Terraform layouts with built-in best practices.`,
 		PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
 			opts.useColor = format.ShouldUseColor(opts.noColor)
-			if opts.useColor {
-				lipgloss.SetColorProfile(termenv.TrueColor)
-			} else {
-				lipgloss.SetColorProfile(termenv.Ascii)
-			}
 			opts.initConfig()
 			return nil
 		},

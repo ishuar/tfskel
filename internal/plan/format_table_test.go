@@ -196,6 +196,36 @@ func countOutputAction(changes []OutputChange, action string) int {
 }
 
 // newTestStyles returns unstyled CommonStyles for deterministic test output.
+func TestPlanFormatter_formatTable_ColorModes(t *testing.T) {
+	analysis := &PlanAnalysis{
+		TotalChanges:     1,
+		Additions:        1,
+		HasChanges:       true,
+		TerraformVersion: "1.13.1",
+		ResourceChanges: []AnalyzedResource{
+			{Name: "web", Type: "aws_instance", ActionString: ActionCreate, Severity: SeverityLow},
+		},
+		OutputChanges:   []OutputChange{{Name: "ip", Actions: []string{ActionCreate}}},
+		OutputAdditions: 1,
+		ByType:          map[string]int{"aws_instance": 1},
+	}
+
+	t.Run("color off strips every ANSI sequence", func(t *testing.T) {
+		var buf bytes.Buffer
+		require.NoError(t, NewPlanFormatter(false).Format(analysis, format.FormatTable, &buf))
+
+		assert.Contains(t, buf.String(), "Terraform Plan Analysis")
+		assert.NotContains(t, buf.String(), "\x1b", "bold and color codes must not reach plain output")
+	})
+
+	t.Run("color on keeps ANSI sequences", func(t *testing.T) {
+		var buf bytes.Buffer
+		require.NoError(t, NewPlanFormatter(true).Format(analysis, format.FormatTable, &buf))
+
+		assert.Contains(t, buf.String(), "\x1b[")
+	})
+}
+
 func newTestStyles() format.CommonStyles {
 	return format.NewCommonStyles(false)
 }

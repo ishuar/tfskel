@@ -1,16 +1,18 @@
 package plan
 
 import (
-	"github.com/charmbracelet/lipgloss"
+	"image/color"
+
+	"charm.land/lipgloss/v2"
 )
 
 // Named color constants for terminal output
 const (
-	colorRed    = lipgloss.Color("1")
-	colorGreen  = lipgloss.Color("2")
-	colorYellow = lipgloss.Color("3")
-	colorBlue   = lipgloss.Color("4")
-	colorCyan   = lipgloss.Color("6")
+	colorRed    = lipgloss.Red
+	colorGreen  = lipgloss.Green
+	colorYellow = lipgloss.Yellow
+	colorBlue   = lipgloss.Blue
+	colorCyan   = lipgloss.Cyan
 )
 
 // colorizeAction adds color styling to action strings
@@ -19,23 +21,23 @@ func (f *PlanFormatter) colorizeAction(action string) string {
 		return action
 	}
 
-	var color lipgloss.Color
+	var actionColor color.Color
 	switch action {
 	case ActionCreate:
-		color = colorGreen
+		actionColor = colorGreen
 	case ActionDelete:
-		color = colorRed
+		actionColor = colorRed
 	case ActionReplace:
-		color = colorYellow
+		actionColor = colorYellow
 	case ActionUpdate:
-		color = colorCyan
+		actionColor = colorCyan
 	case ActionRead:
-		color = colorBlue
+		actionColor = colorBlue
 	default:
 		return action
 	}
 
-	return lipgloss.NewStyle().Foreground(color).Render(action)
+	return lipgloss.NewStyle().Foreground(actionColor).Render(action)
 }
 
 // colorizeSeverity adds color styling to severity strings
