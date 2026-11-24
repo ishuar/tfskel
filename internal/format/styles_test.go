@@ -1,9 +1,30 @@
 package format
 
 import (
+	"bytes"
+	"io"
 	"os"
+	"strings"
 	"testing"
+
+	"charm.land/lipgloss/v2"
 )
+
+func TestPlainWriter(t *testing.T) {
+	styled := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Red).Render("drift")
+	if !strings.Contains(styled, "\x1b[") {
+		t.Fatalf("styled input %q carries no ANSI sequence, so the test proves nothing", styled)
+	}
+
+	var buf bytes.Buffer
+	if _, err := io.WriteString(PlainWriter(&buf), styled+"\n"); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	if got, want := buf.String(), "drift\n"; got != want {
+		t.Errorf("PlainWriter wrote %q, want %q", got, want)
+	}
+}
 
 func TestShouldUseColor(t *testing.T) {
 	// envVars lists all environment variables that ShouldUseColor inspects.

@@ -1,9 +1,12 @@
 package format
 
 import (
+	"image/color"
+	"io"
 	"os"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/colorprofile"
 )
 
 // CommonStyles holds shared lipgloss styles for table formatting
@@ -11,9 +14,17 @@ type CommonStyles struct {
 	TitleStyle  lipgloss.Style
 	HeaderStyle lipgloss.Style
 	MutedStyle  lipgloss.Style
-	BorderColor lipgloss.Color
-	HeaderColor lipgloss.Color
-	RowColor    lipgloss.Color
+	BorderColor color.Color
+	HeaderColor color.Color
+	RowColor    color.Color
+}
+
+// PlainWriter wraps w so that every ANSI sequence is removed before it is
+// written. lipgloss v2 styles always render their escape codes (bold
+// included) and leave it to the writer to decide what reaches the user, so
+// table formatters send their output through this when color is off.
+func PlainWriter(w io.Writer) io.Writer {
+	return &colorprofile.Writer{Forward: w, Profile: colorprofile.NoTTY}
 }
 
 // NewCommonStyles creates consistent styles for both version and plan formatters

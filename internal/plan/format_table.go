@@ -7,13 +7,16 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/lipgloss/table"
+	"charm.land/lipgloss/v2"
+	"charm.land/lipgloss/v2/table"
 	"github.com/ishuar/tfskel/internal/format"
 )
 
 // formatTable outputs analysis as a formatted table with color styling
 func (f *PlanFormatter) formatTable(analysis *PlanAnalysis, w io.Writer) error {
+	if !f.useColor {
+		w = format.PlainWriter(w)
+	}
 	styles := format.NewCommonStyles(f.useColor)
 
 	// Calculate optimal width for all tables

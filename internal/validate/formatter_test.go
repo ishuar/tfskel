@@ -227,6 +227,24 @@ func TestFormatter_FormatTable(t *testing.T) {
 		assert.Contains(t, output, "1 finding")
 	})
 
+	t.Run("color off strips every ANSI sequence", func(t *testing.T) {
+		f := &Formatter{useColor: false, terminalWidth: 120}
+
+		var buf bytes.Buffer
+		require.NoError(t, f.Format(sampleReport(), format.FormatTable, &buf))
+
+		assert.NotContains(t, buf.String(), "\x1b", "bold and color codes must not reach plain output")
+	})
+
+	t.Run("color on keeps ANSI sequences", func(t *testing.T) {
+		f := &Formatter{useColor: true, terminalWidth: 120}
+
+		var buf bytes.Buffer
+		require.NoError(t, f.Format(sampleReport(), format.FormatTable, &buf))
+
+		assert.Contains(t, buf.String(), "\x1b[")
+	})
+
 	t.Run("skipped checks show skipped status", func(t *testing.T) {
 		f := &Formatter{useColor: false, terminalWidth: 120}
 		report := &Report{
