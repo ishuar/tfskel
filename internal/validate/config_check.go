@@ -11,6 +11,10 @@ import (
 	"github.com/ishuar/tfskel/internal/version"
 )
 
+// componentTerraformVersionFile labels findings raised against a
+// .terraform-version file.
+const componentTerraformVersionFile = "terraform-version-file"
+
 // RunConfigCheck detects version constraint drift in .tf files against .tfskel.yaml
 // and checks .terraform-version files for version mismatches.
 func RunConfigCheck(cfg *config.Config, scanDir string) ([]Finding, CheckResult, error) {
@@ -122,6 +126,7 @@ func checkTerraformVersionFiles(cfg *config.Config, scanDir string) ([]Finding, 
 
 		count++
 
+		//nolint:gosec // G122: following a symlinked .terraform-version is existing behavior; os.Root would reject one that points outside the scan dir
 		data, readErr := os.ReadFile(path)
 		if readErr != nil {
 			relPath := path
@@ -131,7 +136,7 @@ func checkTerraformVersionFiles(cfg *config.Config, scanDir string) ([]Finding, 
 			findings = append(findings, Finding{
 				Check:     CheckConfig,
 				Resource:  relPath,
-				Component: "terraform-version-file",
+				Component: componentTerraformVersionFile,
 				Message:   "could not read .terraform-version file",
 				Detail:    readErr.Error(),
 			})
@@ -151,7 +156,7 @@ func checkTerraformVersionFiles(cfg *config.Config, scanDir string) ([]Finding, 
 			findings = append(findings, Finding{
 				Check:     CheckConfig,
 				Resource:  relPath,
-				Component: "terraform-version-file",
+				Component: componentTerraformVersionFile,
 				Message:   "version mismatch",
 				Expected:  expectedVersion,
 				Actual:    actual,
@@ -167,7 +172,7 @@ func checkTerraformVersionFiles(cfg *config.Config, scanDir string) ([]Finding, 
 		findings = append(findings, Finding{
 			Check:     CheckConfig,
 			Resource:  relPath,
-			Component: "terraform-version-file",
+			Component: componentTerraformVersionFile,
 			Message:   "failed to walk directory",
 			Detail:    err.Error(),
 		})

@@ -56,6 +56,8 @@ type Report struct {
 var versionPattern = regexp.MustCompile(`(\d+\.\d+\.\d+)`)
 
 // DefaultTools returns the standard tool set for tfskel projects.
+//
+//nolint:goconst // each row is independent per-tool data; fields and rows that share a spelling ("--version", "pre-commit") do so by coincidence
 func DefaultTools() []ToolDef {
 	return []ToolDef{
 		{Name: "Terraform", Binary: "terraform", VersionCmd: []string{"--version"}, MisePlugin: "terraform", Required: true},

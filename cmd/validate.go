@@ -24,7 +24,7 @@ func newValidateCmd(root *rootOpts) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:     "validate",
-		GroupID: "main",
+		GroupID: mainGroupID,
 		Short:   "Validate project health: version drift and tool installation",
 		Long: `Checks whether your project is in sync with .tfskel.yaml by running
 two validation checks:

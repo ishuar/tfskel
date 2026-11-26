@@ -41,7 +41,7 @@ func newVersionCmd() *cobra.Command {
 func buildVersionInfo() string {
 	if BuiltBy == "goreleaser" {
 		// GoReleaser injects RFC3339 (e.g. "2026-04-17T00:03:27Z"); keep just the date.
-		date := strings.SplitN(Date, "T", 2)[0]
+		date, _, _ := strings.Cut(Date, "T")
 		return fmt.Sprintf(
 			"tfskel %s (%s)\ncommit:  %s\nos/arch: %s/%s\n%s/releases/tag/v%s\n",
 			Version, date, Commit, runtime.GOOS, runtime.GOARCH, repoURL, Version,

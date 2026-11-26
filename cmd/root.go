@@ -18,6 +18,10 @@ var (
 	Date   = "unknown"
 )
 
+// mainGroupID is the cobra group every user-facing subcommand registers under.
+// It must match between the root's AddGroup call and each subcommand's GroupID.
+const mainGroupID = "main"
+
 // rootOpts holds persistent flag state for the root command, shared with
 // every subcommand via *rootOpts pointer. Keeping state in a struct (rather
 // than package-level vars) makes the command tree safe to construct per-test.
@@ -64,7 +68,7 @@ and scalable Terraform layouts with built-in best practices.`,
 		return err
 	})
 
-	cmd.AddGroup(&cobra.Group{ID: "main", Title: "Main Commands:"})
+	cmd.AddGroup(&cobra.Group{ID: mainGroupID, Title: "Main Commands:"})
 
 	cmd.PersistentFlags().StringVarP(&opts.cfgFile, "config", "c", "", "config file (default is .tfskel.yaml in current directory)")
 	cmd.PersistentFlags().BoolVarP(&opts.verbose, "verbose", "v", false, "enable verbose output")

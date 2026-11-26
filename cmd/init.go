@@ -26,7 +26,7 @@ func newInitCmd(root *rootOpts) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:     "init",
-		GroupID: "main",
+		GroupID: mainGroupID,
 		Short:   "Initialize tfskel project structure",
 		Long: `Initializes a new Terraform monorepo with an environment-and-region-based
 directory layout with sensible defaults already in place.
