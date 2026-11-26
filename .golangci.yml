@@ -24,7 +24,7 @@ linters:
     - wrapcheck       # Too strict for error wrapping
     - wsl             # Whitespace style too opinionated
     - exhaustruct     # Too strict for struct initialization
-    - exhaustruct_v5  # Same linter under its new name (exhaustruct is deprecated)
+    - exhaustruct_v5  # New major version of exhaustruct (now deprecated); still too strict
     - gomodguard      # Deprecated; replaced by gomodguard_v2, which stays enabled
     - forbidigo       # Overridden below — narrow rule enabled via settings.forbidigo
     - gochecknoglobals # Overridden below — enabled, with internal/ exempted

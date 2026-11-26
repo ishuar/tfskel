@@ -126,7 +126,7 @@ func checkTerraformVersionFiles(cfg *config.Config, scanDir string) ([]Finding, 
 
 		count++
 
-		//nolint:gosec // G122: the user's own scan dir, no privilege boundary; os.Root would reject a .terraform-version symlinked from outside it
+		//nolint:gosec // G122: following a symlinked .terraform-version is existing behavior; os.Root would reject one that points outside the scan dir
 		data, readErr := os.ReadFile(path)
 		if readErr != nil {
 			relPath := path

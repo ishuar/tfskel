@@ -206,7 +206,7 @@ func (r *Renderer) loadCustomTemplates(customDir string) error {
 			return nil
 		}
 
-		//nolint:gosec // G122: the user's own custom template dir, no privilege boundary; os.Root would reject templates symlinked from outside it
+		//nolint:gosec // G122: following a symlinked template is existing behavior; os.Root would reject one that points outside the custom dir
 		content, err := os.ReadFile(path)
 		if err != nil {
 			return fmt.Errorf("failed to read custom template %s: %w", path, err)

@@ -266,7 +266,7 @@ git commit -m "fix(generator,templates): handle edge cases in template rendering
 
 #### Job 2: Lint
 - Validates `go mod tidy` consistency
-- `golangci-lint` v2.9.0 (5-minute timeout)
+- `golangci-lint` (5-minute timeout), version pinned in `.github/workflows/test.yaml`
 - Runs after tests complete
 
 #### Job 3: Build
@@ -580,7 +580,7 @@ Before commits reach `main` and trigger releases, they are validated by the test
 
 **Validation steps**:
 1. **Tests**: Unit tests with race detector and coverage
-2. **Linting**: golangci-lint v2.9.0 with strict checks
+2. **Linting**: golangci-lint with strict checks
 3. **Build**: Binary compilation and smoke tests
 4. **Coverage**: Upload to Codecov (Ubuntu + Go 1.26)
 
