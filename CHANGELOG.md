@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.9.1](https://github.com/ishuar/tfskel/compare/v0.9.0...v0.9.1) (2026-11-26)
+
+
+### 🐞 Bug Fixes
+
+* harden install script failure paths ([#133](https://github.com/ishuar/tfskel/issues/133)) ([f7af741](https://github.com/ishuar/tfskel/commit/f7af741c170d8f299eb8ef134b94508bc3229752))
+
+
+### 📦 Other Changes
+
+* drop the dead no-color branch from NewCommonStyles ([#135](https://github.com/ishuar/tfskel/issues/135)) ([2658fa0](https://github.com/ishuar/tfskel/commit/2658fa0eb15645b32e0a942a1e042ec5e6439446))
+* update go modules ([#126](https://github.com/ishuar/tfskel/issues/126)) ([2871ccb](https://github.com/ishuar/tfskel/commit/2871ccbbead50dc4a1e40e7c40fd898834004b7e))
+* update module github.com/anthropics/anthropic-sdk-go to v2 ([#130](https://github.com/ishuar/tfskel/issues/130)) ([f5070b5](https://github.com/ishuar/tfskel/commit/f5070b53dfbdf1a8ae9413e7a194b7db9ea10a79))
+* update module github.com/charmbracelet/lipgloss to v2 ([#131](https://github.com/ishuar/tfskel/issues/131)) ([29a9e4a](https://github.com/ishuar/tfskel/commit/29a9e4ab59c7f664f4435a83ba66187dc47f95e4))
+
 ## [0.9.0](https://github.com/ishuar/tfskel/compare/v0.8.4...v0.9.0) (2026-11-01)
 
 
