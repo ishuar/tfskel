@@ -298,6 +298,11 @@ func (o *scaffoldWorkflowsOpts) run(cmd *cobra.Command, _ []string) error {
 		return ErrForceRequiresUpgrade
 	}
 
+	if !cfg.Workflows.Create {
+		log.Info("Workflow generation is disabled (workflows.create: false in config)")
+		return nil
+	}
+
 	var filesystem fs.FileSystem = fs.NewOSFileSystem()
 	if o.root.dryRun {
 		filesystem = fs.NewDryRunFileSystem(filesystem)
