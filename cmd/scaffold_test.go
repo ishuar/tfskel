@@ -471,6 +471,40 @@ func TestRunScaffoldWorkflows(t *testing.T) {
 		assert.DirExists(t, filepath.Join(tmpDir, ".github", "workflows"))
 	})
 
+	t.Run("workflows.create false generates nothing and reports no success", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		writeTestConfigInline(t, tmpDir, `terraform_version: "~> 1.13"
+provider:
+  aws:
+    version: "~> 6.0"
+    account_mapping:
+      dev: "123456789012"
+    regions:
+      - "eu-central-1"
+backend:
+  s3:
+    bucket_name: "test-tf-state-bucket"
+workflows:
+  create: false
+`)
+		chdirTemp(t, tmpDir)
+		viper.Reset()
+		(&rootOpts{}).initConfig()
+		t.Cleanup(func() { viper.Reset() })
+
+		opts := &scaffoldWorkflowsOpts{root: &rootOpts{}, env: "dev"}
+
+		var err error
+		out := captureStdout(t, func() {
+			err = opts.run(newTestCmd(t), []string{})
+		})
+		require.NoError(t, err)
+
+		assert.NoDirExists(t, filepath.Join(tmpDir, ".github"))
+		assert.Contains(t, out, "Workflow generation is disabled")
+		assert.NotContains(t, out, "GitHub workflow files generated!")
+	})
+
 	t.Run("force without upgrade returns error", func(t *testing.T) {
 		scaffoldTestSetup(t)
 		opts := &scaffoldWorkflowsOpts{root: &rootOpts{}, env: "dev", force: true}
